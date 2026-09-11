@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' blob: https://u.y.qq.com https://lp.open.weixin.qq.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src * data: blob:; media-src * data: blob:; connect-src * data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" id="meta-theme-color" content="#dfe9f6">
 <script id="ib-splash-precheck">
 
@@ -24207,6 +24207,34 @@ function boot(){(async function(){try{if(typeof loadMP==='function')await loadMP
   try{if(typeof SEC_RENDER!=='undefined'&&SEC_RENDER){var o9=SEC_RENDER['visual:main'];SEC_RENDER['visual:main']=function(){try{if(o9)o9.apply(this,arguments)}catch(e){}apply()}}}catch(e){}
   var sw=document.getElementById('ui-reduce');if(sw)sw.addEventListener('click',function(){setTimeout(apply,60)})})()}
 window.IBFx={apply:apply,set:set,cur:cur};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else setTimeout(boot,0)})();
+</script>
+<script id="ib-mobile-lock">
+(function(){
+  try{
+    // 1. 移动端触摸样式：限制缩放行为，优化响应
+    var st=document.createElement('style');
+    st.id='ib-lock-zoom-css';
+    st.textContent='html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}';
+    document.head.appendChild(st);
+
+    // 2. iOS Safari 手势拦截（防止多指捏合放大页面）
+    var noop=function(e){if(e.cancelable)e.preventDefault()};
+    document.addEventListener('gesturestart',noop,{passive:false});
+    document.addEventListener('gesturechange',noop,{passive:false});
+    document.addEventListener('gestureend',noop,{passive:false});
+
+    // 3. 白屏防御看门狗：防止预遮罩（#lk-preveil）因配置加载挂起而长时间滞留
+    setTimeout(function(){
+      try{
+        var v=document.getElementById('lk-preveil');
+        if(v&&!v.classList.contains('off')){
+          v.classList.add('off');
+          setTimeout(function(){try{v.remove()}catch(x){}},420);
+        }
+      }catch(e){}
+    },3500);
+  }catch(e){}
+})();
 </script>
 </body>
 </html>

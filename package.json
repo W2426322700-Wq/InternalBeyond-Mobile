@@ -1,0 +1,15 @@
+{
+  "name": "internal-beyond-mobile",
+  "version": "1.0.0",
+  "description": "Internal Beyond Mobile web application",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "echo 'Build complete'",
+    "start": "node server.js",
+    "lint": "node --check server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
