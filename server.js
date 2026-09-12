@@ -24,6 +24,11 @@ app.use(express.static(__dirname, {
   }
 }));
 
+// Fallback for browser-native speech recognition requests
+app.post(['*browser-native*', '*/audio/transcriptions'], (req, res) => {
+  res.status(200).json({ text: '' });
+});
+
 // Fallback all other routes to index.html for SPA behavior
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));

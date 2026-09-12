@@ -49,11 +49,12 @@
     if (typeof str !== 'string') return str;
     try {
       // 过滤中文语气标签：【语气：xxx】
-      str = str.replace(/【语气[:：][^】]{1,6}】\s*/g, '');
-      // 过滤所有英文/中文方括号语气音效标签：[sighs], [laughs], [warm][quiet], [pauses], [chuckle] 等
-      str = str.replace(/\[[a-zA-Z0-9_\-\s,'.:!?()\u4e00-\u9fa5]{1,80}\]/g, '');
-      // 清理由于标签删除留下的多余连续空格
-      str = str.replace(/ {2,}/g, ' ');
+      str = str.replace(/【语气[:：][^】]{1,10}】\s*/g, '');
+      // 过滤所有英文/中文方括号语气音效标签：如 [warm][quiet], [pauses], [chuckle], [sighs], [laughs] 等
+      // 负向预查排除 Markdown 链接如 [text](url)
+      str = str.replace(/\[[^\r\n\]]{1,80}\](?!\()/g, '');
+      // 清理由于标签删除留下的多余连续空格和首尾空
+      str = str.replace(/[ \t]{2,}/g, ' ').replace(/^[ \t]+|[ \t]+$/gm, '');
     } catch (e) {}
     return str;
   }
@@ -88,6 +89,22 @@
     }
   }
 
+  // 劫持 _stPaintText 确保流式输出时也不外露方括号标签
+  function hookStPaintText() {
+    var origStPaintText = window._stPaintText;
+    if (origStPaintText && !origStPaintText._elHooked) {
+      var wrapped = function (raw) {
+        var res = origStPaintText.apply(this, arguments);
+        if (typeof res === 'string') {
+          res = cleanDisplayToneTags(res);
+        }
+        return res;
+      };
+      wrapped._elHooked = true;
+      window._stPaintText = wrapped;
+    }
+  }
+
   // 劫持 _ibcCleanSent 确保通话字幕也完全洗去方括号标签
   function hookIbcCleanSent() {
     var origIbcCleanSent = window._ibcCleanSent;
@@ -102,6 +119,83 @@
       wrapped._elHooked = true;
       window._ibcCleanSent = wrapped;
     }
+  }
+
+  // 核心：劫持 IBVB.bar 确保语音条点开展示的原文（.ibvb-tx / .vm-orig）彻底隐形方括号标签
+  function hookIBVB() {
+    if (!window.IBVB || !window.IBVB.bar) return;
+    var origBar = window.IBVB.bar;
+    if (origBar._elHooked) return;
+    var wrappedBar = function (m, vb) {
+      var w = origBar.apply(this, arguments);
+      try {
+        if (w) {
+          var tx = w.querySelector('.ibvb-tx');
+          if (tx && typeof tx.textContent === 'string') {
+            tx.textContent = cleanDisplayToneTags(tx.textContent);
+          }
+        }
+      } catch (e) {}
+      return w;
+    };
+    wrappedBar._elHooked = true;
+    window.IBVB.bar = wrappedBar;
+  }
+
+  // 批量净化指定的 DOM 树内的语音原文节点
+  function cleanAllVoiceTextNodes(root) {
+    try {
+      var scope = root || document;
+      var targets = scope.querySelectorAll ? scope.querySelectorAll('.ibvb-tx, .vm-orig, .fav-orig') : [];
+      for (var i = 0; i < targets.length; i++) {
+        var el = targets[i];
+        if (el && el.textContent && /\[[^\r\n\]]{1,80}\]/.test(el.textContent)) {
+          el.textContent = cleanDisplayToneTags(el.textContent);
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 监听语音条点击展开原文图标（.vb-t），确保展开一瞬间所有文本 100% 洁净
+  function bindVoiceOrigClickSanitizer() {
+    document.addEventListener('click', function (e) {
+      try {
+        var btn = e.target.closest && e.target.closest('.vb-t, .ibvb');
+        if (btn) {
+          var wrap = btn.closest('.vm-stack, .ibvb-wrap, .mrow, .m-col');
+          if (wrap) {
+            cleanAllVoiceTextNodes(wrap);
+          } else {
+            cleanAllVoiceTextNodes(document);
+          }
+        }
+      } catch (err) {}
+    }, true);
+  }
+
+  // MutationObserver 实时净化动态新增的语音条原文节点
+  function observeVoiceOrigElements() {
+    try {
+      if (!window.MutationObserver) return;
+      var obs = new MutationObserver(function (mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var m = mutations[i];
+          if (m.addedNodes && m.addedNodes.length) {
+            for (var j = 0; j < m.addedNodes.length; j++) {
+              var node = m.addedNodes[j];
+              if (node.nodeType === 1) {
+                if (node.classList && (node.classList.contains('ibvb-tx') || node.classList.contains('vm-orig') || node.classList.contains('fav-orig'))) {
+                  cleanAllVoiceTextNodes(node.parentNode || node);
+                } else if (node.querySelector && node.querySelector('.ibvb-tx, .vm-orig, .fav-orig')) {
+                  cleanAllVoiceTextNodes(node);
+                }
+              }
+            }
+          }
+        }
+      });
+      obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    } catch (e) {}
   }
 
   // ----------------------------------------------------
@@ -381,7 +475,7 @@
   }
 
   // ----------------------------------------------------
-  // 4. HTML5 Web Speech API 0毫秒同步直连支持
+  // 4. HTML5 Web Speech API 0毫秒同步直连与通话全双工支持
   // ----------------------------------------------------
   var SpeechRecClass = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -390,6 +484,7 @@
   window._nativeRecInstance = null;
   window._nativeIsListening = false;
 
+  // 4.1 普通按键式单次录音
   window._nativeSpeechStart = function () {
     window._nativeTranscript = '';
     if (!SpeechRecClass) return false;
@@ -402,6 +497,7 @@
       var rec = new SpeechRecClass();
       rec.continuous = false;
       rec.interimResults = true;
+      // 聊天输入录音默认锁定中文识别，防止误切为英文
       rec.lang = 'zh-CN';
 
       rec.onresult = function (event) {
@@ -453,6 +549,322 @@
     });
   };
 
+  // 根据当前设置获取合适语言：始终锁定中文普通话识别（zh-CN），彻底解决语音/视频通话识别成英文的问题
+  function getAppropriateSpeechLang() {
+    return 'zh-CN';
+  }
+
+  // 4.1.1 注入常用转写模型下拉列表选项（#vt-mpre）
+  function injectNativeSttOption() {
+    try {
+      var sel = document.getElementById('vt-mpre');
+      if (sel) {
+        var existing = sel.querySelector('option[value="browser-native"]');
+        if (!existing) {
+          var opt = document.createElement('option');
+          opt.value = 'browser-native';
+          opt.textContent = '浏览器原生识别（Web Speech API · 0延时免Key）';
+          if (sel.children.length > 1) {
+            sel.insertBefore(opt, sel.children[1]);
+          } else {
+            sel.appendChild(opt);
+          }
+        }
+
+        var modelInput = document.getElementById('vt-model');
+        if (modelInput && modelInput.value === 'browser-native') {
+          if (sel.value !== 'browser-native') {
+            sel.value = 'browser-native';
+          }
+        }
+
+        if (!sel._nativeHooked) {
+          sel._nativeHooked = true;
+          sel.addEventListener('change', function () {
+            if (sel.value === 'browser-native') {
+              var epInput = document.getElementById('vt-ep');
+              var keyInput = document.getElementById('vt-key');
+              var modelIn = document.getElementById('vt-model');
+              var saveBtn = document.getElementById('vt-save');
+              if (epInput) epInput.value = 'browser-native';
+              if (keyInput) keyInput.value = 'browser-native';
+              if (modelIn) modelIn.value = 'browser-native';
+              if (saveBtn) {
+                try { saveBtn.click(); } catch (e) {}
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 4.2 语音通话与视频通话常驻原生识别管理器
+  var CallNativeSpeech = {
+    active: false,
+    instance: null,
+    currentInterim: '',
+    historyFinal: '',
+    waitResolvers: [],
+
+    start: function () {
+      if (!SpeechRecClass) return;
+      this.stop();
+      this.active = true;
+      this.currentInterim = '';
+      this.historyFinal = '';
+      this.waitResolvers = [];
+
+      var self = this;
+      try {
+        var rec = new SpeechRecClass();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = getAppropriateSpeechLang();
+
+        rec.onresult = function (event) {
+          var interim = '';
+          var finalStr = '';
+          for (var i = event.resultIndex; i < event.results.length; i++) {
+            var item = event.results[i];
+            if (item && item[0]) {
+              if (item.isFinal) {
+                finalStr += item[0].transcript;
+              } else {
+                interim += item[0].transcript;
+              }
+            }
+          }
+          if (finalStr) {
+            self.historyFinal += (self.historyFinal ? ' ' : '') + finalStr.trim();
+            self.currentInterim = '';
+          } else if (interim) {
+            self.currentInterim = interim.trim();
+          }
+
+          var full = self.getFullText();
+          if (full && self.waitResolvers.length > 0) {
+            var resolvedText = self.consumeText();
+            while (self.waitResolvers.length > 0) {
+              var r = self.waitResolvers.shift();
+              r(resolvedText);
+            }
+          }
+        };
+
+        rec.onerror = function (e) {
+          if (e.error === 'not-allowed') {
+            self.active = false;
+          }
+        };
+
+        rec.onend = function () {
+          // 通话依然在线且用户未主动停掉，自动续跑保活
+          if (self.active && isCallActive()) {
+            setTimeout(function () {
+              if (self.active && isCallActive()) {
+                try { rec.start(); } catch (err) {}
+              }
+            }, 120);
+          }
+        };
+
+        self.instance = rec;
+        rec.start();
+      } catch (err) {
+        console.warn('[CallNativeSpeech] Start error:', err);
+      }
+    },
+
+    getFullText: function () {
+      var parts = [];
+      if (this.historyFinal) parts.push(this.historyFinal);
+      if (this.currentInterim) parts.push(this.currentInterim);
+      return parts.join(' ').trim();
+    },
+
+    consumeText: function () {
+      var full = this.getFullText();
+      this.historyFinal = '';
+      this.currentInterim = '';
+      return full;
+    },
+
+    waitForUtterance: function (timeoutMs) {
+      var self = this;
+      timeoutMs = timeoutMs || 800;
+      return new Promise(function (resolve) {
+        var current = self.getFullText();
+        if (current) {
+          resolve(self.consumeText());
+          return;
+        }
+
+        var timer = setTimeout(function () {
+          var idx = self.waitResolvers.indexOf(onDone);
+          if (idx !== -1) self.waitResolvers.splice(idx, 1);
+          resolve(self.consumeText());
+        }, timeoutMs);
+
+        var onDone = function (text) {
+          clearTimeout(timer);
+          resolve(text);
+        };
+
+        self.waitResolvers.push(onDone);
+      });
+    },
+
+    stop: function () {
+      this.active = false;
+      if (this.instance) {
+        try {
+          this.instance.onend = null;
+          this.instance.onerror = null;
+          this.instance.stop();
+        } catch (e) {}
+        this.instance = null;
+      }
+      this.currentInterim = '';
+      this.historyFinal = '';
+      this.waitResolvers = [];
+    }
+  };
+
+  function isCallActive() {
+    try {
+      if (window._IBCALL && window._IBCALL.active && window._IBCALL.active()) return true;
+      var el = document.getElementById('ibcall');
+      if (el && !el.hidden && !el.classList.contains('mini')) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function checkAndSyncCallASR() {
+    var isCalling = isCallActive();
+    var isNative = isCurrentVtNative();
+    if (isCalling && isNative) {
+      if (!CallNativeSpeech.active) {
+        CallNativeSpeech.start();
+      }
+    } else {
+      if (CallNativeSpeech.active) {
+        CallNativeSpeech.stop();
+      }
+    }
+  }
+
+  function isCurrentVtNative() {
+    if (window._isBrowserNativeVT) return true;
+    if (typeof _vt !== 'undefined' && _vt && _vt.model === 'browser-native') return true;
+    return false;
+  }
+
+  function hookIBCALL() {
+    if (!window._IBCALL) return;
+    var origOpen = window._IBCALL.open;
+    if (origOpen && !origOpen._nativeHooked) {
+      window._IBCALL.open = async function () {
+        var res = await origOpen.apply(this, arguments);
+        setTimeout(checkAndSyncCallASR, 300);
+        return res;
+      };
+      window._IBCALL.open._nativeHooked = true;
+    }
+
+    var origEnd = window._IBCALL.end;
+    if (origEnd && !origEnd._nativeHooked) {
+      window._IBCALL.end = async function () {
+        CallNativeSpeech.stop();
+        return origEnd.apply(this, arguments);
+      };
+      window._IBCALL.end._nativeHooked = true;
+    }
+  }
+
+  // 4.3 核心：拦截 fetch 发送至语音识别接口的请求，无缝注入浏览器原生识别文本
+  function hookFetchForNativeASR() {
+    var origFetch = window.fetch;
+    if (!origFetch || origFetch._nativeASRHooked) return;
+
+    var wrappedFetch = async function (input, init) {
+      var url = '';
+      if (typeof input === 'string') url = input;
+      else if (input && input.url) url = input.url;
+
+      var isFormData = init && (init.body instanceof FormData);
+      var modelVal = isFormData ? init.body.get('model') : '';
+      var isNativeReq = false;
+
+      if (url && url.indexOf('browser-native') !== -1) {
+        isNativeReq = true;
+      } else if (modelVal === 'browser-native') {
+        isNativeReq = true;
+      } else if (isCurrentVtNative() && (url.indexOf('audio/transcriptions') !== -1 || (isFormData && init.body.has('file')))) {
+        isNativeReq = true;
+      }
+
+      if (isNativeReq) {
+        var text = '';
+        if (isCallActive()) {
+          // 通话模式下提取常驻识别结果
+          text = await CallNativeSpeech.waitForUtterance(750);
+        } else {
+          // 普通聊天输入
+          if (window._nativeIsListening) {
+            text = await window._nativeSpeechStop();
+          } else {
+            text = window._nativeTranscript || '';
+          }
+          window._nativeTranscript = '';
+        }
+
+        return new Response(JSON.stringify({ text: text || '' }), {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // 如果是发往云端 ASR 的请求，确保追加中文语言参数，杜绝 Whisper 产生英文幻觉乱码
+      if (isFormData && (url.indexOf('audio/transcriptions') !== -1 || init.body.has('file'))) {
+        try {
+          if (!init.body.has('language')) {
+            init.body.append('language', 'zh');
+          }
+        } catch (e) {}
+      }
+
+      return origFetch.apply(this, arguments);
+    };
+
+    wrappedFetch._nativeASRHooked = true;
+    try {
+      Object.defineProperty(window, 'fetch', {
+        value: wrappedFetch,
+        writable: true,
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e1) {
+      try {
+        var proto = Object.getPrototypeOf(window);
+        if (proto) {
+          Object.defineProperty(proto, 'fetch', {
+            get: function () { return wrappedFetch; },
+            configurable: true
+          });
+        }
+      } catch (e2) {
+        try {
+          window.fetch = wrappedFetch;
+        } catch (e3) {
+          console.warn('[extension] fetch hook fallback failed:', e3);
+        }
+      }
+    }
+  }
+
   function hookVTReady() {
     var origLoadVT = window.loadVT;
     if (origLoadVT) {
@@ -469,8 +881,7 @@
 
     var origVtReady = window.vtReady;
     window.vtReady = function () {
-      if (window._isBrowserNativeVT) return true;
-      if (typeof _vt !== 'undefined' && _vt && _vt.model === 'browser-native') return true;
+      if (isCurrentVtNative()) return true;
       return origVtReady ? origVtReady.apply(this, arguments) : false;
     };
   }
@@ -518,24 +929,6 @@
       }
       return origVtTranscribe ? origVtTranscribe.apply(this, arguments) : '';
     };
-
-    var origCallASR = window.callASR;
-    window.callASR = async function (blob) {
-      try {
-        var vt = typeof loadVT === 'function' ? await loadVT() : null;
-        if (vt && vt.model === 'browser-native') {
-          var text = window._nativeTranscript || '';
-          if (window._nativeIsListening) {
-            text = await window._nativeSpeechStop();
-            window._nativeSpeechStart();
-          }
-          return text || '';
-        }
-      } catch (e) {
-        console.warn('[WebSpeechAPI] callASR error:', e);
-      }
-      return origCallASR ? origCallASR.apply(this, arguments) : '';
-    };
   }
 
   // ----------------------------------------------------
@@ -544,15 +937,26 @@
   function initExtension() {
     hookMdRenderHtml();
     hookFillTextInto();
+    hookStPaintText();
     hookIbcCleanSent();
+    hookIBVB();
+    cleanAllVoiceTextNodes();
+    bindVoiceOrigClickSanitizer();
+    observeVoiceOrigElements();
     hookRenderAiBody();
     hookCallEffMerge();
     hookToneClause();
     hookVTReady();
+    hookIBCALL();
+    hookFetchForNativeASR();
     bindGlobalMicTrigger();
     hookTranscribe();
+    injectNativeSttOption();
 
     setInterval(injectElToneUI, 400);
+    setInterval(cleanAllVoiceTextNodes, 1200);
+    setInterval(checkAndSyncCallASR, 1000);
+    setInterval(injectNativeSttOption, 800);
   }
 
   if (document.readyState === 'loading') {
