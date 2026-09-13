@@ -2111,7 +2111,7 @@
 
 // =========================================================================
 // 5. 多端全自动无缝云端同步引擎 (Auto Cloud Sync Engine)
-// 无论换手机、换电脑、换浏览器，所有数据、设置、聊天记录、记忆与文件全自动同步
+// 包含 localStorage 与 IndexedDB 的全量双向同步，页面加载自动拉取覆盖，数据变动自动保存
 // =========================================================================
 (function () {
   'use strict';
@@ -2126,38 +2126,101 @@
   var _lastSyncTime = 0;
   var _pendingUploadTimer = null;
 
-  // 1. 获取所有 IndexedDB 本地数据整包
+  // 提取 localStorage 中的所有键值对
+  function dumpLocalStorage() {
+    var storage = {};
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (key) {
+          storage[key] = localStorage.getItem(key);
+        }
+      }
+    } catch (e) {
+      console.warn('[CloudSync] Dump localStorage error:', e);
+    }
+    return storage;
+  }
+
+  // 恢复 localStorage
+  function restoreLocalStorage(storageObj) {
+    if (!storageObj || typeof storageObj !== 'object') return false;
+    var changed = false;
+    try {
+      for (var k in storageObj) {
+        if (Object.prototype.hasOwnProperty.call(storageObj, k) && !k.startsWith('_')) {
+          var val = storageObj[k];
+          var strVal = typeof val === 'string' ? val : JSON.stringify(val);
+          if (localStorage.getItem(k) !== strVal) {
+            localStorage.setItem(k, strVal);
+            changed = true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[CloudSync] Restore localStorage error:', e);
+    }
+    return changed;
+  }
+
+  // 1. 抓取完整数据包（localStorage + IndexedDB）
   async function dumpAllData() {
-    if (typeof window.dbGetAll !== 'function') return null;
-    var result = { _ts: Date.now(), _ver: 2 };
-    for (var i = 0; i < STORES.length; i++) {
-      var s = STORES[i];
-      try {
-        result[s] = await window.dbGetAll(s);
-      } catch (e) {
-        result[s] = [];
+    var result = {
+      _ts: Date.now(),
+      _ver: 3,
+      localStorage: dumpLocalStorage(),
+      indexedDB: {}
+    };
+
+    if (typeof window.dbGetAll === 'function') {
+      for (var i = 0; i < STORES.length; i++) {
+        var s = STORES[i];
+        try {
+          var items = await window.dbGetAll(s);
+          result.indexedDB[s] = items;
+          result[s] = items; // 兼容旧版格式
+        } catch (e) {
+          result.indexedDB[s] = [];
+        }
       }
     }
     return result;
   }
 
-  // 2. 将服务器云端最新数据完整恢复到当前本地 IndexedDB
+  // 2. 将云端数据完整覆盖恢复到本地
   async function restoreAllData(remote) {
-    if (!remote || typeof remote !== 'object' || typeof window.dbPut !== 'function') return false;
+    if (!remote || typeof remote !== 'object') return false;
     _isSyncing = true;
+    var restored = false;
+
     try {
-      for (var i = 0; i < STORES.length; i++) {
-        var s = STORES[i];
-        if (Array.isArray(remote[s])) {
-          var items = remote[s];
-          for (var j = 0; j < items.length; j++) {
-            try {
-              await window.dbPut(s, items[j]);
-            } catch (err) {}
+      // 2.1 恢复 localStorage
+      if (remote.localStorage && typeof remote.localStorage === 'object') {
+        restoreLocalStorage(remote.localStorage);
+        restored = true;
+      } else {
+        // 兼容直接以键值存储的 localStorage 备份
+        restoreLocalStorage(remote);
+      }
+
+      // 2.2 恢复 IndexedDB
+      if (typeof window.dbPut === 'function') {
+        var dbData = remote.indexedDB || remote;
+        for (var i = 0; i < STORES.length; i++) {
+          var s = STORES[i];
+          if (Array.isArray(dbData[s])) {
+            var items = dbData[s];
+            for (var j = 0; j < items.length; j++) {
+              try {
+                await window.dbPut(s, items[j]);
+                restored = true;
+              } catch (err) {}
+            }
           }
         }
       }
-      return true;
+
+      return restored;
     } catch (e) {
       console.warn('[CloudSync] Restore error:', e);
       return false;
@@ -2166,7 +2229,7 @@
     }
   }
 
-  // 3. 异步推送到服务器 (防抖，避免高频请求)
+  // 3. 异步推送到服务端 /api/sync/save (防抖 1.5s)
   function schedulePush() {
     if (_isSyncing) return;
     if (_pendingUploadTimer) clearTimeout(_pendingUploadTimer);
@@ -2181,59 +2244,76 @@
         });
         if (r.ok) {
           _lastSyncTime = Date.now();
-          console.log('[CloudSync] Auto-saved to server successfully.');
+          console.log('[CloudSync] Auto-saved data to /api/sync/save successfully.');
         }
       } catch (e) {
-        // 网络波动静默重试，不打扰用户
+        // 静默重试，网络离线时不干扰用户
       }
-    }, 2500);
+    }, 1500);
   }
 
-  // 4. 打开网页时从服务器拉取并合并
+  // 4. 页面加载时自动请求 /api/sync/latest 拉取并覆盖本地
   async function initCloudSync() {
     try {
       var res = await fetch('/api/sync/latest', { cache: 'no-store' });
       if (!res.ok) return;
       var info = await res.json();
-      
-      if (info && info.ok && info.exists && info.data) {
-        var localConfigs = [];
-        try { localConfigs = await window.dbGetAll('apiConfigs'); } catch (e) {}
-        
-        // 如果本地几乎是空的（刚换新设备/新浏览器），或者云端数据更新，立即拉取还原
-        var shouldRestore = false;
-        if (!localConfigs || localConfigs.length === 0) {
-          shouldRestore = true;
-        }
 
-        if (shouldRestore) {
-          console.log('[CloudSync] Detected new device/empty session, restoring from server cloud backup...');
-          var ok = await restoreAllData(info.data);
-          if (ok) {
-            if (typeof window.toast === 'function') {
-              window.toast('已从云端同步最新数据');
-            }
-            // 自动刷新页面数据视图
-            try { if (typeof window.renderFriends === 'function') window.renderFriends(); } catch (e) {}
-            try { if (typeof window.renderApiList === 'function') window.renderApiList(); } catch (e) {}
-            try { if (typeof window.renderProfile === 'function') window.renderProfile(); } catch (e) {}
-            try { if (typeof window.renderIcode === 'function') window.renderIcode(); } catch (e) {}
+      if (info && info.ok && info.exists && info.data) {
+        console.log('[CloudSync] Remote data found, pulling and restoring to local...');
+        var ok = await restoreAllData(info.data);
+        if (ok) {
+          console.log('[CloudSync] Remote data synchronized successfully.');
+          if (typeof window.toast === 'function') {
+            window.toast('已从云端同步最新数据');
           }
-        } else {
-          // 本地已有数据，且比云端更新，主动同步一次
-          schedulePush();
+          // 触发应用视图刷新
+          try { if (typeof window.renderFriends === 'function') window.renderFriends(); } catch (e) {}
+          try { if (typeof window.renderApiList === 'function') window.renderApiList(); } catch (e) {}
+          try { if (typeof window.renderProfile === 'function') window.renderProfile(); } catch (e) {}
+          try { if (typeof window.renderIcode === 'function') window.renderIcode(); } catch (e) {}
+          try { window.dispatchEvent(new Event('storage')); } catch (e) {}
         }
       } else {
-        // 服务器上还是空的，立即把当前本地数据推上去作为云端第一份备份
+        // 服务端尚无备份，推送本地初始数据
+        console.log('[CloudSync] No remote backup yet, pushing initial local data to server...');
         schedulePush();
       }
     } catch (e) {
-      console.log('[CloudSync] Sync init check skipped (standalone or offline).');
+      console.log('[CloudSync] Sync init check skipped (network error or offline).');
     }
   }
 
-  // 5. 钩子拦截：只要本地有数据写入 (dbPut / dbDelete)，自动触发防抖云同步
-  function hookDatabase() {
+  // 5. 钩子拦截：监控 localStorage 与 IndexedDB 的所有变动
+  function hookStorageMutations() {
+    // 5.1 拦截 localStorage 操作
+    try {
+      var origSetItem = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = function (key, val) {
+        origSetItem(key, val);
+        if (!_isSyncing) schedulePush();
+      };
+
+      var origRemoveItem = localStorage.removeItem.bind(localStorage);
+      localStorage.removeItem = function (key) {
+        origRemoveItem(key);
+        if (!_isSyncing) schedulePush();
+      };
+
+      var origClear = localStorage.clear.bind(localStorage);
+      localStorage.clear = function () {
+        origClear();
+        if (!_isSyncing) schedulePush();
+      };
+
+      window.addEventListener('storage', function () {
+        if (!_isSyncing) schedulePush();
+      });
+    } catch (e) {
+      console.warn('[CloudSync] Hook localStorage failed:', e);
+    }
+
+    // 5.2 拦截 IndexedDB 操作
     if (typeof window.dbPut === 'function' && !window.dbPut._syncHooked) {
       var origDbPut = window.dbPut;
       window.dbPut = function () {
@@ -2254,21 +2334,19 @@
     }
   }
 
-  // 延时等待 IndexedDB 原生函数就绪
-  setTimeout(function () {
-    hookDatabase();
-    initCloudSync();
-  }, 1000);
+  // 立即初始化
+  hookStorageMutations();
+  setTimeout(initCloudSync, 300);
 
-  // 定时每 60 秒做一次自动云端静默检查
+  // 定时心跳同步（每 60 秒）
   setInterval(function () {
     if (!_isSyncing) schedulePush();
   }, 60000);
 
-  // 暴露全局手动同步指令（方便在控制台或需要时触发）
+  // 暴露全局手动同步函数
   window.ibCloudSyncNow = function () {
     schedulePush();
-    if (typeof window.toast === 'function') window.toast('正在推送到云端...');
+    if (typeof window.toast === 'function') window.toast('正在同步到云端...');
   };
 })();
 
