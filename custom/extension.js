@@ -301,118 +301,20 @@
     };
   }
 
-  // 挂载卡片至指定 DOM 容器
+  // 挂载/更新 ElevenLabs 专属语气开关（完全原生风格，放置于语气开关下方，无边框与多余小字）
   function attachToneCardToContainer(container, isPerApi, fid) {
     if (!container) return;
 
-    var voiceInput = isPerApi ? container.querySelector('[data-k="voice"]') : container.querySelector('#call-voice');
-    if (!voiceInput) return;
+    // 清理可能遗留的旧版带框卡片
+    try {
+      var oldCard = document.getElementById(isPerApi ? ('call-el-tone-card-perapi-' + fid) : 'call-el-tone-card-global');
+      if (oldCard && oldCard.parentNode) oldCard.parentNode.removeChild(oldCard);
+    } catch (e) {}
 
-    var voiceGroup = voiceInput.closest('.f-group');
-    if (!voiceGroup) return;
+    // 确定所属宿主：独立配置面板还是全局配置面板
+    var isDetailPane = !!(isPerApi && fid);
 
-    var cardId = isPerApi ? ('call-el-tone-card-perapi-' + fid) : 'call-el-tone-card-global';
-    var card = document.getElementById(cardId);
-
-    if (!card) {
-      card = document.createElement('div');
-      card.id = cardId;
-      card.style.cssText = 'margin-top:10px;margin-bottom:12px;padding:12px;background:rgba(2,132,199,0.06);border:1px solid rgba(2,132,199,0.25);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.05)';
-      card.innerHTML = `
-        <div style="font-weight:600;color:var(--accent,#0284c7);font-size:13px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-          <span>🎙️ ElevenLabs v3 专属语气词模式</span>
-        </div>
-        <div class="f-group" style="margin-bottom:8px">
-          <div class="sel">
-            <select class="el-tone-sw" style="font-size:13px;padding:6px 10px;border-radius:6px;width:100%">
-              <option value="off">关闭（使用默认 8 种简单语气）</option>
-              <option value="on">开启（使用 ElevenLabs v3 动态语气与音效标签）</option>
-            </select>
-          </div>
-        </div>
-        <div class="el-tone-prompt-wrap" style="display:none;margin-top:8px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-            <label style="font-size:12px;color:var(--tx2,#475569);font-weight:500;margin:0">
-              专属语气词提示词指令（自动注入 AI 提示词）：
-            </label>
-            <button type="button" class="el-tone-reset-btn" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--accent,#0284c7);color:var(--accent,#0284c7);background:none;cursor:pointer;line-height:1.2">恢复默认</button>
-          </div>
-          <textarea class="el-tone-prompt" rows="8" style="width:100%;font-size:12px;font-family:monospace;line-height:1.45;padding:8px;border-radius:6px;border:1px solid var(--bd,#cbd5e1);background:var(--bg1,#ffffff);color:var(--tx1,#1e293b);resize:vertical;box-sizing:border-box"></textarea>
-          <div style="font-size:11px;color:var(--tx3,#64748b);margin-top:4px;line-height:1.4">
-            💡 开启后，AI 将根据角色心理自动生成如 <code>[voice breaking]</code>、<code>[nervous laugh]</code> 等精致音效标签。聊天界面自动隐藏，音频合成原样保留。
-          </div>
-        </div>
-      `;
-
-      voiceGroup.insertAdjacentElement('afterend', card);
-
-      var sw = card.querySelector('.el-tone-sw');
-      var ta = card.querySelector('.el-tone-prompt');
-      var wrap = card.querySelector('.el-tone-prompt-wrap');
-      var resetBtn = card.querySelector('.el-tone-reset-btn');
-
-      var syncUIState = function () {
-        var isOn = (sw.value === 'on');
-        wrap.style.display = isOn ? 'block' : 'none';
-      };
-
-      sw.addEventListener('change', async function () {
-        syncUIState();
-        if (typeof loadCALL === 'function') await loadCALL();
-        if (typeof _callS !== 'undefined' && _callS) {
-          if (isPerApi && fid) {
-            _callS.perApi = _callS.perApi || {};
-            _callS.perApi[fid] = _callS.perApi[fid] || {};
-            _callS.perApi[fid].elToneOn = (sw.value === 'on');
-            _callS.perApi[fid].elTonePrompt = ta.value;
-          } else {
-            _callS.elToneOn = (sw.value === 'on');
-            _callS.elTonePrompt = ta.value;
-          }
-          if (typeof saveCALL === 'function') await saveCALL();
-        }
-        if (typeof toast === 'function') {
-          toast(sw.value === 'on' ? '已开启 ElevenLabs v3 专属语气词模式' : '已关闭 ElevenLabs 专属语气词');
-        }
-      });
-
-      var saveTimer = null;
-      var doSavePrompt = async function () {
-        if (typeof loadCALL === 'function') await loadCALL();
-        if (typeof _callS !== 'undefined' && _callS) {
-          if (isPerApi && fid) {
-            _callS.perApi = _callS.perApi || {};
-            _callS.perApi[fid] = _callS.perApi[fid] || {};
-            _callS.perApi[fid].elTonePrompt = ta.value;
-          } else {
-            _callS.elTonePrompt = ta.value;
-          }
-          if (typeof saveCALL === 'function') await saveCALL();
-        }
-      };
-
-      ta.addEventListener('input', function () {
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(doSavePrompt, 400);
-      });
-
-      ta.addEventListener('blur', function () {
-        clearTimeout(saveTimer);
-        doSavePrompt();
-      });
-
-      if (resetBtn) {
-        resetBtn.addEventListener('click', async function () {
-          ta.value = DEFAULT_EL_PROMPT;
-          await doSavePrompt();
-          if (typeof toast === 'function') {
-            toast('已恢复默认语气词提示词');
-          }
-        });
-      }
-    }
-
-    // 确定是否应该显示 Card
+    // 确定是否应该显示（服务商为 ElevenLabs 且云端音色）
     var provEl = isPerApi ? container.querySelector('[data-k="provider"]') : document.getElementById('call-prov');
     var ttsEl = isPerApi ? container.querySelector('[data-k="tts"]') : document.getElementById('call-tts');
     var isCloud = (!ttsEl || ttsEl.value === 'cloud');
@@ -428,49 +330,193 @@
 
     var isEl = (provVal === 'el');
 
-    if (isCloud && isEl) {
-      card.style.display = 'block';
-      if (typeof _callS !== 'undefined' && _callS) {
-        var sw = card.querySelector('.el-tone-sw');
-        var ta = card.querySelector('.el-tone-prompt');
-        var wrap = card.querySelector('.el-tone-prompt-wrap');
+    var rootId = isPerApi ? ('call-el-tone-wrap-perapi-' + fid) : 'call-el-tone-wrap-global';
+    var rootEl = document.getElementById(rootId);
 
-        if (sw && ta && wrap) {
+    // 寻找插入位置锚点：优先定位到“语气的开关”（#ibcs-d-tone-row 或 #ibcs-d-vb）下方
+    var targetAnchor = null;
+    if (isDetailPane) {
+      var toneRow = document.getElementById('ibcs-d-tone-row');
+      if (toneRow) {
+        targetAnchor = toneRow;
+      } else {
+        var vb = document.querySelector('#ib-callset #ibcs-d-vb');
+        if (vb) targetAnchor = vb;
+      }
+    }
+    if (!targetAnchor) {
+      // 全局配置回退：寻找语气的开关或全局设置末尾
+      var gToneRow = document.getElementById('ibcs-d-tone-row');
+      if (gToneRow) {
+        targetAnchor = gToneRow;
+      } else {
+        var voiceInput = isPerApi ? container.querySelector('[data-k="voice"]') : container.querySelector('#call-voice');
+        if (voiceInput) {
+          targetAnchor = voiceInput.closest('.f-group');
+        }
+      }
+    }
+
+    if (!targetAnchor) return;
+
+    if (!rootEl) {
+      rootEl = document.createElement('div');
+      rootEl.id = rootId;
+      rootEl.className = 'el-tone-host-block';
+      rootEl.style.cssText = 'margin: 0; padding: 0;';
+      rootEl.innerHTML = 
+        '<div class="tog nb" id="' + rootId + '-tog" style="margin-top:4px; border-bottom:none; padding-bottom:8px;">' +
+          '<div class="tog-m">' +
+            '<div class="tog-t">ElevenLabs专属语气</div>' +
+          '</div>' +
+          '<div class="sw2 el-tone-sw" id="' + rootId + '-sw"></div>' +
+        '</div>' +
+        '<div class="el-tone-prompt-wrap" style="display:none; margin:4px 0 0 0; padding-bottom:12px;">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">' +
+            '<span style="font-size:0.75rem; color:var(--tx2)">提示词指令</span>' +
+            '<button type="button" class="el-tone-reset-btn btn mini" style="font-size:0.72rem; padding:2px 8px; height:auto; cursor:pointer">恢复默认</button>' +
+          '</div>' +
+          '<textarea class="el-tone-prompt" rows="5" style="width:100%; font-size:0.75rem; line-height:1.45; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--soft); color:var(--tx); resize:vertical; box-sizing:border-box; font-family:monospace;"></textarea>' +
+        '</div>' +
+        '<div class="el-tone-divider" style="border-bottom:1px solid var(--line); margin-bottom:4px;"></div>';
+
+      if (targetAnchor.id === 'ibcs-d-vb') {
+        targetAnchor.appendChild(rootEl);
+      } else {
+        targetAnchor.insertAdjacentElement('afterend', rootEl);
+      }
+
+      var sw = rootEl.querySelector('.el-tone-sw');
+      var ta = rootEl.querySelector('.el-tone-prompt');
+      var wrap = rootEl.querySelector('.el-tone-prompt-wrap');
+      var resetBtn = rootEl.querySelector('.el-tone-reset-btn');
+
+      if (sw) {
+        sw.addEventListener('click', async function () {
+          var on = !sw.classList.contains('on');
+          if (typeof sw2 === 'function') sw2(sw, on);
+          else sw.classList.toggle('on', on);
+          if (wrap) wrap.style.display = on ? 'block' : 'none';
+
+          if (typeof loadCALL === 'function') await loadCALL();
+          if (typeof _callS !== 'undefined' && _callS) {
+            if (isPerApi && fid) {
+              _callS.perApi = _callS.perApi || {};
+              _callS.perApi[fid] = _callS.perApi[fid] || {};
+              _callS.perApi[fid].elToneOn = on;
+              _callS.perApi[fid].elTonePrompt = ta ? ta.value : '';
+            } else {
+              _callS.elToneOn = on;
+              _callS.elTonePrompt = ta ? ta.value : '';
+            }
+            if (typeof saveCALL === 'function') await saveCALL();
+          }
+          if (typeof toast === 'function') {
+            toast(on ? '已开启 ElevenLabs专属语气' : '已关闭 ElevenLabs专属语气');
+          }
+        });
+      }
+
+      var saveTimer = null;
+      var doSavePrompt = async function () {
+        if (typeof loadCALL === 'function') await loadCALL();
+        if (typeof _callS !== 'undefined' && _callS) {
+          if (isPerApi && fid) {
+            _callS.perApi = _callS.perApi || {};
+            _callS.perApi[fid] = _callS.perApi[fid] || {};
+            _callS.perApi[fid].elTonePrompt = ta ? ta.value : '';
+          } else {
+            _callS.elTonePrompt = ta ? ta.value : '';
+          }
+          if (typeof saveCALL === 'function') await saveCALL();
+        }
+      };
+
+      if (ta) {
+        ta.addEventListener('input', function () {
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(doSavePrompt, 400);
+        });
+        ta.addEventListener('blur', function () {
+          clearTimeout(saveTimer);
+          doSavePrompt();
+        });
+      }
+
+      if (resetBtn) {
+        resetBtn.addEventListener('click', async function () {
+          if (ta) ta.value = DEFAULT_EL_PROMPT;
+          await doSavePrompt();
+          if (typeof toast === 'function') {
+            toast('已恢复默认提示词');
+          }
+        });
+      }
+    } else {
+      // 若语气开关动态渲染出，将其校准至语气开关下方
+      var curToneRow = document.getElementById('ibcs-d-tone-row');
+      if (curToneRow && rootEl.previousElementSibling !== curToneRow) {
+        curToneRow.insertAdjacentElement('afterend', rootEl);
+      }
+      var togEl = rootEl.querySelector('#' + rootId + '-tog');
+      if (togEl) {
+        togEl.classList.add('nb');
+        togEl.style.borderBottom = 'none';
+        togEl.style.paddingBottom = '8px';
+      }
+      var divider = rootEl.querySelector('.el-tone-divider');
+      if (!divider) {
+        divider = document.createElement('div');
+        divider.className = 'el-tone-divider';
+        divider.style.cssText = 'border-bottom:1px solid var(--line); margin-bottom:4px;';
+        rootEl.appendChild(divider);
+      }
+    }
+
+    // 根据 provider 是否为 el 控制显隐
+    if (isCloud && isEl) {
+      rootEl.style.display = 'block';
+      if (typeof _callS !== 'undefined' && _callS) {
+        var swEl = rootEl.querySelector('.el-tone-sw');
+        var taEl = rootEl.querySelector('.el-tone-prompt');
+        var wrapEl = rootEl.querySelector('.el-tone-prompt-wrap');
+
+        if (swEl && taEl && wrapEl) {
           var targetObj = (isPerApi && fid && _callS.perApi && _callS.perApi[fid]) ? _callS.perApi[fid] : _callS;
           var isOn = !!targetObj.elToneOn;
 
-          if (document.activeElement !== sw) {
-            sw.value = isOn ? 'on' : 'off';
+          if (typeof sw2 === 'function') {
+            sw2(swEl, isOn);
+          } else {
+            swEl.classList.toggle('on', isOn);
           }
-          wrap.style.display = isOn ? 'block' : 'none';
+          wrapEl.style.display = isOn ? 'block' : 'none';
 
           var currentTargetKey = (isPerApi ? ('perapi_' + fid) : 'global');
-          if (document.activeElement !== ta && card.dataset.loadedKey !== currentTargetKey) {
-            ta.value = targetObj.elTonePrompt || DEFAULT_EL_PROMPT;
-            card.dataset.loadedKey = currentTargetKey;
+          if (document.activeElement !== taEl && rootEl.dataset.loadedKey !== currentTargetKey) {
+            taEl.value = targetObj.elTonePrompt || DEFAULT_EL_PROMPT;
+            rootEl.dataset.loadedKey = currentTargetKey;
           }
         }
       }
     } else {
-      card.style.display = 'none';
+      rootEl.style.display = 'none';
     }
   }
 
   // 渲染/注入控制 UI
   function injectElToneUI() {
-    // 1. 全局配置卡片：针对 #call-cloud-g 容器
+    // 1. 全局配置：针对 #call-cloud-g 容器
     var globalCloudGroup = document.getElementById('call-cloud-g');
     if (globalCloudGroup) {
       attachToneCardToContainer(globalCloudGroup, false, null);
     }
 
-    // 2. 单独配置卡片：针对 #ibcs-d-voice (详情页单独配置容器)
-    var perApiVoiceHost = document.querySelector('#ib-callset #ibcs-d-voice');
-    if (perApiVoiceHost && perApiVoiceHost.children.length > 0) {
-      var currentFid = (typeof _ibcsDetC !== 'undefined' && _ibcsDetC) ? _ibcsDetC.id : null;
-      if (currentFid) {
-        attachToneCardToContainer(perApiVoiceHost, true, currentFid);
-      }
+    // 2. 单独配置：针对详情页（定位在语气开关下方）
+    var currentFid = (typeof _ibcsDetC !== 'undefined' && _ibcsDetC) ? _ibcsDetC.id : null;
+    if (currentFid) {
+      var perApiVoiceHost = document.querySelector('#ib-callset #ibcs-d-voice');
+      attachToneCardToContainer(perApiVoiceHost || document.getElementById('ib-callset'), true, currentFid);
     }
   }
 
@@ -835,6 +881,22 @@
         } catch (e) {}
       }
 
+      // 跨聊上下文双向互通：拦截发送给 AI 模型的对话请求，动态注入单聊/群聊记忆
+      var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+      var body = init && init.body;
+      if (method === 'POST' && typeof body === 'string' && (body.indexOf('"messages":') !== -1 || body.indexOf('"contents":') !== -1 || body.indexOf('"system":') !== -1)) {
+        try {
+          if (typeof processCrossContextInjection === 'function') {
+            var modifiedBody = await processCrossContextInjection(body, init && init.headers);
+            if (modifiedBody) {
+              init.body = modifiedBody;
+            }
+          }
+        } catch (errCross) {
+          console.warn('[CrossContext] fetch injection error:', errCross);
+        }
+      }
+
       return origFetch.apply(this, arguments);
     };
 
@@ -932,7 +994,836 @@
   }
 
   // ----------------------------------------------------
-  // 5. 初始化与 DOM 监听入口
+  // 6. 群聊与单聊沉浸式双向上下文互通系统
+  // ----------------------------------------------------
+
+  var CROSS_CONFIG_KEY = 'ib_cross_context_v3';
+  var _crossMemoryCache = {}; // 内存快速查找缓存，保证打开面板 0ms 瞬间回显，绝不因异步延迟闪烁成关闭
+
+  // 预载配置到内存字典中
+  function initCrossSettingsCache() {
+    try {
+      var raw = localStorage.getItem(CROSS_CONFIG_KEY);
+      var obj = raw ? JSON.parse(raw) : {};
+      if (!Object.keys(obj).length) {
+        var old = localStorage.getItem('ib_cross_context_v2');
+        if (old) {
+          try { obj = JSON.parse(old); } catch (e) {}
+        }
+      }
+      for (var k in obj) {
+        if (obj[k]) _crossMemoryCache[k] = obj[k];
+      }
+    } catch (e) {}
+
+    // 异步拉取 IndexedDB 中的 groups 表，将已有群的 crossContext 状态同步到缓存
+    setTimeout(async function () {
+      try {
+        var allGroups = await queryStoreAll('groups');
+        if (Array.isArray(allGroups)) {
+          allGroups.forEach(function (g) {
+            if (g && (g.crossContextEnabled !== undefined || g.id || g.name)) {
+              var isEn = !!(g.crossContextEnabled || (g.crossContext && g.crossContext.enabled));
+              var cnt = g.crossContextCount || (g.crossContext && g.crossContext.count) || 5;
+              if (isEn) {
+                var cData = { enabled: true, count: cnt, id: g.id || '', name: g.name || '' };
+                if (g.id) _crossMemoryCache[g.id] = cData;
+                if (g.name) {
+                  _crossMemoryCache['name:' + g.name] = cData;
+                  _crossMemoryCache[g.name] = cData;
+                }
+              }
+            }
+          });
+        }
+      } catch (e) {}
+    }, 100);
+  }
+  initCrossSettingsCache();
+
+  // 读取所有群聊的互通配置
+  function getAllCrossSettings() {
+    try {
+      var raw = localStorage.getItem(CROSS_CONFIG_KEY);
+      var obj = raw ? JSON.parse(raw) : {};
+      if (!Object.keys(obj).length) {
+        var old = localStorage.getItem('ib_cross_context_v2');
+        if (old) {
+          try { obj = JSON.parse(old); } catch (e) {}
+        }
+      }
+      return Object.assign({}, obj || {}, _crossMemoryCache);
+    } catch (e) {
+      return Object.assign({}, _crossMemoryCache);
+    }
+  }
+
+  // 读取指定群聊的配置（支持按 groupId 或 groupName 同步查找）
+  function getGroupCrossSettings(groupId, groupName) {
+    // 1. 优先查内存字典（0ms 命中，绝对防止刷新后打开弹窗闪烁为关闭）
+    var hit = null;
+    if (groupId && _crossMemoryCache[groupId]) hit = _crossMemoryCache[groupId];
+    if (!hit && groupName && _crossMemoryCache['name:' + groupName]) hit = _crossMemoryCache['name:' + groupName];
+    if (!hit && groupName && _crossMemoryCache[groupName]) hit = _crossMemoryCache[groupName];
+
+    // 2. 查 localStorage
+    if (!hit) {
+      var all = getAllCrossSettings();
+      if (groupId && all[groupId]) hit = all[groupId];
+      if (!hit && groupName && all['name:' + groupName]) hit = all['name:' + groupName];
+      if (!hit && groupName && all[groupName]) hit = all[groupName];
+      if (!hit && (groupId || groupName)) {
+        for (var k in all) {
+          if (all[k] && typeof all[k] === 'object') {
+            if ((groupId && all[k].id === groupId) || (groupName && all[k].name === groupName)) {
+              hit = all[k];
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!hit || typeof hit !== 'object') {
+      return { enabled: false, count: 5 };
+    }
+    return {
+      enabled: !!hit.enabled,
+      count: Math.max(1, Math.min(20, parseInt(hit.count, 10) || 5))
+    };
+  }
+
+  // 保存指定群聊的配置（同时关联 groupId 和 groupName，更新缓存、localStorage 并异步回写 IndexedDB）
+  async function saveGroupCrossSettings(groupId, groupName, conf) {
+    if (!groupId && !groupName) return;
+    try {
+      var data = {
+        enabled: !!conf.enabled,
+        count: Math.max(1, Math.min(20, parseInt(conf.count, 10) || 5)),
+        id: groupId || '',
+        name: groupName || '',
+        time: Date.now()
+      };
+
+      // 1. 同步更新内存高速缓存
+      if (groupId) _crossMemoryCache[groupId] = data;
+      if (groupName) {
+        _crossMemoryCache['name:' + groupName] = data;
+        _crossMemoryCache[groupName] = data;
+      }
+
+      // 2. 持久化到 localStorage
+      var all = getAllCrossSettings();
+      if (groupId) all[groupId] = data;
+      if (groupName) {
+        all['name:' + groupName] = data;
+        all[groupName] = data;
+      }
+      localStorage.setItem(CROSS_CONFIG_KEY, JSON.stringify(all));
+      console.info('%c[CrossContext] 互通配置已保存并缓存:', 'color:#3b82f6;font-weight:bold', groupId, groupName, data);
+
+      // 3. 异步持久化到 IndexedDB 的 groups 表
+      try {
+        var db = await openDBPromise();
+        var tx = db.transaction('groups', 'readwrite');
+        var store = tx.objectStore('groups');
+        var req = store.getAll();
+        req.onsuccess = function () {
+          var list = req.result || [];
+          var target = list.find(function (g) {
+            return (groupId && g.id === groupId) || (groupName && g.name === groupName);
+          });
+          if (target) {
+            target.crossContextEnabled = data.enabled;
+            target.crossContextCount = data.count;
+            store.put(target);
+          }
+        };
+      } catch (errDb) {}
+    } catch (e) {
+      console.warn('[CrossContext] 保存配置失败:', e);
+    }
+  }
+
+  // 原生 IndexedDB 辅助查询：打开 InternalBeyondDB
+  function openDBPromise() {
+    return new Promise(function (resolve, reject) {
+      try {
+        var req = indexedDB.open('InternalBeyondDB', 15);
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  // 获取某个 store 的全量数据
+  async function queryStoreAll(storeName) {
+    try {
+      if (typeof dbGetAll === 'function') {
+        var res = await dbGetAll(storeName);
+        if (Array.isArray(res) && res.length) return res;
+      }
+    } catch (e) {}
+    try {
+      var db = await openDBPromise();
+      return new Promise(function (resolve) {
+        try {
+          var tx = db.transaction(storeName, 'readonly');
+          var store = tx.objectStore(storeName);
+          var req = store.getAll();
+          req.onsuccess = function () { resolve(req.result || []); };
+          req.onerror = function () { resolve([]); };
+        } catch (err) {
+          resolve([]);
+        }
+      });
+    } catch (ex) {
+      return [];
+    }
+  }
+
+  // 拉取指定对象（单聊角色或群聊）的最近 N 条有效聊天记录
+  async function queryRecentChatMsgs(fid, limit) {
+    if (!fid || limit <= 0) return [];
+    try {
+      var db = await openDBPromise();
+      return new Promise(function (resolve) {
+        try {
+          var tx = db.transaction('chatMessages', 'readonly');
+          var store = tx.objectStore('chatMessages');
+          var index = null;
+          try { index = store.index('byFriend'); } catch (e) {}
+          if (index) {
+            var range = IDBKeyRange.only(fid);
+            var msgs = [];
+            var curReq = index.openCursor(range, 'prev');
+            curReq.onsuccess = function (ev) {
+              var cursor = ev.target.result;
+              if (cursor && msgs.length < limit + 10) {
+                var m = cursor.value;
+                if (m && !m.threadId && !m.callFold && (m.role === 'user' || m.role === 'assistant')) {
+                  msgs.push(m);
+                }
+                cursor.continue();
+              } else {
+                msgs.reverse();
+                resolve(msgs.slice(-limit));
+              }
+            };
+            curReq.onerror = function () { resolve([]); };
+          } else {
+            var req = store.getAll();
+            req.onsuccess = function () {
+              var all = req.result || [];
+              var filtered = all.filter(function (m) {
+                return m && m.friendId === fid && !m.threadId && !m.callFold && (m.role === 'user' || m.role === 'assistant');
+              });
+              filtered.sort(function (a, b) { return (a.timestamp || 0) - (b.timestamp || 0); });
+              resolve(filtered.slice(-limit));
+            };
+            req.onerror = function () { resolve([]); };
+          }
+        } catch (ex) {
+          resolve([]);
+        }
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // 获取用户称呼
+  async function getUserNickname() {
+    try {
+      var abList = await queryStoreAll('about');
+      if (abList && abList[0] && abList[0].name) {
+        return abList[0].name;
+      }
+    } catch (e) {}
+    return '用户';
+  }
+
+  // 格式化私聊消息为背景记忆（注入群聊中）
+  function formatPrivateMsgsForGroup(msgs, aiName, userLabel) {
+    if (!msgs || !msgs.length) return '';
+    var lines = [];
+    for (var i = 0; i < msgs.length; i++) {
+      var m = msgs[i];
+      var who = m.role === 'user' ? (userLabel || '用户') : (aiName || '你');
+      var raw = String(m.content || '').replace(/\s+/g, ' ').trim();
+      if (raw.length > 180) raw = raw.slice(0, 180) + '…';
+      if (raw) lines.push('- ' + who + '：' + raw);
+    }
+    if (!lines.length) return '';
+    return '【与用户的近期单聊私密记忆互通】\n' +
+      '系统已开启「单聊/群聊上下文互通」。以下是你与' + (userLabel || '用户') + '此前在 1 对 1 私聊里的最近对话记录（请作为你的真实记忆；在群聊中若聊到相关话题或用户提及，请自然流露彼此默契，无需生硬声明来源）：\n' +
+      lines.join('\n');
+  }
+
+  // 格式化群聊记录为单聊背景记忆（支持单群或多群场景，群名清晰隔离，绝不混淆）
+  function formatAllGroupBlocksForPrivate(groupList, currentAiName, userLabel) {
+    if (!groupList || !groupList.length) return '';
+
+    // 单个群聊场景
+    if (groupList.length === 1) {
+      var singleItem = groupList[0];
+      var singleGName = singleItem.name || '群聊';
+      var singleLines = [];
+      for (var s = 0; s < singleItem.msgs.length; s++) {
+        var sm = singleItem.msgs[s];
+        var swho = sm.role === 'user' ? (userLabel || '用户') : (sm.senderName || '群友');
+        if (sm.senderName === currentAiName || sm.senderId === (sm.fid || '')) swho = '你';
+        var sraw = String(sm.content || '').replace(/\s+/g, ' ').trim();
+        if (sraw.length > 180) sraw = sraw.slice(0, 180) + '…';
+        if (sraw) singleLines.push('- ' + swho + '：' + sraw);
+      }
+      if (!singleLines.length) return '';
+      return '【群聊「' + singleGName + '」近期动态记忆互通】\n' +
+        '系统已开启「单聊/群聊上下文互通」。以下是你作为成员所参与的群聊「' + singleGName + '」近期的真实讨论实录（群聊名称为「' + singleGName + '」；若用户在当前单聊中聊起该群里的话题、群名或群友发生的趣事，请准确对应并自然接话交流，无需刻意声明数据来源）：\n' +
+        singleLines.join('\n');
+    }
+
+    // 多个群聊场景：清晰告知 AI 加入了哪几个具体群聊，每个群以醒目标题与独立区块区分，绝对不混淆
+    var parts = [
+      '【多群聊动态独立记忆互通】\n' +
+      '系统已开启「单聊/群聊上下文互通」。你当前作为成员同时参与了以下 ' + groupList.length + ' 个不同的群聊。\n' +
+      '（重要提示：以下各个群聊是完全互相独立的交流圈子，各自有独立的群聊名称、不同成员与不同讨论话题。请严格分清每个群的名称与动态，切勿互相混淆！若用户在当前单聊中聊起某群的话题、发生的事或提到某个具体群名，请准确对应具体的群聊自然交流）：'
+    ];
+
+    for (var gi = 0; gi < groupList.length; gi++) {
+      var gObj = groupList[gi];
+      var thisGName = gObj.name || ('群聊 ' + (gi + 1));
+      var glines = [];
+      for (var j = 0; j < gObj.msgs.length; j++) {
+        var gm = gObj.msgs[j];
+        var gwho = gm.role === 'user' ? (userLabel || '用户') : (gm.senderName || '群友');
+        if (gm.senderName === currentAiName || gm.senderId === (gm.fid || '')) gwho = '你';
+        var graw = String(gm.content || '').replace(/\s+/g, ' ').trim();
+        if (graw.length > 180) graw = graw.slice(0, 180) + '…';
+        if (graw) glines.push('- ' + gwho + '：' + graw);
+      }
+      if (glines.length) {
+        parts.push('=== 群聊 ' + (gi + 1) + '：【' + thisGName + '】近期讨论实录 ===\n' + glines.join('\n'));
+      }
+    }
+    parts.push('（说明：以上各个群聊彼此独立，请在单聊中根据用户提及的具体群聊名称精准对应，切勿串群或混淆。）');
+    return parts.join('\n\n');
+  }
+
+  // 深度双重注入引擎：既注入 System Prompt，又注入最后一条用户消息前缀（确保大模型注意力必达）
+  function injectMemoryIntoPayload(payload, injectText) {
+    if (!payload || !injectText) return false;
+    var injected = false;
+    try {
+      // 1. OpenAI 兼容格式 (payload.messages)
+      if (Array.isArray(payload.messages) && payload.messages.length > 0) {
+        // A. 注入到 System Prompt 顶部
+        var sysIdx = -1;
+        for (var i = 0; i < payload.messages.length; i++) {
+          if (payload.messages[i] && payload.messages[i].role === 'system') {
+            sysIdx = i;
+            break;
+          }
+        }
+        if (sysIdx !== -1) {
+          payload.messages[sysIdx].content = injectText + '\n\n' + String(payload.messages[sysIdx].content || '');
+        } else {
+          payload.messages.unshift({ role: 'system', content: injectText });
+        }
+
+        // B. 注入到最后一条 User 消息的前缀（核心：确保大模型注意力绝对感知记忆）
+        for (var u = payload.messages.length - 1; u >= 0; u--) {
+          var uMsg = payload.messages[u];
+          if (uMsg && uMsg.role === 'user') {
+            if (typeof uMsg.content === 'string') {
+              if (uMsg.content.indexOf('【与用户的近期单聊私密记忆互通】') === -1 && 
+                  uMsg.content.indexOf('【群聊「') === -1 &&
+                  uMsg.content.indexOf('【多群聊动态独立记忆互通】') === -1) {
+                uMsg.content = injectText + '\n\n' + uMsg.content;
+              }
+            } else if (Array.isArray(uMsg.content)) {
+              uMsg.content.unshift({ type: 'text', text: injectText + '\n\n' });
+            }
+            break;
+          }
+        }
+        return true;
+      }
+
+      // 2. Anthropic 格式 (payload.system / payload.messages)
+      if (payload.system !== undefined) {
+        if (typeof payload.system === 'string') {
+          payload.system = injectText + '\n\n' + payload.system;
+        } else if (Array.isArray(payload.system)) {
+          payload.system.unshift({ type: 'text', text: injectText });
+        }
+        injected = true;
+      }
+      if (Array.isArray(payload.messages) && payload.messages.length > 0) {
+        for (var au = payload.messages.length - 1; au >= 0; au--) {
+          if (payload.messages[au] && payload.messages[au].role === 'user') {
+            var c = payload.messages[au].content;
+            if (typeof c === 'string') {
+              payload.messages[au].content = injectText + '\n\n' + c;
+            }
+            break;
+          }
+        }
+        return true;
+      }
+
+      // 3. Gemini 格式 (payload.contents / systemInstruction)
+      if (payload.contents && Array.isArray(payload.contents)) {
+        if (payload.systemInstruction && Array.isArray(payload.systemInstruction.parts)) {
+          payload.systemInstruction.parts.unshift({ text: injectText });
+        } else {
+          payload.systemInstruction = { parts: [{ text: injectText }] };
+        }
+        for (var g = payload.contents.length - 1; g >= 0; g--) {
+          if (payload.contents[g] && payload.contents[g].role === 'user' && Array.isArray(payload.contents[g].parts)) {
+            payload.contents[g].parts.unshift({ text: injectText + '\n\n' });
+            break;
+          }
+        }
+        return true;
+      }
+    } catch (e) {
+      console.warn('[CrossContext] injectMemoryIntoPayload error:', e);
+    }
+    return injected;
+  }
+
+  // 跟踪当前活跃会话
+  window._lastActiveConvInfo = null;
+  function hookOpenConvTracker() {
+    var origOpenConv = window.openConv;
+    if (origOpenConv && !origOpenConv._crossTrackHooked) {
+      window.openConv = async function (cfg, thread) {
+        try {
+          if (cfg) {
+            window._lastActiveConvInfo = {
+              id: cfg.id,
+              name: typeof cfgName === 'function' ? cfgName(cfg) : (cfg.nickname || cfg.name || ''),
+              isGroup: !!cfg._group || String(cfg.id || '').indexOf('group_') === 0,
+              group: cfg._group || null,
+              timestamp: Date.now()
+            };
+          }
+        } catch (e) {}
+        return origOpenConv.apply(this, arguments);
+      };
+      window.openConv._crossTrackHooked = true;
+    }
+  }
+
+  // 核心引擎：在 fetch 阶段进行双向上下文分析与动态注入
+  async function processCrossContextInjection(bodyStr, headers) {
+    if (!bodyStr || typeof bodyStr !== 'string') return null;
+    var payload = null;
+    try {
+      payload = JSON.parse(bodyStr);
+    } catch (e) {
+      return null;
+    }
+
+    var userLabel = await getUserNickname();
+    var allGroups = await queryStoreAll('groups');
+    var allConfigs = await queryStoreAll('apiConfigs');
+
+    // 智能场景判定 A：群聊场景检测
+    var isGroupCall = false;
+    var groupName = '';
+    var speakerName = '';
+
+    // 1. 去转义正则匹配
+    var unescapedStr = bodyStr.replace(/\\"/g, '"');
+    var grpMatch = unescapedStr.match(/【群聊规则】你是群聊["“']([^"”']+)["”']中的成员["“']([^"”']+)["”']/);
+    if (!grpMatch) {
+      grpMatch = unescapedStr.match(/你是群聊["“']([^"”']+)["”']中的成员["“']([^"”']+)["”']/);
+    }
+    if (grpMatch) {
+      isGroupCall = true;
+      groupName = grpMatch[1];
+      speakerName = grpMatch[2];
+    }
+
+    // 2. 遍历已解析的 payload.messages 提取
+    if (!isGroupCall && Array.isArray(payload.messages)) {
+      for (var i = 0; i < payload.messages.length; i++) {
+        var mText = typeof payload.messages[i].content === 'string' ? payload.messages[i].content : '';
+        if (mText.indexOf('【群聊规则】') !== -1) {
+          var mSub = mText.match(/你是群聊["“']([^"”']+)["”']中的成员["“']([^"”']+)["”']/);
+          if (mSub) {
+            isGroupCall = true;
+            groupName = mSub[1];
+            speakerName = mSub[2];
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. 回退判定：当前活跃窗口是否为群聊
+    if (!isGroupCall) {
+      var convEl = document.getElementById('conv');
+      var nameEl = document.getElementById('cv-name');
+      var chatTitle = nameEl ? nameEl.textContent.trim() : '';
+      if (convEl && convEl.classList.contains('open') && chatTitle) {
+        var gFound = allGroups.find(function (g) { return g.name === chatTitle; });
+        if (gFound) {
+          isGroupCall = true;
+          groupName = gFound.name;
+        }
+      }
+    }
+
+    // 执行场景 A：群聊中注入单聊私密记忆
+    if (isGroupCall) {
+      var targetGroup = allGroups.find(function (g) { return g.name === groupName; });
+      var targetGroupId = targetGroup ? targetGroup.id : '';
+      var crossConf = getGroupCrossSettings(targetGroupId, groupName);
+
+      if (crossConf.enabled && crossConf.count > 0) {
+        var speakerCfg = null;
+        if (speakerName) {
+          speakerCfg = allConfigs.find(function (c) {
+            return (c.nickname === speakerName || c.name === speakerName || (typeof cfgName === 'function' && cfgName(c) === speakerName));
+          });
+        }
+        if (!speakerCfg && targetGroup && Array.isArray(targetGroup.members)) {
+          var authHeader = headers && (headers.Authorization || headers.authorization || '');
+          if (authHeader) {
+            var key = authHeader.replace(/^Bearer\s+/i, '').trim();
+            speakerCfg = allConfigs.find(function (c) { return c.apiKey === key; });
+          }
+          if (!speakerCfg && targetGroup.members.length === 1) {
+            speakerCfg = allConfigs.find(function (c) { return c.id === targetGroup.members[0]; });
+          }
+        }
+
+        if (speakerCfg && speakerCfg.id) {
+          var privMsgs = await queryRecentChatMsgs(speakerCfg.id, crossConf.count);
+          if (privMsgs && privMsgs.length) {
+            var privBlock = formatPrivateMsgsForGroup(privMsgs, speakerName || speakerCfg.nickname || speakerCfg.name || '你', userLabel);
+            if (privBlock && injectMemoryIntoPayload(payload, privBlock)) {
+              console.info('%c[CrossContext 互通生效] 在群聊「' + groupName + '」中成功注入角色「' + (speakerName || speakerCfg.name) + '」的单聊记忆 (' + privMsgs.length + '条)', 'color:#10b981;font-weight:bold');
+              return JSON.stringify(payload);
+            }
+          }
+        }
+      }
+    } else {
+      // 执行场景 B：1 对 1 单聊中注入群聊最新讨论动向（清晰识别每个群的名字，绝不混淆）
+      var currentAiId = '';
+      var currentAiName = '';
+
+      if (window._lastActiveConvInfo && !window._lastActiveConvInfo.isGroup) {
+        currentAiId = window._lastActiveConvInfo.id;
+        currentAiName = window._lastActiveConvInfo.name;
+      }
+      var cvNameEl2 = document.getElementById('cv-name');
+      var cvName2 = cvNameEl2 ? cvNameEl2.textContent.trim() : '';
+      if (cvName2 && !currentAiName) currentAiName = cvName2;
+
+      var currentAiCfg = allConfigs.find(function (c) {
+        return (currentAiId && c.id === currentAiId) || 
+               (currentAiName && (c.name === currentAiName || c.nickname === currentAiName || (typeof cfgName === 'function' && cfgName(c) === currentAiName)));
+      });
+
+      if (currentAiCfg) {
+        currentAiId = currentAiCfg.id;
+        currentAiName = currentAiCfg.nickname || currentAiCfg.name || currentAiName;
+
+        // 查找所有开启了互通且包含当前角色的群聊
+        var matchedGroups = allGroups.filter(function (g) {
+          if (!g || !Array.isArray(g.members) || g.members.indexOf(currentAiId) === -1) return false;
+          var conf = getGroupCrossSettings(g.id, g.name);
+          return conf.enabled && conf.count > 0;
+        });
+
+        if (matchedGroups.length > 0) {
+          var groupDataList = [];
+          for (var gi = 0; gi < matchedGroups.length; gi++) {
+            var gItem = matchedGroups[gi];
+            var gConf = getGroupCrossSettings(gItem.id, gItem.name);
+            var gMsgs = await queryRecentChatMsgs(gItem.id, gConf.count);
+            if (gMsgs && gMsgs.length) {
+              groupDataList.push({
+                name: gItem.name || '群聊',
+                id: gItem.id,
+                msgs: gMsgs
+              });
+            }
+          }
+
+          if (groupDataList.length > 0) {
+            var fullGroupBlock = formatAllGroupBlocksForPrivate(groupDataList, currentAiName, userLabel);
+            if (fullGroupBlock && injectMemoryIntoPayload(payload, fullGroupBlock)) {
+              console.info('%c[CrossContext 互通生效] 在单聊「' + currentAiName + '」中成功注入群聊动态:', 'color:#10b981;font-weight:bold', groupDataList.map(function (g) { return g.name; }));
+              return JSON.stringify(payload);
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // 注入与同步群聊设置 UI（原生美化完全一致，位置插入于原生开关列表）
+  var _isUiReadyForCurrentGroup = false; // 防冲刷写保护锁
+
+  function injectGroupCrossContextUI() {
+    var sheet = document.getElementById('sheet-group');
+    if (!sheet) return;
+
+    var row = document.getElementById('grp-cross-row');
+    if (!row) {
+      // 找到插入锚点：优先排在原生“注入公开记忆”前面，与原生开关自然平级排布
+      var memEl = sheet.querySelector('#grp-mem');
+      var anchorTog = memEl ? memEl.closest('.tog') : null;
+
+      // 1. 创建原生开关项 .tog
+      row = document.createElement('div');
+      row.className = 'tog';
+      row.id = 'grp-cross-row';
+      row.innerHTML = 
+        '<div class="tog-m">' +
+          '<div class="tog-t">单聊/群聊上下文互通</div>' +
+          '<div class="tog-s">开启后本群 AI 成员可读取单聊私密记忆；在单聊中 TA 也能同步感知本群动态。</div>' +
+        '</div>' +
+        '<div class="sw2" id="grp-cross-on"></div>';
+
+      // 2. 创建滑块面板（原生滑动条样式）
+      var sub = document.createElement('div');
+      sub.id = 'grp-cross-sub';
+      sub.style.cssText = 'display:none; padding:11px 0 13px 0; border-bottom:1px solid var(--line); margin-top:-2px;';
+      sub.innerHTML = 
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">' +
+          '<span style="font-size:0.75rem; color:var(--tx2)">双向上下文拉取条数</span>' +
+          '<span class="range-val" id="grp-cross-num" style="font-weight:600">5 条</span>' +
+        '</div>' +
+        '<div class="range-row">' +
+          '<input type="range" class="ib-range" id="grp-cross-range" min="1" max="20" step="1" value="5">' +
+        '</div>' +
+        '<div style="font-size:0.7rem; color:var(--tx3); margin-top:4px; line-height:1.5">' +
+          '双向各拉取最近对话的条数（可设置 1～20 条，推荐 3～10 条）' +
+        '</div>';
+
+      if (anchorTog && anchorTog.parentNode) {
+        anchorTog.parentNode.insertBefore(row, anchorTog);
+        anchorTog.parentNode.insertBefore(sub, anchorTog);
+      } else {
+        var btns = sheet.querySelector('.sheet-btns');
+        if (btns) {
+          sheet.insertBefore(row, btns);
+          sheet.insertBefore(sub, btns);
+        }
+      }
+
+      var sw = row.querySelector('#grp-cross-on');
+      var range = sub.querySelector('#grp-cross-range');
+      var num = sub.querySelector('#grp-cross-num');
+
+      // 开关点击：用户主动操作时才持久化
+      if (sw) {
+        sw.addEventListener('click', function () {
+          var on = !sw.classList.contains('on');
+          if (typeof sw2 === 'function') sw2(sw, on);
+          else sw.classList.toggle('on', on);
+          if (sub) sub.style.display = on ? '' : 'none';
+          if (range && typeof rangeFill === 'function') rangeFill(range);
+          // 用户点击时，强制标记准备就绪并立即持久化
+          _isUiReadyForCurrentGroup = true;
+          persistCurrentGroupCrossFromUI();
+        });
+      }
+
+      // 滑块滑动：用户主动调整时才持久化
+      if (range) {
+        range.addEventListener('input', function () {
+          if (num) num.textContent = this.value + ' 条';
+          if (typeof rangeFill === 'function') rangeFill(this);
+          _isUiReadyForCurrentGroup = true;
+          persistCurrentGroupCrossFromUI();
+        });
+      }
+    }
+
+    // 尝试同步回显
+    syncGroupCrossUIState();
+  }
+
+  // 获取当前正在编辑的群信息（同步优先 + 异步保底）
+  function getCurrentEditingGroupInfoSync() {
+    var nameInput = document.getElementById('grp-name');
+    var gName = nameInput ? nameInput.value.trim() : '';
+
+    var gid = '';
+    if (window._lastActiveConvInfo && window._lastActiveConvInfo.isGroup && window._lastActiveConvInfo.id) {
+      gid = window._lastActiveConvInfo.id;
+      if (!gName && window._lastActiveConvInfo.name) gName = window._lastActiveConvInfo.name;
+    }
+
+    // 从内存中查是否有匹配的 group
+    if (!gid && gName) {
+      if (_crossMemoryCache['name:' + gName] && _crossMemoryCache['name:' + gName].id) {
+        gid = _crossMemoryCache['name:' + gName].id;
+      } else if (_crossMemoryCache[gName] && _crossMemoryCache[gName].id) {
+        gid = _crossMemoryCache[gName].id;
+      }
+    }
+
+    return { id: gid, name: gName };
+  }
+
+  async function getCurrentEditingGroupInfo() {
+    var info = getCurrentEditingGroupInfoSync();
+    if (!info.id && info.name) {
+      try {
+        var allGroups = await queryStoreAll('groups');
+        var match = allGroups.find(function (g) { return g.name === info.name; });
+        if (match) info.id = match.id;
+      } catch (e) {}
+    }
+    return info;
+  }
+
+  // 同步 UI 状态（0ms 秒级回显，彻底杜绝刷新后变成关闭）
+  var _lastSyncedKey = '';
+
+  function syncGroupCrossUIState(force) {
+    var sheet = document.getElementById('sheet-group');
+    if (!sheet || !sheet.classList.contains('open')) {
+      _lastSyncedKey = '';
+      _isUiReadyForCurrentGroup = false;
+      return;
+    }
+
+    var info = getCurrentEditingGroupInfoSync();
+    var curKey = (info.id || '') + '::' + (info.name || '');
+
+    if (!force && _lastSyncedKey === curKey && curKey !== '::') {
+      return;
+    }
+    _lastSyncedKey = curKey;
+
+    var conf = getGroupCrossSettings(info.id, info.name);
+    var sw = document.getElementById('grp-cross-on');
+    var sub = document.getElementById('grp-cross-sub');
+    var range = document.getElementById('grp-cross-range');
+    var num = document.getElementById('grp-cross-num');
+
+    if (sw) {
+      if (typeof sw2 === 'function') sw2(sw, conf.enabled);
+      else sw.classList.toggle('on', conf.enabled);
+    }
+    if (range) {
+      range.value = conf.count;
+      if (typeof rangeFill === 'function') rangeFill(range);
+    }
+    if (num) num.textContent = conf.count + ' 条';
+    if (sub) sub.style.display = conf.enabled ? '' : 'none';
+
+    // 只有正确回填完成后，才解除写保护
+    _isUiReadyForCurrentGroup = true;
+
+    // 如果群 ID 还没获取到，异步补全并对齐
+    if (!info.id && info.name) {
+      getCurrentEditingGroupInfo().then(function (asyncInfo) {
+        if (asyncInfo.id && asyncInfo.id !== info.id) {
+          var asyncConf = getGroupCrossSettings(asyncInfo.id, asyncInfo.name);
+          if (asyncConf.enabled !== conf.enabled || asyncConf.count !== conf.count) {
+            if (sw) {
+              if (typeof sw2 === 'function') sw2(sw, asyncConf.enabled);
+              else sw.classList.toggle('on', asyncConf.enabled);
+            }
+            if (range) {
+              range.value = asyncConf.count;
+              if (typeof rangeFill === 'function') rangeFill(range);
+            }
+            if (num) num.textContent = asyncConf.count + ' 条';
+            if (sub) sub.style.display = asyncConf.enabled ? '' : 'none';
+          }
+        }
+      });
+    }
+  }
+
+  // 从 UI 提取并立即持久化配置
+  async function persistCurrentGroupCrossFromUI() {
+    if (!_isUiReadyForCurrentGroup) return; // 未就绪前绝对禁止误写保存
+    var info = await getCurrentEditingGroupInfo();
+    var sw = document.getElementById('grp-cross-on');
+    var range = document.getElementById('grp-cross-range');
+    var enabled = sw ? sw.classList.contains('on') : false;
+    var count = range ? (parseInt(range.value, 10) || 5) : 5;
+
+    if (info.id || info.name) {
+      saveGroupCrossSettings(info.id, info.name, { enabled: enabled, count: count });
+    }
+
+    window._pendingCrossSettings = { enabled: enabled, count: count, name: info.name, id: info.id, time: Date.now() };
+  }
+
+  // 拦截 openSheet 实现打开即秒级回显
+  function hookOpenSheetForCross() {
+    var origOpenSheet = window.openSheet;
+    if (origOpenSheet && !origOpenSheet._crossHooked) {
+      window.openSheet = function (id) {
+        var res = origOpenSheet.apply(this, arguments);
+        if (id === 'sheet-group') {
+          setTimeout(function () {
+            injectGroupCrossContextUI();
+            syncGroupCrossUIState(true);
+          }, 0);
+        }
+        return res;
+      };
+      window.openSheet._crossHooked = true;
+    }
+  }
+
+  // 监听群聊保存按钮，若为新建或改名群聊，保存后自动深度关联
+  function hookGroupSaveAction() {
+    var saveBtn = document.getElementById('grp-save');
+    if (saveBtn && !saveBtn._crossHooked2) {
+      saveBtn._crossHooked2 = true;
+      saveBtn.addEventListener('click', function () {
+        var sw = document.getElementById('grp-cross-on');
+        var range = document.getElementById('grp-cross-range');
+        var nameInput = document.getElementById('grp-name');
+        var gName = nameInput ? nameInput.value.trim() : '';
+        var enabled = sw ? sw.classList.contains('on') : false;
+        var count = range ? (parseInt(range.value, 10) || 5) : 5;
+
+        // 立即缓存本次设定的状态
+        if (gName) {
+          saveGroupCrossSettings(null, gName, { enabled: enabled, count: count });
+        }
+        window._pendingCrossSettings = { enabled: enabled, count: count, name: gName, time: Date.now() };
+
+        // 延迟回写到新建或更新的群实体
+        setTimeout(async function () {
+          try {
+            var allGroups = await queryStoreAll('groups');
+            if (allGroups && allGroups.length) {
+              allGroups.sort(function (a, b) { return (b.created || 0) - (a.created || 0); });
+              var matched = allGroups.find(function (g) { return g.name === gName; }) || allGroups[0];
+              if (matched && window._pendingCrossSettings) {
+                saveGroupCrossSettings(matched.id, matched.name, window._pendingCrossSettings);
+              }
+            }
+          } catch (e) {}
+        }, 500);
+      });
+    }
+  }
+
+  // ----------------------------------------------------
+  // 7. 初始化与 DOM 监听入口
   // ----------------------------------------------------
   function initExtension() {
     hookMdRenderHtml();
@@ -952,11 +1843,46 @@
     bindGlobalMicTrigger();
     hookTranscribe();
     injectNativeSttOption();
+    hookOpenConvTracker();
+    hookOpenSheetForCross();
+    hookGroupSaveAction();
+    injectGroupCrossContextUI();
+
+    // 监听 sheet-group 开启状态，秒级完成回显
+    var grpSheet = document.getElementById('sheet-group');
+    if (grpSheet && !grpSheet._crossObserved) {
+      grpSheet._crossObserved = true;
+      try {
+        var obs = new MutationObserver(function (mutations) {
+          for (var m = 0; m < mutations.length; m++) {
+            if (mutations[m].attributeName === 'class' && grpSheet.classList.contains('open')) {
+              injectGroupCrossContextUI();
+              syncGroupCrossUIState(true);
+              break;
+            }
+          }
+        });
+        obs.observe(grpSheet, { attributes: true, attributeFilter: ['class'] });
+      } catch (e) {}
+    }
+
+    // 检查并触发 Service Worker 更新，防止浏览器加载过时的离线缓存
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) {
+            reg.update().catch(function () {});
+          });
+        }).catch(function () {});
+      }
+    } catch (e) {}
 
     setInterval(injectElToneUI, 400);
     setInterval(cleanAllVoiceTextNodes, 1200);
     setInterval(checkAndSyncCallASR, 1000);
     setInterval(injectNativeSttOption, 800);
+    setInterval(injectGroupCrossContextUI, 800);
+    setInterval(syncGroupCrossUIState, 500);
   }
 
   if (document.readyState === 'loading') {
@@ -970,3 +1896,217 @@
 
   console.log('[InternalBeyond Extension] ElevenLabs v3 custom tone extension active with auto-attachment engine.');
 })();
+
+/* ==========================================================================
+   Blog 日志增强扩展（零侵入式插件）
+   日志编辑器（Writing/Editing）增加极简美化「导入」图标按钮与文件拖拽支持
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  function injectStyles() {
+    if (document.getElementById('ib-custom-blog-enhancer-style')) return;
+    var st = document.createElement('style');
+    st.id = 'ib-custom-blog-enhancer-style';
+    st.textContent = `
+      /* 日志编辑页中的极简导入按钮 - 严格对齐旁边的 select 下拉框 */
+      .ib-blog-import-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        height: 42px;
+        width: 42px;
+        padding: 0;
+        border: 1px solid var(--line, rgba(120, 140, 170, 0.2));
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.5);
+        color: var(--tx, #2c3345);
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        flex-shrink: 0;
+        box-sizing: border-box;
+      }
+      body.theme-infernal .ib-blog-import-btn {
+        background: rgba(14, 22, 42, 0.5);
+      }
+      .ib-blog-import-btn:hover {
+        background: var(--acc, #3b82f6);
+        color: #ffffff;
+        border-color: var(--acc, #3b82f6);
+        transform: translateY(-1px);
+      }
+      .ib-blog-import-btn:active {
+        transform: translateY(0) scale(0.95);
+      }
+      .ib-blog-import-btn svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      /* 拖拽释放提示区域高亮 */
+      .ed-body-l.drag-over,
+      .mtx.m-ed-body.drag-over {
+        background: rgba(59, 130, 246, 0.08) !important;
+        outline: 2px dashed var(--acc, #3b82f6) !important;
+        outline-offset: -3px !important;
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function applyFileContent(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var text = e.target.result || '';
+      var titleEl = document.getElementById('m-ed-title');
+      var contentEl = document.getElementById('m-ed-content');
+      var formatEl = document.getElementById('m-ed-format');
+
+      if (contentEl) {
+        contentEl.value = text;
+        contentEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // 若当前标题为空，则自动提取文件名作为标题
+      if (titleEl && !titleEl.value.trim()) {
+        var name = file.name.replace(/\.[^/.]+$/, '');
+        titleEl.value = name;
+        titleEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // 根据文件扩展名自动切换 Markdown / 纯文本
+      var isMd = /\.(md|markdown)$/i.test(file.name);
+      if (formatEl) {
+        formatEl.value = isMd ? 'md' : 'txt';
+        formatEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      var fmtBtn = document.querySelector('.m-fmt[data-fmt="' + (isMd ? 'md' : 'txt') + '"]');
+      if (fmtBtn) {
+        fmtBtn.click();
+      }
+
+      if (typeof window.toast === 'function') {
+        window.toast('已导入: ' + file.name);
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function setupBlogEditorImport() {
+    // 隐藏的文件选择控件（单例）
+    var fileInput = document.getElementById('ib-blog-file-input');
+    if (!fileInput) {
+      fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.txt,.md,.markdown,text/plain,text/markdown';
+      fileInput.style.display = 'none';
+      fileInput.id = 'ib-blog-file-input';
+      document.body.appendChild(fileInput);
+
+      fileInput.addEventListener('change', function () {
+        if (this.files && this.files[0]) {
+          applyFileContent(this.files[0]);
+        }
+      });
+    }
+
+    // 1. 移动端主编辑器容器：#sub-blog-editor .ed-meta-row
+    var metaRow = document.querySelector('#sub-blog-editor .ed-meta-row');
+    if (metaRow && !metaRow.querySelector('.ib-blog-import-btn')) {
+      var importBtn = document.createElement('button');
+      importBtn.type = 'button';
+      importBtn.className = 'ib-blog-import-btn';
+      importBtn.title = '导入文件 (.txt / .md)';
+      importBtn.setAttribute('aria-label', '导入');
+      // 纯净的文件上传图标（托盘 + 向上箭头）
+      importBtn.innerHTML = `
+        <svg viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      `;
+      importBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        fileInput.value = '';
+        fileInput.click();
+      });
+      metaRow.appendChild(importBtn);
+    }
+
+    // 2. 拖拽支持
+    var contentEl = document.getElementById('m-ed-content');
+    if (contentEl && !contentEl._ibDropBound) {
+      contentEl._ibDropBound = true;
+      contentEl.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        contentEl.classList.add('drag-over');
+      });
+      contentEl.addEventListener('dragleave', function (e) {
+        e.preventDefault();
+        contentEl.classList.remove('drag-over');
+      });
+      contentEl.addEventListener('drop', function (e) {
+        e.preventDefault();
+        contentEl.classList.remove('drag-over');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          applyFileContent(e.dataTransfer.files[0]);
+        }
+      });
+    }
+  }
+
+  function initEnhancer() {
+    injectStyles();
+    setupBlogEditorImport();
+
+    // 安全守护 edStatsM，防止 DOM 未就绪或局部缺失时抛出 null textContent 异常
+    if (typeof window.edStatsM === 'function' && !window.edStatsM._guarded) {
+      var origEdStatsM = window.edStatsM;
+      var safeEdStatsM = function () {
+        try {
+          var content = document.getElementById('m-ed-content');
+          var chars = document.getElementById('m-ed-chars');
+          var lines = document.getElementById('m-ed-lines');
+          var size = document.getElementById('m-ed-size');
+          if (!content) return;
+          var v = content.value || '';
+          if (chars) chars.textContent = v.length;
+          if (lines) lines.textContent = v ? v.split('\n').length : 0;
+          if (size) size.textContent = (new Blob([v]).size / 1024).toFixed(1) + ' KB';
+        } catch (e) {
+          try { origEdStatsM(); } catch (err) {}
+        }
+      };
+      safeEdStatsM._guarded = true;
+      window.edStatsM = safeEdStatsM;
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initEnhancer);
+  } else {
+    initEnhancer();
+  }
+
+  // 周期性与 DOM 变动持续检测挂载
+  setInterval(initEnhancer, 300);
+
+  var observer = new MutationObserver(function () {
+    initEnhancer();
+  });
+  try {
+    observer.observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
+
+  console.log('[InternalBeyond Extension] Blog Import Enhancer active.');
+})();
+
+

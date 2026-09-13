@@ -21,6 +21,12 @@ app.use(express.static(__dirname, {
     if (filePath.endsWith('.webmanifest')) {
       res.setHeader('Content-Type', 'application/manifest+json');
     }
+    // Disable browser caching for core html, js, and service worker to prevent version rollback
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.includes('custom')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
   }
 }));
 
@@ -31,6 +37,9 @@ app.post(['*browser-native*', '*/audio/transcriptions'], (req, res) => {
 
 // Fallback all other routes to index.html for SPA behavior
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
