@@ -19,15 +19,6 @@ window.IB_APP_CATALOG={
       "file": "ib-app-cinema.js",
       "desc": "选一段手机里的视频、配一份 .srt / .vtt 字幕，和 TA 一起看：通栏播放器 / 留影 / 看画面 / 弹幕 / 全屏；视频与字幕不入库",
       "icon": "<rect x=\"3.5\" y=\"6\" width=\"17\" height=\"12\" rx=\"2.5\"/><path d=\"M3.5 9.5h17M7.5 6v12M16.5 6v12\"/><path d=\"M10.8 11v4l3.4-2z\"/>"
-    },
-    {
-      "id": "timeline_cal",
-      "name": "日历",
-      "version": "2.0.0",
-      "file": "ib-app-schedule.js",
-      "desc": "跨时间段日程规划与分类统计（学习、娱乐、写代码、出去玩），支持与 AI 角色聊天自动记日程",
-      "icon": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"3\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/><circle cx=\"12\" cy=\"15\" r=\"2\"/>",
-      "builtin": true
     }
   ]
 };

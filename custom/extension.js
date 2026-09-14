@@ -40,51 +40,6 @@
         }
       } catch (e) {}
     }, 3500);
-
-    // 自动 Service Worker 版本检测与离线缓存强制刷新引擎
-    try {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function (registrations) {
-          registrations.forEach(function (reg) {
-            reg.update().catch(function () {});
-          });
-        }).catch(function () {});
-      }
-      if ('caches' in window) {
-        caches.keys().then(function (keys) {
-          var validCache = 'ib-cache-v2211-cal-update';
-          keys.forEach(function (key) {
-            if (key !== validCache && key.indexOf('ib-cache') === 0) {
-              caches.delete(key).catch(function () {});
-            }
-          });
-        }).catch(function () {});
-      }
-    } catch (e) {}
-
-    // 自动确保日历 APP 自动就绪并挂载到桌面
-    function ensureCalendarApp() {
-      try {
-        if (window.IBApps) {
-          if (typeof window.IBApps.install === 'function') {
-            var list = typeof window.IBApps.installed === 'function' ? window.IBApps.installed() : [];
-            if (!list || !list.includes('timeline_cal')) {
-              window.IBApps.install('timeline_cal').catch(function () {});
-            }
-          }
-        }
-        if (!document.querySelector('script[data-ibapp="timeline_cal"]') && !document.querySelector('script[src*="ib-app-schedule.js"]')) {
-          var sc = document.createElement('script');
-          sc.src = 'apps/ib-app-schedule.js?v=' + Date.now();
-          sc.defer = true;
-          sc.dataset.ibapp = 'timeline_cal';
-          document.head.appendChild(sc);
-        }
-      } catch (e) {}
-    }
-    ensureCalendarApp();
-    setTimeout(ensureCalendarApp, 600);
-    setTimeout(ensureCalendarApp, 2000);
   } catch (e) {}
 
   // ----------------------------------------------------

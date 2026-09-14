@@ -207,50 +207,14 @@ app.get('/api/v2/storage/status', (req, res) => {
   }
 });
 
-// 专门处理 Service Worker 文件，确保绝对不被强缓存
-app.get('/ib-sw.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Service-Worker-Allowed', '/');
-  res.sendFile(path.join(__dirname, 'ib-sw.js'));
-});
-
-// 动态处理 HTML 入口：自动注入扩展脚本并彻底阻断缓存
-function serveIndexHtml(req, res) {
-  try {
-    const htmlPath = path.join(__dirname, 'index.html');
-    let content = fs.readFileSync(htmlPath, 'utf-8');
-    
-    // 自动确保 custom/extension.js 在最底部注入（带最新时间戳防缓存）
-    const extScript = `<script src="./custom/extension.js?v=${Date.now()}"></script>`;
-    if (!content.includes('custom/extension.js')) {
-      content = content.replace('</body>', `${extScript}\n</body>`);
-    } else {
-      content = content.replace(/<script\s+src=["']\.\/custom\/extension\.js[^"']*["']><\/script>/gi, extScript);
-    }
-    
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.send(content);
-  } catch (e) {
-    res.status(500).send('Error loading index.html: ' + e.message);
-  }
-}
-
-app.get(['/', '/index.html'], serveIndexHtml);
-
 // Serve static assets with appropriate headers
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.webmanifest')) {
       res.setHeader('Content-Type', 'application/manifest+json');
     }
-    // Disable browser caching for core html, js, json, and service worker to prevent version rollback
-    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.json') || filePath.includes('custom') || filePath.includes('apps')) {
+    // Disable browser caching for core html, js, and service worker to prevent version rollback
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.includes('custom')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
@@ -264,7 +228,12 @@ app.post(['*browser-native*', '*/audio/transcriptions'], (req, res) => {
 });
 
 // Fallback all other routes to index.html for SPA behavior
-app.get('*', serveIndexHtml);
+app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 app.listen(PORT, HOST, () => {
   console.log(`InternalBeyond Mobile server running at http://${HOST}:${PORT}`);
