@@ -2109,4 +2109,502 @@
   console.log('[InternalBeyond Extension] Blog Import Enhancer active.');
 })();
 
+/* ==========================================================================
+   酒馆式服务端数据持久化与无感多端同步引擎 (Tavern-Style Cloud Storage)
+   - 纯非侵入式：拦截 dbPut / dbDelete，实现按需增量推送
+   - 开屏/切回前台轻量比对拉取，换手机/换电脑数据全自动无感恢复
+   - 自带右上角精致状态灯与快捷菜单
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  const STORAGE_API_BASE = '/api/v2/storage';
+  const LOCAL_META_KEY = 'ib_server_sync_meta_v2';
+  
+  // 增量变动队列
+  let pendingMutations = [];
+  let flushTimer = null;
+  let isSyncing = false;
+  let isPulling = false;
+  let syncIndicatorEl = null;
+
+  // 状态管理
+  const SyncState = {
+    status: 'connecting', // 'ready' | 'syncing' | 'error' | 'offline'
+    lastSyncTime: 0,
+    serverModified: 0,
+    itemCount: 0,
+    errorMsg: ''
+  };
+
+  // 工具：获取记录的唯一键
+  function extractKey(val, storeName) {
+    if (val && typeof val === 'object') {
+      if (val.id !== undefined && val.id !== null) return val.id;
+      if (val.key !== undefined && val.key !== null) return val.key;
+      if (val.name !== undefined && val.name !== null) return val.name;
+    }
+    return val;
+  }
+
+  // 1. 增量排队推送（防抖 800ms，保证打字/连发消息时合并为一次请求）
+  function queueMutation(mutation) {
+    if (!mutation || !mutation.store) return;
+    pendingMutations.push(mutation);
+    updateIndicatorUI('syncing', '正在写入服务器...');
+
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => {
+      flushPendingMutations();
+    }, 800);
+  }
+
+  async function flushPendingMutations() {
+    if (pendingMutations.length === 0 || isSyncing) return;
+    const batch = pendingMutations.slice();
+    pendingMutations = [];
+    isSyncing = true;
+    updateIndicatorUI('syncing', `正在推送 ${batch.length} 项数据...`);
+
+    try {
+      const res = await fetch(`${STORAGE_API_BASE}/patch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mutations: batch })
+      });
+      const json = await res.json();
+      if (json.ok) {
+        SyncState.status = 'ready';
+        SyncState.lastSyncTime = Date.now();
+        SyncState.serverModified = json.lastModified || Date.now();
+        localStorage.setItem(LOCAL_META_KEY, JSON.stringify({ lastCheck: SyncState.lastSyncTime, mtime: SyncState.serverModified }));
+        updateIndicatorUI('ready', '服务器存储已实时同步');
+      } else {
+        throw new Error(json.error || '推送失败');
+      }
+    } catch (e) {
+      console.warn('[ServerSync] Patch failed, re-queueing:', e);
+      pendingMutations = batch.concat(pendingMutations);
+      SyncState.status = 'error';
+      SyncState.errorMsg = e.message;
+      updateIndicatorUI('error', '同步暂未连接到服务器');
+    } finally {
+      isSyncing = false;
+      if (pendingMutations.length > 0) {
+        if (flushTimer) clearTimeout(flushTimer);
+        flushTimer = setTimeout(flushPendingMutations, 3000);
+      }
+    }
+  }
+
+  // 2. 劫持底层 IndexedDB 核心方法实现非侵入式增量捕获
+  function patchDatabaseOperations() {
+    // 监听 dbPut
+    if (typeof window.dbPut === 'function' && !window.dbPut.__ib_synced) {
+      const originalDbPut = window.dbPut;
+      const patchedPut = async function (store, value) {
+        const res = await originalDbPut.apply(this, arguments);
+        try {
+          const key = extractKey(value, store);
+          queueMutation({ type: 'put', store, key, value });
+        } catch (err) {
+          console.error('[ServerSync] Hook put error:', err);
+        }
+        return res;
+      };
+      patchedPut.__ib_synced = true;
+      window.dbPut = patchedPut;
+    }
+
+    // 监听 dbPutAll
+    if (typeof window.dbPutAll === 'function' && !window.dbPutAll.__ib_synced) {
+      const originalDbPutAll = window.dbPutAll;
+      const patchedPutAll = async function (store, items) {
+        const res = await originalDbPutAll.apply(this, arguments);
+        try {
+          if (Array.isArray(items)) {
+            for (const item of items) {
+              const key = extractKey(item, store);
+              queueMutation({ type: 'put', store, key, value: item });
+            }
+          }
+        } catch (err) {
+          console.error('[ServerSync] Hook putAll error:', err);
+        }
+        return res;
+      };
+      patchedPutAll.__ib_synced = true;
+      window.dbPutAll = patchedPutAll;
+    }
+
+    // 监听 dbDelete
+    if (typeof window.dbDelete === 'function' && !window.dbDelete.__ib_synced) {
+      const originalDbDelete = window.dbDelete;
+      const patchedDelete = async function (store, key) {
+        const res = await originalDbDelete.apply(this, arguments);
+        try {
+          queueMutation({ type: 'del', store, key });
+        } catch (err) {
+          console.error('[ServerSync] Hook delete error:', err);
+        }
+        return res;
+      };
+      patchedDelete.__ib_synced = true;
+      window.dbDelete = patchedDelete;
+    }
+
+    // 监听 dbDeleteMany
+    if (typeof window.dbDeleteMany === 'function' && !window.dbDeleteMany.__ib_synced) {
+      const originalDbDeleteMany = window.dbDeleteMany;
+      const patchedDeleteMany = async function (store, keys) {
+        const res = await originalDbDeleteMany.apply(this, arguments);
+        try {
+          if (Array.isArray(keys)) {
+            for (const key of keys) {
+              queueMutation({ type: 'del', store, key });
+            }
+          }
+        } catch (err) {
+          console.error('[ServerSync] Hook deleteMany error:', err);
+        }
+        return res;
+      };
+      patchedDeleteMany.__ib_synced = true;
+      window.dbDeleteMany = patchedDeleteMany;
+    }
+  }
+
+  // 3. 核心比对与拉取逻辑（打开网页或换设备时执行）
+  async function checkAndSyncFromRemote(force = false) {
+    if (isPulling) return;
+    isPulling = true;
+    updateIndicatorUI('syncing', '正在检查服务器数据...');
+
+    try {
+      const res = await fetch(`${STORAGE_API_BASE}/manifest`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { meta } = await res.json();
+      
+      let localMeta = {};
+      try {
+        localMeta = JSON.parse(localStorage.getItem(LOCAL_META_KEY) || '{}');
+      } catch (e) {}
+
+      const serverLastModified = meta?.lastModified || 0;
+      const localLastMtime = localMeta.mtime || 0;
+      const storeKeys = Object.keys(meta?.stores || {});
+
+      // 情况 A：服务器上还是全新的，但本地已经有数据了 -> 自动全量初始化到服务器
+      if (storeKeys.length === 0 || serverLastModified === 0) {
+        console.log('[ServerSync] Remote is empty. Uploading local baseline to server...');
+        await uploadFullLocalDump();
+        return;
+      }
+
+      // 情况 B：服务器数据更新，或者新设备第一次打开，或者用户手动强制刷新
+      if (force || serverLastModified > localLastMtime || !localMeta.lastCheck) {
+        console.log('[ServerSync] Remote has newer data or initial visit. Pulling from server...');
+        updateIndicatorUI('syncing', '正在同步服务器最新数据...');
+        
+        const pullRes = await fetch(`${STORAGE_API_BASE}/pull`);
+        const pullData = await pullRes.json();
+        
+        if (pullData.ok && pullData.stores) {
+          await restoreStoresToLocalIndexedDB(pullData.stores);
+          SyncState.lastSyncTime = Date.now();
+          SyncState.serverModified = serverLastModified;
+          localStorage.setItem(LOCAL_META_KEY, JSON.stringify({ lastCheck: SyncState.lastSyncTime, mtime: serverLastModified }));
+          updateIndicatorUI('ready', '服务器数据已同步至最新');
+        }
+      } else {
+        // 数据完全一致
+        SyncState.status = 'ready';
+        SyncState.lastSyncTime = Date.now();
+        updateIndicatorUI('ready', '数据与服务器一致');
+      }
+    } catch (e) {
+      console.warn('[ServerSync] Check manifest error:', e);
+      SyncState.status = 'offline';
+      SyncState.errorMsg = e.message;
+      updateIndicatorUI('offline', '未连接到自建服务存储');
+    } finally {
+      isPulling = false;
+    }
+  }
+
+  // 将服务器返回的数据平滑写入本地 IndexedDB
+  async function restoreStoresToLocalIndexedDB(stores) {
+    if (!stores || typeof stores !== 'object') return;
+    const req = window.indexedDB.open('InternalBeyondDB');
+    return new Promise((resolve) => {
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        const availableStores = Array.from(db.objectStoreNames);
+        let completed = 0;
+        const storeEntries = Object.entries(stores).filter(([s]) => availableStores.includes(s));
+
+        if (storeEntries.length === 0) {
+          resolve();
+          return;
+        }
+
+        for (const [storeName, dataMap] of storeEntries) {
+          try {
+            const tx = db.transaction(storeName, 'readwrite');
+            const os = tx.objectStore(storeName);
+            // 写入所有记录
+            for (const val of Object.values(dataMap)) {
+              try {
+                os.put(val);
+              } catch (putErr) {}
+            }
+            tx.oncomplete = () => {
+              completed++;
+              if (completed >= storeEntries.length) {
+                resolve();
+              }
+            };
+            tx.onerror = () => {
+              completed++;
+              if (completed >= storeEntries.length) {
+                resolve();
+              }
+            };
+          } catch (txErr) {
+            completed++;
+            if (completed >= storeEntries.length) resolve();
+          }
+        }
+      };
+      req.onerror = () => resolve();
+    });
+  }
+
+  // 将当前本地全部数据打包备份上传至服务器（初始化用）
+  async function uploadFullLocalDump() {
+    updateIndicatorUI('syncing', '正在上传初次全量数据...');
+    try {
+      const dump = {};
+      const targetStores = [
+        'about', 'chatThreads', 'chatMessages', 'apiSettings', 'apiConfigs',
+        'memories', 'autoMemory', 'calEvents', 'calNotes', 'calLedger',
+        'posts', 'letters', 'groups'
+      ];
+
+      for (const s of targetStores) {
+        if (typeof window.dbGetAll === 'function') {
+          try {
+            const list = await window.dbGetAll(s);
+            if (Array.isArray(list) && list.length > 0) {
+              dump[s] = list;
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (Object.keys(dump).length === 0) {
+        updateIndicatorUI('ready', '存储已就绪 (空状态)');
+        return;
+      }
+
+      const dumpSizeStr = JSON.stringify(dump);
+      const dumpSize = dumpSizeStr.length;
+
+      const res = await fetch(`${STORAGE_API_BASE}/full-dump`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: dumpSizeStr
+      });
+      const json = await res.json();
+      if (json.ok) {
+        SyncState.status = 'ready';
+        SyncState.lastSyncTime = Date.now();
+        SyncState.serverModified = json.lastModified;
+        
+        let localMeta = {};
+        try { localMeta = JSON.parse(localStorage.getItem(LOCAL_META_KEY) || '{}'); } catch(e){}
+        localMeta.lastCheck = SyncState.lastSyncTime;
+        localMeta.mtime = json.lastModified;
+        
+        if (!localMeta.manualBackups) localMeta.manualBackups = [];
+        localMeta.manualBackups.unshift({ time: Date.now(), size: dumpSize });
+        if (localMeta.manualBackups.length > 5) localMeta.manualBackups.pop(); // Keep last 5
+        
+        localStorage.setItem(LOCAL_META_KEY, JSON.stringify(localMeta));
+        updateIndicatorUI('ready', '初始数据已成功同步至服务器');
+        renderBackupLogs();
+      }
+    } catch (err) {
+      console.warn('[ServerSync] Upload dump error:', err);
+      updateIndicatorUI('error', '全量同步出错');
+    }
+  }
+
+  // 辅助渲染备份日志
+  window.renderBackupLogs = function() {
+    const logContainer = document.getElementById('ib-sync-logs-container');
+    if (!logContainer) return;
+    let localMeta = {};
+    try { localMeta = JSON.parse(localStorage.getItem(LOCAL_META_KEY) || '{}'); } catch(e){}
+    const backups = localMeta.manualBackups || [];
+    
+    if (backups.length === 0) {
+      logContainer.innerHTML = '<div style="color: var(--tx3); font-size: 11px; padding: 4px 0;">暂无手动快照备份记录。</div>';
+      return;
+    }
+
+    let html = '';
+    for (const b of backups) {
+      const dt = new Date(b.time);
+      const timeStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const sizeMb = (b.size / 1024 / 1024).toFixed(2);
+      html += `
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; color: var(--tx2);">
+          <span>${timeStr}</span>
+          <span>${sizeMb} MB</span>
+        </div>
+      `;
+    }
+    logContainer.innerHTML = html;
+  };
+
+  // 4. UI 状态指示灯与抽屉面板 (集成在数据备份页)
+  function createIndicatorUI() {
+    if (document.getElementById('ib-server-sync-indicator')) {
+      return;
+    }
+
+    // 寻找 Data 页面的聊天记录管理标签
+    const secLabels = document.querySelectorAll('#sec-data-io .sec-label');
+    let targetLabel = null;
+    for (let i = 0; i < secLabels.length; i++) {
+      if (secLabels[i].textContent.includes('聊天记录管理')) {
+        targetLabel = secLabels[i];
+        break;
+      }
+    }
+
+    if (!targetLabel) {
+      return; // 找不到页面结构，直接退出
+    }
+
+    // 创建自建服务器同步区
+    const newSecLabel = document.createElement('div');
+    newSecLabel.className = 'sec-label';
+    newSecLabel.textContent = '自建云存储无缝同步';
+
+    const el = document.createElement('div');
+    el.id = 'ib-server-sync-indicator';
+    el.className = 'card fx-card';
+    el.innerHTML = `
+      <div class="fx-ico" style="background: rgba(16,185,129,0.15); color: #10b981;">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+        </svg>
+      </div>
+      <div class="cm-sub-t" style="display:flex;align-items:center;gap:6px;">
+        云存储状态
+        <span id="ib-sync-dot" style="width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;"></span>
+        <span id="ib-sync-text" style="font-size:12px;font-weight:normal;color:var(--tx2);">云存储就绪</span>
+      </div>
+      <p class="hint" style="margin-top:0">你的任何增删改操作都会自动、即时增量推送到你的专属服务器。这不消耗你的配额，彻底摆脱换设备导致的数据丢失。服务器端由酒馆式独立文件构成。</p>
+      
+      <div style="display:flex;gap:10px;margin:8px 0 12px">
+        <button class="btn" style="flex:1; background:var(--bg3);" id="ib-sync-btn-pull">强制比对并更新 (Pull)</button>
+        <button class="btn primary" style="flex:1" id="ib-sync-btn-push">创建全量服务端快照</button>
+      </div>
+
+      <div class="cm-sub-t">服务端全量快照日志</div>
+      <div id="ib-sync-logs-container" style="background:var(--bg3); padding:8px 12px; border-radius:8px; margin-top:6px;">
+        <div style="color: var(--tx3); font-size: 11px;">加载中...</div>
+      </div>
+    `;
+
+    targetLabel.parentNode.insertBefore(newSecLabel, targetLabel);
+    targetLabel.parentNode.insertBefore(el, targetLabel);
+
+    syncIndicatorEl = el;
+    window.renderBackupLogs();
+
+    const btnPull = el.querySelector('#ib-sync-btn-pull');
+    const btnPush = el.querySelector('#ib-sync-btn-push');
+
+    btnPull.addEventListener('click', async () => {
+      btnPull.textContent = '比对更新中...';
+      await checkAndSyncFromRemote(true);
+      btnPull.textContent = '已更新完成！';
+      setTimeout(() => {
+        btnPull.textContent = '强制比对并更新 (Pull)';
+      }, 1500);
+    });
+
+    btnPush.addEventListener('click', async () => {
+      if (confirm('确定要将当前设备的本地数据完整同步覆盖到服务器吗？\n注：通常不需要手动创建快照，日常操作已自动实时同步。')) {
+        btnPush.textContent = '正在打包上传...';
+        await uploadFullLocalDump();
+        btnPush.textContent = '已保存到服务器';
+        setTimeout(() => {
+          btnPush.textContent = '创建全量服务端快照';
+        }, 1500);
+      }
+    });
+  }
+
+  function updateIndicatorUI(status, label) {
+    if (!syncIndicatorEl) return;
+    const dot = syncIndicatorEl.querySelector('#ib-sync-dot');
+    const txt = syncIndicatorEl.querySelector('#ib-sync-text');
+    
+    if (txt) txt.textContent = label || '云存储就绪';
+
+    if (dot) {
+      if (status === 'ready') {
+        dot.style.background = '#10b981';
+        dot.style.boxShadow = '0 0 6px #10b981';
+      } else if (status === 'syncing') {
+        dot.style.background = '#3b82f6';
+        dot.style.boxShadow = '0 0 8px #3b82f6';
+      } else if (status === 'offline') {
+        dot.style.background = '#eab308';
+        dot.style.boxShadow = 'none';
+      } else {
+        dot.style.background = '#ef4444';
+        dot.style.boxShadow = 'none';
+      }
+    }
+  }
+
+  // 5. 初始化启动
+  function initSyncEngine() {
+    createIndicatorUI();
+    patchDatabaseOperations();
+
+    // 延时 600ms 待主应用 IndexedDB 就绪后进行比对拉取
+    setTimeout(() => {
+      createIndicatorUI();
+      patchDatabaseOperations();
+      checkAndSyncFromRemote();
+    }, 600);
+
+    // 当用户从其他应用切回浏览器窗口时，自动检查是否有其他设备发来的更新
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        checkAndSyncFromRemote();
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSyncEngine);
+  } else {
+    initSyncEngine();
+  }
+
+  window.IBSyncEngine = {
+    checkAndSync: checkAndSyncFromRemote,
+    uploadFull: uploadFullLocalDump,
+    getState: () => SyncState
+  };
+})();
+
 
