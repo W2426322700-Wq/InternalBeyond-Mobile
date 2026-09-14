@@ -2428,7 +2428,7 @@ export default{async fetch(r){if(r.method===&quot;OPTIONS&quot;)return new Respo
           <p><strong>报文格式自动识别</strong>：「自定义」不再固定为 OpenAI 格式——地址以 /messages 结尾按 Anthropic 格式请求，含 generateContent 按 Gemini 格式，其余按 OpenAI 兼容格式。同一个中转站常同时提供几种入口，用哪种由你填的地址决定；Claude 系模型建议走 /v1/messages 入口，思考链与提示缓存才能完整生效。</p>
           <p><strong>拉取模型列表</strong>：「自定义」下按钮会依次探测多个候选地址——地址同级的 …/models、站点的 /v1/models、Anthropic 与 Gemini 风格的 models 接口，以及 new-api 类站点的公开模型表——首个返回列表的地址即用；列表超过 10 个时按模型家族分组，并提供关键词筛选。来自公开模型表的列表列出站点全部模型，能否调用以你的密钥权限为准。拉取失败不影响对话，直接手输模型名即可。</p>
           <p><strong>常见失败原因</strong>：① 401 / 403——密钥错误、所在分组无权限或余额不足；② 返回的是网页而不是接口——地址填成了控制台页面，应填 API 地址；③ 跨域（CORS）——中转站未允许浏览器直接访问，应用运行在浏览器环境里、无法绕过，只能换站点或自建转发；④ 400——请求参数不被接受，先关闭「提示缓存」，仍不行再关闭思考链；⑤ 模型名不符——中转站的模型名常带前缀或别名，以其列表为准。</p>
-          <p><strong>接口预设</strong>：服务商为「自定义」时，配置页 API Key 下方多一行「接口预设」：把当前的模型、接口地址与密钥起个名存成一套，下拉里选一套即换上并直接保存这张配置，可删。用来在同一张配置里切换多个中转站或多套模型。预设只存本机（含密钥），不进备份、不去电脑端。</p>
+          <p><strong>接口预设</strong>：配置页 API Key 下方一行「接口预设」：把当前的服务商、模型、接口地址与密钥起个名存成一套，列表里点一套即换上并直接保存这张配置（服务商也一起换），行尾 × 删。用来在同一张配置里切换多个中转站、多套模型，或不同服务商之间来回换。预设只存本机（含密钥），不进备份、不去电脑端。</p>
           <p><strong>说明</strong>：中转站能看到你的全部请求内容，请只使用可信站点；本应用不内置、不推荐任何中转站。</p>
         </div>
         <div class="g-name">常见问题</div>
@@ -12660,7 +12660,7 @@ function _orientApply(){try{
   setTimeout(function(){try{if(window.IBNative&&window.IBNative.available){var _bg=$('pres-bg');var _row=_bg&&_bg.closest('.tog');if(_row)_row.style.display=''}}catch(e){}},1200);/* v116-p：壳内显露「后台 Presence（系统级）」开关（桥在文末激活，故延时探测；浏览器 / PWA 保持隐藏） */
 })();
 function _vidQNormM(v){v=String(v==null?'m':v);if(v==='384')return 'l';if(v==='768')return 'h';if(v==='512')return 'm';return (v==='l'||v==='h')?v:'m'}/* 画质档位兼容电脑端备份里的 384/512/768 写法 */
-var IB_VER='v244-p',IB_VER_DATE='2026-09-11';
+var IB_VER='v245-p',IB_VER_DATE='2026-09-11';
 (function _appVerDraw(){var e=document.getElementById('app-ver');if(e)e.textContent='InternalBeyond Mobile '+IB_VER+'（'+IB_VER_DATE+'）'})();
 function _lkVeilOff(){try{var v=document.getElementById('lk-preveil');if(v){v.classList.add('off');setTimeout(function(){try{v.remove()}catch(e){}},420)}}catch(e){}}/* fix-r4：预遮罩揭幕（任务 8） */
 async function _lkBoot(){try{await loadBgs()}catch(e){}var lk=_lkCfg();try{localStorage.setItem('ib_lockOn',lk&&lk.on?'1':'0')}catch(e){}/* v101-m：启动后把 DB 真值回写同步镜像 */if(lk&&lk.on)_lkShow();else _lkVeilOff()}
@@ -23801,32 +23801,40 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){'use strict';
 var CUR=null;
 function esc9(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-function row(){var r=document.getElementById('aset-preset-row');if(r)return r;var key=document.getElementById('aset-key');var fg=key&&key.closest('.f-group');if(!fg)return null;r=document.createElement('div');r.className='f-group';r.id='aset-preset-row';r.style.cssText='margin-top:12px;display:none';
-  r.innerHTML='<label>接口预设 <span class="lb-note">（自定义中转专用：模型 + 地址 + 密钥一套一套存，随时切）</span></label>'
-  +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><div class="sel" style="flex:1;min-width:0"><select id="aset-preset"><option value="">（选一套换上并保存）</option></select></div><button class="btn" type="button" id="aset-preset-del" style="flex:none">删</button></div>'
-  +'<div style="display:flex;gap:8px;align-items:center"><input id="aset-preset-name" placeholder="给当前这套起个名" autocomplete="off" style="flex:1;min-width:0"><button class="btn" type="button" id="aset-preset-add" style="flex:none">存为预设</button></div>'
+function host9(u){u=String(u||'').trim();if(!u)return '';try{return new URL(u).host}catch(e){return u.replace(/^https?:\/\//,'').split('/')[0]}}
+function provName(p){try{return (typeof PROVIDERS!=='undefined'&&PROVIDERS[p]&&PROVIDERS[p].name)||p}catch(e){return p}}
+function row(){var r=document.getElementById('aset-preset-row');if(r)return r;var key=document.getElementById('aset-key');var fg=key&&key.closest('.f-group');if(!fg)return null;r=document.createElement('div');r.className='f-group';r.id='aset-preset-row';r.style.cssText='margin-top:12px';
+  if(!document.getElementById('ib-apipreset-css')){var st=document.createElement('style');st.id='ib-apipreset-css';st.textContent='#aset-preset-list .pwl-row{padding:10px 4px}#aset-preset-list .pwl-t{font-size:.86rem}#aset-preset-list .pwl-s{font-size:.72rem;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#aset-preset-list .pwl-row.on .pwl-s{color:var(--acc);opacity:.8}';document.head.appendChild(st)}
+  r.innerHTML='<label>接口预设 <span class="lb-note">（服务商 + 模型 + 地址 + 密钥一套一套存，随时切）</span></label>'
+  +'<div id="aset-preset-list"></div>'
+  +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="aset-preset-name" placeholder="给当前这套起个名" autocomplete="off" style="flex:1;min-width:0"><button class="btn" type="button" id="aset-preset-add" style="flex:none">存为预设</button></div>'
   +'<p class="hint" id="aset-preset-hint" style="margin:6px 0 0"></p>';
   fg.insertAdjacentElement('afterend',r);
-  r.querySelector('#aset-preset').addEventListener('change',onPick);
   r.querySelector('#aset-preset-add').addEventListener('click',onAdd);
-  r.querySelector('#aset-preset-del').addEventListener('click',onDel);
+  r.querySelector('#aset-preset-list').addEventListener('click',function(e){var x=e.target.closest('[data-del]');if(x){onDel(parseInt(x.dataset.del,10));return}var rw=e.target.closest('.pwl-row');if(rw)onPick(parseInt(rw.dataset.i,10))});
   return r}
 function list(){try{return (CUR&&_mp&&_mp.perAi&&_mp.perAi[CUR]&&Array.isArray(_mp.perAi[CUR].presets))?_mp.perAi[CUR].presets:[]}catch(e){return []}}
 async function save(arr){try{if(typeof loadMP==='function')await loadMP()}catch(e){}_mp.perAi=_mp.perAi||{};_mp.perAi[CUR]=_mp.perAi[CUR]||{};_mp.perAi[CUR].presets=arr;try{if(typeof saveMP==='function')await saveMP()}catch(e){}}
-function paint(){var r=row();if(!r)return;var prov=document.getElementById('aset-provider');var on=prov&&prov.value==='custom';r.style.display=on?'':'none';if(!on)return;
-  var sel=r.querySelector('#aset-preset'),ps=list();sel.innerHTML='<option value="">（选一套换上并保存）</option>'+ps.map(function(p,i){return '<option value="'+i+'">'+esc9(p.name)+' · '+esc9(p.model||'')+'</option>'}).join('');
-  var h=r.querySelector('#aset-preset-hint');h.textContent=CUR?(ps.length?('共 '+ps.length+' 套。选一套会直接换上并保存这张配置。'):'还没有预设：把模型、地址、密钥填好，起个名点「存为预设」。'):'新配置先保存一次，再回来存预设。';
+function cur(){var pv=document.getElementById('aset-provider'),m=document.getElementById('aset-model'),u=document.getElementById('aset-endpoint'),k=document.getElementById('aset-key');return {provider:(pv&&pv.value)||'custom',model:(m&&m.value.trim())||'',endpoint:(u&&u.value.trim())||'',key:(k&&k.value.trim())||''}}
+function provOf(p){return p.provider||'custom'}
+function same(p,c){return provOf(p)===c.provider&&(p.model||'')===c.model&&(p.endpoint||'')===c.endpoint&&(p.key||'')===c.key}
+function paint(){var r=row();if(!r)return;var box=r.querySelector('#aset-preset-list'),ps=list(),c=cur();
+  box.innerHTML=ps.map(function(p,i){var meta=[provName(provOf(p)),p.model||'',host9(p.endpoint)].filter(Boolean).join(' · ');return '<div class="pwl-row'+(same(p,c)?' on':'')+'" data-i="'+i+'"><div style="flex:1;min-width:0"><div class="pwl-t">'+esc9(p.name)+'</div><div class="pwl-s">'+esc9(meta)+'</div></div><button class="pwl-x" type="button" title="删除" data-del="'+i+'"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>'}).join('');
+  var h=r.querySelector('#aset-preset-hint');h.textContent=CUR?(ps.length?('共 '+ps.length+' 套。点一套换上并保存这张配置（服务商也一起换），行尾 × 删。'):'还没有预设：把服务商、模型、地址、密钥填好，起个名点「存为预设」。'):'新配置先保存一次，再回来存预设。';
   r.querySelector('#aset-preset-add').disabled=!CUR}
-function onPick(){var i=parseInt(this.value,10);var ps=list();if(!(i>=0&&ps[i]))return;var p=ps[i];var m=document.getElementById('aset-model'),u=document.getElementById('aset-endpoint'),k=document.getElementById('aset-key');if(m)m.value=p.model||'';if(u)u.value=p.endpoint||'';if(k)k.value=p.key||'';try{if(typeof _modelListReset==='function')_modelListReset()}catch(e){}toast('已换到预设「'+p.name+'」，正在保存');this.value='';var sb=document.getElementById('aset-save');if(sb)setTimeout(function(){sb.click()},60)}
-async function onAdd(){if(!CUR){toast('新配置先保存一次');return}var m=document.getElementById('aset-model'),u=document.getElementById('aset-endpoint'),k=document.getElementById('aset-key'),nmEl=document.getElementById('aset-preset-name');
-  var model=(m&&m.value.trim())||'',ep=(u&&u.value.trim())||'',key=(k&&k.value.trim())||'',name=(nmEl&&nmEl.value.trim())||'';
-  if(!model||!ep){toast('模型与接口地址都填好再存');return}if(!name)name=model;
-  var ps=list().slice(),ix=-1;ps.forEach(function(p,i){if(p.name===name)ix=i});var rec={name:name,model:model,endpoint:ep,key:key};if(ix>=0)ps[ix]=rec;else ps.push(rec);
+function onPick(i){var ps=list(),p=ps[i];if(!p)return;var pv=document.getElementById('aset-provider'),prov=provOf(p);
+  if(pv&&pv.value!==prov){pv.value=prov;try{pv.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}}/* 先换服务商让表单按该服务商重排，再填这套的三项 */
+  var m=document.getElementById('aset-model'),u=document.getElementById('aset-endpoint'),k=document.getElementById('aset-key');if(m)m.value=p.model||'';if(u)u.value=p.endpoint||'';if(k)k.value=p.key||'';try{if(typeof _modelListReset==='function')_modelListReset()}catch(e){}
+  paint();toast('已换到预设「'+p.name+'」，正在保存');var sb=document.getElementById('aset-save');if(sb)setTimeout(function(){sb.click()},60)}
+async function onAdd(){if(!CUR){toast('新配置先保存一次');return}var c=cur(),nmEl=document.getElementById('aset-preset-name'),name=(nmEl&&nmEl.value.trim())||'';
+  if(!c.model){toast('模型填好再存');return}if(c.provider==='custom'&&!c.endpoint){toast('自定义服务商要填接口地址');return}if(!name)name=c.model;
+  var ps=list().slice(),ix=-1;ps.forEach(function(p,i){if(p.name===name)ix=i});var rec={name:name,provider:c.provider,model:c.model,endpoint:c.endpoint,key:c.key};if(ix>=0)ps[ix]=rec;else ps.push(rec);
   await save(ps);if(nmEl)nmEl.value='';paint();toast((ix>=0?'已更新预设「':'已存为预设「')+name+'」')}
-async function onDel(){var sel=document.getElementById('aset-preset');var i=sel?parseInt(sel.value,10):-1;var ps=list();if(!(i>=0&&ps[i])){toast('先在下拉里选一套要删的预设');return}
+async function onDel(i){var ps=list();if(!(i>=0&&ps[i])){return}
   var okc=false;try{okc=await confirmDlg('删除预设「'+ps[i].name+'」？','删除')}catch(e){okc=true}if(!okc)return;ps=ps.slice();ps.splice(i,1);await save(ps);paint();toast('已删除')}
 try{var _oa=openAset;openAset=function(c){_oa.apply(this,arguments);try{CUR=(c&&c.id)||null;paint()}catch(e){}}}catch(e){}
 document.addEventListener('change',function(e){if(e.target&&e.target.id==='aset-provider'){try{paint()}catch(e2){}}});
+document.addEventListener('input',function(e){var t=e.target;if(t&&(t.id==='aset-model'||t.id==='aset-endpoint'||t.id==='aset-key')){try{paint()}catch(e2){}}});/* 三项一变就重标哪一套在用 */
 })();
 </script>
 <script id="ib-tone-pack">
