@@ -2431,42 +2431,13 @@
         if (localMeta.manualBackups.length > 5) localMeta.manualBackups.pop(); // Keep last 5
         
         localStorage.setItem(LOCAL_META_KEY, JSON.stringify(localMeta));
-        updateIndicatorUI('ready', '初始数据已成功同步至服务器');
-        renderBackupLogs();
+        updateIndicatorUI('ready', '数据已成功推送至服务器');
       }
     } catch (err) {
       console.warn('[ServerSync] Upload dump error:', err);
-      updateIndicatorUI('error', '全量同步出错');
+      updateIndicatorUI('error', '推送出错');
     }
   }
-
-  // 辅助渲染备份日志
-  window.renderBackupLogs = function() {
-    const logContainer = document.getElementById('ib-sync-logs-container');
-    if (!logContainer) return;
-    let localMeta = {};
-    try { localMeta = JSON.parse(localStorage.getItem(LOCAL_META_KEY) || '{}'); } catch(e){}
-    const backups = localMeta.manualBackups || [];
-    
-    if (backups.length === 0) {
-      logContainer.innerHTML = '<div style="color: var(--tx3); font-size: 11px; padding: 4px 0;">暂无手动快照备份记录。</div>';
-      return;
-    }
-
-    let html = '';
-    for (const b of backups) {
-      const dt = new Date(b.time);
-      const timeStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
-      const sizeMb = (b.size / 1024 / 1024).toFixed(2);
-      html += `
-        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; color: var(--tx2);">
-          <span>${timeStr}</span>
-          <span>${sizeMb} MB</span>
-        </div>
-      `;
-    }
-    logContainer.innerHTML = html;
-  };
 
   // 4. UI 状态指示灯与抽屉面板 (集成在数据备份页)
   function createIndicatorUI() {
@@ -2509,14 +2480,9 @@
       </div>
       <p class="hint" style="margin-top:0">你的任何增删改操作都会自动、即时增量推送到你的专属服务器。这不消耗你的配额，彻底摆脱换设备导致的数据丢失。服务器端由酒馆式独立文件构成。</p>
       
-      <div style="display:flex;gap:10px;margin:8px 0 12px">
-        <button class="btn" style="flex:1; background:var(--bg3);" id="ib-sync-btn-pull">强制比对并更新 (Pull)</button>
-        <button class="btn primary" style="flex:1" id="ib-sync-btn-push">创建全量服务端快照</button>
-      </div>
-
-      <div class="cm-sub-t">服务端全量快照日志</div>
-      <div id="ib-sync-logs-container" style="background:var(--bg3); padding:8px 12px; border-radius:8px; margin-top:6px;">
-        <div style="color: var(--tx3); font-size: 11px;">加载中...</div>
+      <div style="display:flex;gap:10px;margin:8px 0 0">
+        <button class="btn" style="flex:1; background:var(--bg3);" id="ib-sync-btn-pull">对比并且更新</button>
+        <button class="btn primary" style="flex:1" id="ib-sync-btn-push">强制推送数据</button>
       </div>
     `;
 
@@ -2524,7 +2490,6 @@
     targetLabel.parentNode.insertBefore(el, targetLabel);
 
     syncIndicatorEl = el;
-    window.renderBackupLogs();
 
     const btnPull = el.querySelector('#ib-sync-btn-pull');
     const btnPush = el.querySelector('#ib-sync-btn-push');
@@ -2534,17 +2499,17 @@
       await checkAndSyncFromRemote(true);
       btnPull.textContent = '已更新完成！';
       setTimeout(() => {
-        btnPull.textContent = '强制比对并更新 (Pull)';
+        btnPull.textContent = '对比并且更新';
       }, 1500);
     });
 
     btnPush.addEventListener('click', async () => {
-      if (confirm('确定要将当前设备的本地数据完整同步覆盖到服务器吗？\n注：通常不需要手动创建快照，日常操作已自动实时同步。')) {
+      if (confirm('确定要将当前设备的本地数据完整同步覆盖到服务器吗？\n注：通常不需要手动推送，日常操作已自动实时同步。')) {
         btnPush.textContent = '正在打包上传...';
         await uploadFullLocalDump();
-        btnPush.textContent = '已保存到服务器';
+        btnPush.textContent = '已推送至服务器';
         setTimeout(() => {
-          btnPush.textContent = '创建全量服务端快照';
+          btnPush.textContent = '强制推送数据';
         }, 1500);
       }
     });
@@ -2606,5 +2571,304 @@
     getState: () => SyncState
   };
 })();
+
+/* ==========================================================================
+   Blog 分类添加修复补丁 (非侵入式热修复)
+   解决原版 DOM 中 #m-cat-add / #m-cat-new 存在重复 ID 导致抽屉内点击无效的问题
+   ========================================================================== */
+(function() {
+  'use strict';
+
+  async function handleAddCategory(triggerEl) {
+    let inputEl = null;
+    if (triggerEl) {
+      const container = triggerEl.closest('.btoc-add, #sheet-blog-cat, #blog-side');
+      if (container) {
+        inputEl = container.querySelector('input');
+      }
+    }
+    if (!inputEl) {
+      inputEl = document.querySelector('#blog-side input#m-cat-new') || 
+                document.querySelector('.btoc-add input') || 
+                document.querySelector('#m-cat-new');
+    }
+
+    const n = inputEl ? inputEl.value.trim() : '';
+    if (!n) {
+      if (typeof window.toast === 'function') window.toast('请输入分类名称');
+      return;
+    }
+
+    try {
+      if (typeof window.dbPut === 'function') {
+        await window.dbPut('categories', { name: n });
+      }
+      
+      // 清空所有同名输入框
+      document.querySelectorAll('#m-cat-new, .btoc-add input').forEach(el => {
+        el.value = '';
+      });
+
+      if (typeof window.blogLoadCats === 'function') {
+        await window.blogLoadCats();
+      }
+      if (typeof window.blogRender === 'function') {
+        await window.blogRender();
+      }
+      if (typeof window.toast === 'function') {
+        window.toast('分类「' + n + '」已添加');
+      }
+    } catch (err) {
+      console.error('[Blog Cat Patch] 添加分类异常:', err);
+      if (typeof window.toast === 'function') {
+        window.toast('添加失败: ' + (err.message || err));
+      }
+    }
+  }
+
+  // 事件委托捕获所有添加分类按钮的点击事件
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('#m-cat-add, .btoc-add button, #sheet-blog-cat button.primary');
+    if (btn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      handleAddCategory(btn);
+    }
+  }, true);
+
+  // 回车键直接添加
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      const inp = ev.target.closest('#m-cat-new, .btoc-add input');
+      if (inp) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        handleAddCategory(inp);
+      }
+    }
+  }, true);
+})();
+
+/* ==========================================================================
+   AI 日程助手与时间表联动补丁 (非侵入式热补丁)
+   支持 AI 角色在对话时自动或通过标签记录跨时间段日程与【早安/晚安】打卡
+   ========================================================================== */
+(function() {
+  'use strict';
+
+  function parseTimeSpanMinutes(start, end) {
+    if (!start || !end) return 60;
+    const sParts = String(start).split(':');
+    const eParts = String(end).split(':');
+    const sMin = parseInt(sParts[0]||0)*60 + parseInt(sParts[1]||0);
+    const eMin = parseInt(eParts[0]||0)*60 + parseInt(eParts[1]||0);
+    return eMin >= sMin ? (eMin - sMin) : (eMin + 1440 - sMin);
+  }
+
+  function getLogicDateStr(specifiedDate, startHour) {
+    if (specifiedDate) return specifiedDate;
+    const d = new Date();
+    // 00:00 ~ 05:59 属于前一天的作息周期
+    if (d.getHours() < 6) {
+      d.setDate(d.getDate() - 1);
+    }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function getCurTimeString() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  // 记录单条日程到存储
+  async function appendScheduleRecord(record) {
+    try {
+      let list = [];
+      try {
+        list = JSON.parse(localStorage.getItem('my_time_schedules') || '[]');
+      } catch(e) {}
+      if (!Array.isArray(list)) list = [];
+
+      // 防抖去重：如果 2 分钟内已有相同 category 和时间的记录则跳过
+      const isDuplicated = list.some(it => {
+        return it.date === record.date && it.category === record.category && (Math.abs((it.created || 0) - (record.created || 0)) < 120000);
+      });
+      if (isDuplicated) return false;
+
+      list.push(record);
+      localStorage.setItem('my_time_schedules', JSON.stringify(list));
+
+      if (window.addAIScheduleEvent) {
+        window.addAIScheduleEvent(record);
+      }
+      return true;
+    } catch(err) {
+      console.warn('[Schedule Patch] 保存日程异常:', err);
+      return false;
+    }
+  }
+
+  // 监听所有 AI 消息生成与落库
+  async function processAIMessageForSchedule(msg) {
+    if (!msg || !msg.content) return;
+    const text = String(msg.content);
+
+    // 1. 匹配标签格式：<ws_schedule category="学习" start="14:00" end="16:00" title="看书" date="2026-09-14" />
+    const reg = /<(?:ws_schedule|ws_cal_schedule)\b([^>]*)\/?>/gi;
+    let match;
+    let addedCount = 0;
+    let hasTagHandled = false;
+
+    while ((match = reg.exec(text)) !== null) {
+      hasTagHandled = true;
+      const attrs = match[1] || '';
+      const getAttr = (name) => {
+        const m = attrs.match(new RegExp(`${name}=["']([^"']*)["']`, 'i'));
+        return m ? m[1].trim() : '';
+      };
+
+      const title = getAttr('title') || '';
+      let category = getAttr('category') || getAttr('kind') || '';
+      const start = getAttr('start') || getAttr('time') || getCurTimeString();
+      const end = getAttr('end') || '15:00';
+      const date = getLogicDateStr(getAttr('date'), start);
+
+      const isMorning = category.includes('早') || category.includes('醒') || category.includes('起');
+      const isNight = category.includes('晚') || category.includes('睡') || category.includes('休') || category.includes('眠');
+
+      if (isMorning) {
+        const ok = await appendScheduleRecord({
+          id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          date: date,
+          title: title || '早安 · 起床',
+          category: '早安',
+          time: start,
+          startTime: start,
+          endTime: start,
+          duration: 0,
+          isSpecial: true,
+          byAi: true,
+          author: msg.friendId || 'AI',
+          created: Date.now()
+        });
+        if (ok) addedCount++;
+      } else if (isNight) {
+        const ok = await appendScheduleRecord({
+          id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          date: date,
+          title: title || '晚安 · 入睡',
+          category: '晚安',
+          time: start,
+          startTime: start,
+          endTime: start,
+          duration: 0,
+          isSpecial: true,
+          byAi: true,
+          author: msg.friendId || 'AI',
+          created: Date.now()
+        });
+        if (ok) addedCount++;
+      } else {
+        // 标准化分类名称
+        if (category.includes('学') || category.includes('读') || category.includes('课') || category.includes('书')) category = '学习';
+        else if (category.includes('乐') || category.includes('游') || category.includes('影') || category.includes('漫')) category = '娱乐';
+        else if (category.includes('码') || category.includes('code') || category.includes('程序') || category.includes('开发')) category = '写代码';
+        else if (category.includes('玩') || category.includes('出') || category.includes('逛') || category.includes('运动')) category = '出去玩';
+        else category = '学习';
+
+        const dur = parseTimeSpanMinutes(start, end);
+        const ok = await appendScheduleRecord({
+          id: 'sch_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          date: date,
+          title: title || category,
+          category: category,
+          startTime: start,
+          endTime: end,
+          duration: dur,
+          isSpecial: false,
+          byAi: true,
+          author: msg.friendId || 'AI',
+          created: Date.now()
+        });
+        if (ok) addedCount++;
+      }
+    }
+
+    if (addedCount > 0 && typeof window.toast === 'function') {
+      window.toast(`📅 日历日程已自动同步更新！`);
+    }
+  }
+
+  // 监听用户发出的聊天消息意图（如“帮我记录我要睡觉了”、“帮我记个早安”）
+  async function processUserMessageForIntent(msg) {
+    if (!msg || !msg.content || msg.role !== 'user') return;
+    const text = String(msg.content).trim();
+    const curTime = getCurTimeString();
+    const date = getLogicDateStr(null, curTime);
+
+    // 识别睡觉 / 晚安意图
+    const isSleepIntent = /(?:帮我)?(?:记录|记一下|记个|记)?(?:我要|准备|去|去要)?(?:睡觉|睡了|睡啦|入睡|晚安)/.test(text) && 
+                          (text.includes('睡') || text.includes('晚安'));
+    
+    // 识别起床 / 早安意图
+    const isWakeIntent = /(?:帮我)?(?:记录|记一下|记个|记)?(?:我)?(?:起床|醒了|醒啦|起啦|早安)/.test(text) && 
+                         (text.includes('起床') || text.includes('醒') || text.includes('早安'));
+
+    if (isSleepIntent) {
+      const ok = await appendScheduleRecord({
+        id: 'sch_spec_u_' + Date.now(),
+        date: date,
+        title: '晚安 · 入睡打卡',
+        category: '晚安',
+        time: curTime,
+        startTime: curTime,
+        endTime: curTime,
+        duration: 0,
+        isSpecial: true,
+        byAi: false,
+        created: Date.now()
+      });
+      if (ok && typeof window.toast === 'function') {
+        window.toast(`已为你记录「晚安」打卡（${curTime}）`);
+      }
+    } else if (isWakeIntent) {
+      const ok = await appendScheduleRecord({
+        id: 'sch_spec_u_' + Date.now(),
+        date: date,
+        title: '早安 · 起床打卡',
+        category: '早安',
+        time: curTime,
+        startTime: curTime,
+        endTime: curTime,
+        duration: 0,
+        isSpecial: true,
+        byAi: false,
+        created: Date.now()
+      });
+      if (ok && typeof window.toast === 'function') {
+        window.toast(`已为你记录「早安」打卡（${curTime}）`);
+      }
+    }
+  }
+
+  // 挂载消息监听器
+  const originalDbPut = window.dbPut;
+  if (typeof originalDbPut === 'function') {
+    window.dbPut = async function(storeName, data) {
+      if (storeName === 'chatMessages' && data) {
+        if (data.role === 'assistant') {
+          processAIMessageForSchedule(data);
+        } else if (data.role === 'user') {
+          processUserMessageForIntent(data);
+        }
+      }
+      return originalDbPut.apply(this, arguments);
+    };
+  }
+})();
+
 
 
