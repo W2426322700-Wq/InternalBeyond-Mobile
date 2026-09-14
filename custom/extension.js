@@ -40,6 +40,27 @@
         }
       } catch (e) {}
     }, 3500);
+
+    // 自动 Service Worker 版本检测与离线缓存强制刷新引擎
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          registrations.forEach(function (reg) {
+            reg.update().catch(function () {});
+          });
+        }).catch(function () {});
+      }
+      if ('caches' in window) {
+        caches.keys().then(function (keys) {
+          var validCache = 'ib-cache-v2211-cal-update';
+          keys.forEach(function (key) {
+            if (key !== validCache && key.indexOf('ib-cache') === 0) {
+              caches.delete(key).catch(function () {});
+            }
+          });
+        }).catch(function () {});
+      }
+    } catch (e) {}
   } catch (e) {}
 
   // ----------------------------------------------------
