@@ -2704,28 +2704,34 @@
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
-  // 从存储中获取所有日程记录 (同步支持 IndexedDB apiSettings 与 localStorage)
+  // 从存储中获取所有日程记录 (localStorage 优先以保瞬时响应，兼容 apiSettings)
   async function getAllSchedulesFromStorage() {
-    let list = [];
+    let list = null;
     try {
-      if (typeof window.dbGet === 'function') {
-        const row = await window.dbGet('apiSettings', 'app_timeline_cal_my_time_schedules');
-        if (row && Array.isArray(row.val) && row.val.length > 0) {
-          list = row.val;
-        }
+      const raw = localStorage.getItem('my_time_schedules');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
       }
     } catch(e) {}
 
-    if (!list || list.length === 0) {
+    if (!list) {
       try {
-        const raw = localStorage.getItem('my_time_schedules');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        if (typeof window.dbGet === 'function') {
+          const row = await window.dbGet('apiSettings', 'app_timeline_cal_my_time_schedules');
+          const candidate = row ? (row.val || row.v) : null;
+          if (Array.isArray(candidate) && candidate.length > 0) {
+            list = candidate;
+          }
         }
-      } catch(e) {}
+      } catch(e2) {}
     }
-    return Array.isArray(list) ? list : [];
+
+    const safeList = Array.isArray(list) ? list.filter(it => it && typeof it === 'object') : [];
+    if (safeList.length > 0) {
+      try { localStorage.setItem('my_time_schedules', JSON.stringify(safeList)); } catch(e3) {}
+    }
+    return safeList;
   }
 
   // 保存所有日程记录到存储并广播更新事件
@@ -2742,14 +2748,9 @@
           app: 'timeline_cal',
           key: 'my_time_schedules',
           val: list,
+          v: list,
           updated: Date.now()
         });
-      }
-    } catch(e) {}
-
-    try {
-      if (window.IBApps && typeof window.IBApps._emit === 'function') {
-        window.IBApps._emit('message', { type: 'schedule_update', list: list });
       }
     } catch(e) {}
 
@@ -2775,10 +2776,6 @@
 
       list.push(record);
       await saveAllSchedulesToStorage(list);
-
-      if (window.addAIScheduleEvent) {
-        try { window.addAIScheduleEvent(record); } catch(e) {}
-      }
       return true;
     } catch(err) {
       console.warn('[Schedule Patch] 保存日程异常:', err);
@@ -2913,42 +2910,32 @@
   }
 
   // 日历日程助手系统提示词与能力说明
-  const _SCHEDULE_AI_INSTR = `\n\n【日历日程助手能力与指令】
-你可以帮用户在「日历」App 中记录、修改或删除时间投入与作息打卡，并随时查看/规划日程（四大分类：学习、写代码、娱乐、出去玩；两大特殊打卡：早安、晚安）。
-当用户提到想要记录、修改或删除时间安排、学习/工作/娱乐计划、外出行程、或者作息打卡时，请在你的回复中自然附带以下 XML 标签（系统会自动执行操作并在气泡中隐藏代码）：
+  const _SCHEDULE_AI_INSTR = `\n\n【日历应用操作工具与规范】
+你具备操作用户「日历」应用的管理权限（四大分类：学习、写代码、娱乐、出去玩；特殊打卡：早安、晚安）。
+【重要规范】：
+1. 严禁逢早安、晚安问候就机械化自动打卡！日常打招呼、闲聊、互道早晚安时请正常对话，切勿呆板打卡。
+2. 打卡与记日程必须由你主动触发工具才能打卡。只有在用户明确提出要打卡、记日程、修改或删除日程，或者在具体的日程规划对话中确实需要为你或用户记录时，才调用工具标签。
+3. 若用户未明确指明具体的事项名称（例如只说"记个学习"或"下午2点到4点看书"），请完全不要填 title 属性（保持留空或不写 title 属性），系统会自动按分类规范呈现；只有当用户明确指定了具体项目/书名时才填写（如 title="高数复习"）。
 
-1. 跨时间段日程规划标签格式（新增/新建）：
-<ws_schedule category="分类" start="HH:MM" end="HH:MM" title="具体事项名称" date="YYYY-MM-DD" />
-- category（必填）：只能是以下四个之一：「学习」、「写代码」、「娱乐」、「出去玩」
-- start（必填）：开始时间，24小时制（如 "09:00"、"14:30"）
-- end（必填）：结束时间，24小时制（如 "11:30"、"17:00"）
-- title（选填）：具体事项名称。重要：若用户没有明确指出具体的事项名称（例如只说"下午2点到4点看书"或"记个学习"），请完全不要填 title 属性（即保持留空，不写 title="看书"），只有当有明确具体项目/书名时才填写（如 title="高数复习"）。
-- date（选填）：日期 YYYY-MM-DD，省略则默认为今天
+工具调用标签格式（在回复文本中自然输出，前端会自动执行并以原生操作工具条呈现）：
+1. 记录时间段日程：
+<ws_schedule category="学习|写代码|娱乐|出去玩" start="HH:MM" end="HH:MM" title="具体名称(可选)" date="YYYY-MM-DD(可选)" />
+- category（必填）：只能是「学习」、「写代码」、「娱乐」、「出去玩」四者之一
+- start / end（必填）：开始与结束时间，24小时制（如 "09:00", "14:30"）
+- title（选填）：若用户未明确指明具体项目，请不要填写 title 属性
+- date（选填）：日期 YYYY-MM-DD，缺省为今天
 
-2. 特殊单点打卡标签（早安/晚安）：
-<ws_schedule category="早安" time="HH:MM" title="早安 · 起床打卡" />
-<ws_schedule category="晚安" time="HH:MM" title="晚安 · 入睡打卡" />
-- 当用户表达起床、醒了、早安时，输出 category="早安"
-- 当用户表达睡觉、准备睡了、晚安时，输出 category="晚安"
+2. 特殊时刻打卡（起床/入睡）：
+<ws_schedule category="早安|晚安" time="HH:MM" />
+- 仅在明确打卡、记录作息或商定作息打卡时按需触发，日常普通问候请勿调用。
 
-3. 修改/编辑日程标签格式：
-<ws_cal_edit target="原事项名称" title="新事项名称" category="新分类" start="HH:MM" end="HH:MM" date="YYYY-MM-DD" />
-- target（必填）：要修改的原事项名称、原分类或原时间（如 "看书"）
-- title / category / start / end / date（选填）：需要更新的目标字段
+3. 修改日程：
+<ws_cal_edit target="原事项名称或分类" title="新名称(可选)" category="新分类(可选)" start="HH:MM(可选)" end="HH:MM(可选)" date="YYYY-MM-DD(可选)" />
+- target（必填）：要修改的原事项、分类或时间
 
-4. 删除日程标签格式：
-<ws_cal_delete target="要删除的事项名称" date="YYYY-MM-DD" />
-- target（必填）：要删除的事项名称、分类或时间（如 "看书"）
-
-【示例】：
-用户："我下午2点到4点要看书，帮我记一下日历"
-回复："好的，已为你记入日历，下午2点到4点专注看书，加油～<ws_schedule category="学习" start="14:00" end="16:00" title="看书" />"
-
-用户："把刚才记的看书改成看电影"
-回复："好的，已为您将看书修改为看电影。<ws_cal_edit target="看书" title="看电影" category="娱乐" />"
-
-用户："帮我把下午看电影的日程删掉"
-回复："好的，已为您删除看电影的日程。<ws_cal_delete target="看电影" />"`;
+4. 删除日程：
+<ws_cal_delete target="要删除的事项名称或分类" date="YYYY-MM-DD(可选)" />
+- target（必填）：要删除的事项、分类或时间`;
 
   // 供 fetch 拦截器与 buildCalBlock 注入提示词
   window._getSchedulePromptInjection = async function() {
@@ -2980,15 +2967,17 @@
   }
 
   // 监听所有 AI 消息生成与落库
-  async function processAIMessageForSchedule(msg) {
+  async function processAIMessageForSchedule(msg, dbPutFunc) {
     if (!msg || !msg.content) return;
     const text = String(msg.content);
 
-    // 1. 匹配标签格式：<ws_schedule ...> 或 <ws_cal_schedule ...> 或 <ws_cal_add ...> 或 <ws_cal_edit ...> 或 <ws_cal_delete ...> 等
+    // 严格只匹配显式的日历 XML 工具标签，禁止无端自动打卡
     const reg = /<(?:ws_schedule|ws_cal_schedule|ws_cal_add|ws_cal_edit|ws_cal_delete|ws_cal_del|ws_schedule_edit|ws_schedule_delete|ws_schedule_del)\b([^>]*)\/?>/gi;
+    if (!reg.test(text)) return;
+    reg.lastIndex = 0;
+
     let match;
     let addedCount = 0;
-    let lastAddedInfo = '';
     const addedOpRecords = [];
 
     while ((match = reg.exec(text)) !== null) {
@@ -3010,11 +2999,10 @@
         const deleted = await deleteScheduleRecord({ target, date: targetDate, id: getAttr('id') });
         if (deleted) {
           addedCount++;
-          lastAddedInfo = `已删除「${deleted.title}」`;
           addedOpRecords.push({
             ok: true,
             label: '日历便笺 · 删除日程',
-            detail: `${deleted.date} 已删除：${deleted.title} (${deleted.startTime || deleted.time || ''})`
+            detail: `${deleted.date} 已删除：${deleted.title || deleted.category} (${deleted.startTime || deleted.time || ''})`
           });
         }
       } else if (isEdit) {
@@ -3031,15 +3019,14 @@
         const edited = await editScheduleRecord(target, updates);
         if (edited) {
           addedCount++;
-          lastAddedInfo = `已修改「${edited.title}」`;
           addedOpRecords.push({
             ok: true,
-            label: `日历便笺 · 修改日程`,
-            detail: `${edited.date} ${edited.startTime || edited.time || ''} ${edited.title} [${edited.category}]`
+            label: '日历便笺 · 修改日程',
+            detail: `${edited.date} ${edited.startTime || edited.time || ''} ${edited.title || edited.category} [${edited.category}]`
           });
         }
       } else {
-        const title = getAttr('title') || '';
+        const rawTitle = getAttr('title') || '';
         let category = getAttr('category') || getAttr('kind') || '';
         let start = getAttr('start') || getAttr('time') || getCurTimeString();
         let end = getAttr('end') || '';
@@ -3056,7 +3043,7 @@
           const ok = await appendScheduleRecord({
             id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
             date: date,
-            title: title || '早安 · 起床打卡',
+            title: (rawTitle && rawTitle !== '早安') ? rawTitle : '早安 · 起床打卡',
             category: '早安',
             time: start,
             startTime: start,
@@ -3069,7 +3056,6 @@
           });
           if (ok) {
             addedCount++;
-            lastAddedInfo = `早安打卡（${start}）`;
             addedOpRecords.push({
               ok: true,
               label: '日历便笺 · 早安打卡',
@@ -3080,7 +3066,7 @@
           const ok = await appendScheduleRecord({
             id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
             date: date,
-            title: title || '晚安 · 入睡打卡',
+            title: (rawTitle && rawTitle !== '晚安') ? rawTitle : '晚安 · 入睡打卡',
             category: '晚安',
             time: start,
             startTime: start,
@@ -3093,7 +3079,6 @@
           });
           if (ok) {
             addedCount++;
-            lastAddedInfo = `晚安打卡（${start}）`;
             addedOpRecords.push({
               ok: true,
               label: '日历便笺 · 晚安打卡',
@@ -3109,7 +3094,6 @@
           else category = '学习';
 
           if (!end) {
-            // 如果没有给结束时间，默认加 1.5 小时
             const sParts = start.split(':');
             const sMin = parseInt(sParts[0]||0)*60 + parseInt(sParts[1]||0) + 90;
             const eH = String(Math.floor(sMin / 60) % 24).padStart(2, '0');
@@ -3118,7 +3102,7 @@
           }
 
           const dur = parseTimeSpanMinutes(start, end);
-          const recordTitle = (title && title !== category) ? title : '';
+          const recordTitle = (rawTitle && rawTitle !== category) ? rawTitle : '';
           const ok = await appendScheduleRecord({
             id: 'sch_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
             date: date,
@@ -3135,7 +3119,6 @@
           if (ok) {
             addedCount++;
             const titleLabel = recordTitle ? `（${recordTitle}）` : '';
-            lastAddedInfo = `${category} ${start}–${end}${titleLabel}`;
             addedOpRecords.push({
               ok: true,
               label: `写入日历便笺 · ${category}`,
@@ -3146,52 +3129,15 @@
       }
     }
 
-    // 2. 如果 AI 未输出标签但文本中明确确认已写入日程（兜底智能识别）
-    if (addedCount === 0) {
-      const confirmMatch = text.match(/(?:已(?:帮您|为你|帮你)?(?:在日历中|在日历上|记录|记入|添加|安排)?|已记好|已记录|已安排)[^\n。！？]*?(\d{1,2}:\d{2})\s*(?:[-~至到]|[-~至到]达?)\s*(\d{1,2}:\d{2})/);
-      if (confirmMatch) {
-        let s = confirmMatch[1];
-        let e = confirmMatch[2];
-        if (s.length === 4 && s[1] === ':') s = '0' + s;
-        if (e.length === 4 && e[1] === ':') e = '0' + e;
-        
-        let cat = '学习';
-        if (text.includes('代码') || text.includes('程序') || text.includes('开发') || text.includes('code')) cat = '写代码';
-        else if (text.includes('玩') || text.includes('出') || text.includes('运动') || text.includes('逛')) cat = '出去玩';
-        else if (text.includes('电影') || text.includes('游戏') || text.includes('娱乐') || text.includes('听歌')) cat = '娱乐';
-
-        const dur = parseTimeSpanMinutes(s, e);
-        const curDate = getLogicDateStr(null, s);
-        const ok = await appendScheduleRecord({
-          id: 'sch_ai_nl_' + Date.now(),
-          date: curDate,
-          title: cat,
-          category: cat,
-          startTime: s,
-          endTime: e,
-          duration: dur,
-          isSpecial: false,
-          byAi: true,
-          author: msg.friendId || 'AI',
-          created: Date.now()
-        });
-        if (ok) {
-          addedCount++;
-          lastAddedInfo = `${cat} ${s}–${e}`;
-          addedOpRecords.push({
-            ok: true,
-            label: `写入日历便笺 · ${cat}`,
-            detail: `${curDate} ${s}–${e} ${cat}`
-          });
-        }
-      }
+    // 清理文本中的 XML 标签，保持气泡纯净美观
+    reg.lastIndex = 0;
+    const cleanContent = text.replace(reg, '').replace(/\n{3,}/g, '\n\n').trim();
+    if (cleanContent) {
+      msg.content = cleanContent;
     }
 
     if (addedCount > 0) {
-      if (typeof window.toast === 'function') {
-        window.toast(`📅 日历已记录：${lastAddedInfo}`);
-      }
-
+      // 依用户需求：完全不需要底部弹出 toast 弹窗（地下弹窗），只保留工具条美化！
       // 将操作结果写入 msg.ibOps 并重绘该消息气泡，展示原生工具卡片
       msg.ibOps = Array.isArray(msg.ibOps) ? msg.ibOps : [];
       addedOpRecords.forEach(rec => {
@@ -3200,11 +3146,13 @@
         }
       });
 
-      try {
-        if (typeof window.dbPut === 'function') {
-          await window.dbPut('chatMessages', msg);
-        }
-      } catch(e) {}
+      // 避免二次触发 hook：直接使用原始 dbPut 方法保存
+      const putFn = dbPutFunc || window.dbPut;
+      if (typeof putFn === 'function') {
+        try {
+          await putFn('chatMessages', msg);
+        } catch(e) {}
+      }
       try {
         if (typeof window.redrawMsg === 'function') {
           window.redrawMsg(msg);
@@ -3213,94 +3161,30 @@
     }
   }
 
-  // 监听用户发出的聊天消息意图（如“帮我记录我要睡觉了”、“帮我记个早安”）
-  async function processUserMessageForIntent(msg) {
-    if (!msg || !msg.content || msg.role !== 'user') return;
-    const text = String(msg.content).trim();
-    const curTime = getCurTimeString();
-    const date = getLogicDateStr(null, curTime);
-
-    // 识别睡觉 / 晚安意图
-    const isSleepIntent = /(?:帮我)?(?:记录|记一下|记个|记)?(?:我要|准备|去|去要)?(?:睡觉|睡了|睡啦|入睡|晚安)/.test(text) && 
-                          (text.includes('睡') || text.includes('晚安'));
-    
-    // 识别起床 / 早安意图
-    const isWakeIntent = /(?:帮我)?(?:记录|记一下|记个|记)?(?:我)?(?:起床|醒了|醒啦|起啦|早安)/.test(text) && 
-                         (text.includes('起床') || text.includes('醒') || text.includes('早安'));
-
-    if (isSleepIntent) {
-      const ok = await appendScheduleRecord({
-        id: 'sch_spec_u_' + Date.now(),
-        date: date,
-        title: '晚安 · 入睡打卡',
-        category: '晚安',
-        time: curTime,
-        startTime: curTime,
-        endTime: curTime,
-        duration: 0,
-        isSpecial: true,
-        byAi: false,
-        created: Date.now()
-      });
-      if (ok) {
-        if (typeof window.toast === 'function') {
-          window.toast(`🌙 已为你记录「晚安」打卡（${curTime}）`);
-        }
-        msg.ibOps = Array.isArray(msg.ibOps) ? msg.ibOps : [];
-        msg.ibOps.push({
-          ok: true,
-          label: '日历便笺 · 晚安打卡',
-          detail: `${date} ${curTime} 晚安 · 入睡打卡`
-        });
-        try { if (typeof window.dbPut === 'function') await window.dbPut('chatMessages', msg); } catch(e) {}
-        try { if (typeof window.redrawMsg === 'function') window.redrawMsg(msg); } catch(e) {}
-      }
-    } else if (isWakeIntent) {
-      const ok = await appendScheduleRecord({
-        id: 'sch_spec_u_' + Date.now(),
-        date: date,
-        title: '早安 · 起床打卡',
-        category: '早安',
-        time: curTime,
-        startTime: curTime,
-        endTime: curTime,
-        duration: 0,
-        isSpecial: true,
-        byAi: false,
-        created: Date.now()
-      });
-      if (ok) {
-        if (typeof window.toast === 'function') {
-          window.toast(`☀️ 已为你记录「早安」打卡（${curTime}）`);
-        }
-        msg.ibOps = Array.isArray(msg.ibOps) ? msg.ibOps : [];
-        msg.ibOps.push({
-          ok: true,
-          label: '日历便笺 · 早安打卡',
-          detail: `${date} ${curTime} 早安 · 起床打卡`
-        });
-        try { if (typeof window.dbPut === 'function') await window.dbPut('chatMessages', msg); } catch(e) {}
-        try { if (typeof window.redrawMsg === 'function') window.redrawMsg(msg); } catch(e) {}
-      }
-    }
-  }
-
   // 挂载消息监听器与提示词钩子
+  const _processingMsgIds = new Set();
+
   function initSchedulePatch() {
     hookBuildCalBlock();
 
     const originalDbPut = window.dbPut;
     if (typeof originalDbPut === 'function' && !originalDbPut.__ib_schedule_hooked) {
       const wrappedDbPut = async function(storeName, data) {
-        if (storeName === 'chatMessages' && data) {
-          try {
-            if (data.role === 'assistant') {
-              processAIMessageForSchedule(data);
-            } else if (data.role === 'user') {
-              processUserMessageForIntent(data);
+        if (storeName === 'chatMessages' && data && data.role === 'assistant') {
+          const msgId = data.id || (data.timestamp + '_' + (data.content ? data.content.slice(0, 15) : ''));
+          // 仅当包含日历工具标签且未处理过时，才触发处理
+          if (!data._schProcessed && !_processingMsgIds.has(msgId)) {
+            const hasCalTag = /<(?:ws_schedule|ws_cal_schedule|ws_cal_add|ws_cal_edit|ws_cal_delete|ws_cal_del|ws_schedule_edit|ws_schedule_delete|ws_schedule_del)\b/i.test(String(data.content || ''));
+            if (hasCalTag) {
+              data._schProcessed = true;
+              _processingMsgIds.add(msgId);
+              setTimeout(() => {
+                processAIMessageForSchedule(data, originalDbPut)
+                  .finally(() => {
+                    setTimeout(() => _processingMsgIds.delete(msgId), 3000);
+                  });
+              }, 10);
             }
-          } catch(err) {
-            console.warn('[Schedule] process msg error:', err);
           }
         }
         return originalDbPut.apply(this, arguments);

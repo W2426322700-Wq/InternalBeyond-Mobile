@@ -134,8 +134,10 @@
   function timeStrToOffsetMinutes(timeStr) {
     if (!timeStr) return 0;
     var parts = String(timeStr).split(':');
-    var h = parseInt(parts[0] || 0, 10);
-    var m = parseInt(parts[1] || 0, 10);
+    var h = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    if (isNaN(h)) h = 8;
+    if (isNaN(m)) m = 0;
     var adjustedH = (h < 6) ? (h + 24) : h;
     return (adjustedH - 6) * 60 + m;
   }
@@ -158,43 +160,57 @@
   }
 
   var _renderDebounceTimer = null;
+  var _isRendering = false;
+  var _pendingRender = false;
 
   async function getSchedules() {
-    var list = [];
+    var list = null;
+    // 1. 优先读取同步零延迟的 localStorage，保证进入日历 App 瞬开零卡顿
     try {
-      if (typeof window.dbGet === 'function') {
-        var row = await window.dbGet('apiSettings', 'app_timeline_cal_my_time_schedules');
-        if (row && Array.isArray(row.val) && row.val.length > 0) {
-          list = row.val;
-        }
+      var str = localStorage.getItem('my_time_schedules');
+      if (str) {
+        var parsed = JSON.parse(str);
+        if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
       }
     } catch(e) {}
 
-    if (!list || list.length === 0) {
-      try {
-        var str = localStorage.getItem('my_time_schedules');
-        if (str) {
-          var parsed = JSON.parse(str);
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
-        }
-      } catch(e2) {}
-    }
-
-    if ((!list || list.length === 0) && ctx && ctx.storage) {
+    // 2. 兜底从 ctx.storage 或 IndexedDB 读取
+    if (!list && ctx && ctx.storage) {
       try {
         var fromCtx = await ctx.storage.get('my_time_schedules');
         if (Array.isArray(fromCtx) && fromCtx.length > 0) list = fromCtx;
+      } catch(e2) {}
+    }
+
+    if (!list && typeof window.dbGet === 'function') {
+      try {
+        var row = await window.dbGet('apiSettings', 'app_timeline_cal_my_time_schedules');
+        var candidate = row ? (row.val || row.v) : null;
+        if (Array.isArray(candidate) && candidate.length > 0) {
+          list = candidate;
+        }
       } catch(e3) {}
     }
 
-    return Array.isArray(list) ? list : [];
+    var safeList = Array.isArray(list) ? list.filter(function(it) {
+      return it && typeof it === 'object';
+    }) : [];
+
+    // 保证 localStorage 与最新保持一致
+    if (safeList.length > 0) {
+      try { localStorage.setItem('my_time_schedules', JSON.stringify(safeList)); } catch(e4) {}
+    }
+    return safeList;
   }
 
   async function saveSchedules(list) {
     if (!Array.isArray(list)) list = [];
+    // 1. 同步高速更新 localStorage
     try {
       localStorage.setItem('my_time_schedules', JSON.stringify(list));
     } catch(e) {}
+
+    // 2. 异步持久化到 apiSettings (兼容 v 与 val 字段)
     try {
       if (typeof window.dbPut === 'function') {
         await window.dbPut('apiSettings', {
@@ -202,15 +218,13 @@
           app: 'timeline_cal',
           key: 'my_time_schedules',
           val: list,
+          v: list,
           updated: Date.now()
         });
       }
     } catch(e) {}
-    try {
-      if (ctx && ctx.storage) {
-        await ctx.storage.set('my_time_schedules', list);
-      }
-    } catch(e) {}
+
+    // 3. 广播更新事件
     try {
       window.dispatchEvent(new CustomEvent('ib-schedule-updated', { detail: { list: list } }));
     } catch(e) {}
@@ -235,30 +249,28 @@
       host.style.flexDirection = 'column';
 
       injectStyles();
+      // 瞬开渲染
       await renderApp();
 
-      if (ctx.on) {
-        ctx.on('message', function() {
+      if (!_onScheduleUpdateGlobal) {
+        _onScheduleUpdateGlobal = function() {
+          if (!host) return;
           if (_renderDebounceTimer) clearTimeout(_renderDebounceTimer);
           _renderDebounceTimer = setTimeout(function() {
             renderApp();
-          }, 50);
-        });
+          }, 60);
+        };
+        window.addEventListener('ib-schedule-updated', _onScheduleUpdateGlobal);
       }
-
-      _onScheduleUpdateGlobal = function() {
-        if (!host) return;
-        if (_renderDebounceTimer) clearTimeout(_renderDebounceTimer);
-        _renderDebounceTimer = setTimeout(function() {
-          renderApp();
-        }, 50);
-      };
-      window.addEventListener('ib-schedule-updated', _onScheduleUpdateGlobal);
     },
     unmount: function() {
       if (_onScheduleUpdateGlobal) {
         window.removeEventListener('ib-schedule-updated', _onScheduleUpdateGlobal);
         _onScheduleUpdateGlobal = null;
+      }
+      if (_renderDebounceTimer) {
+        clearTimeout(_renderDebounceTimer);
+        _renderDebounceTimer = null;
       }
       if (host) host.innerHTML = '';
       host = null;
@@ -266,12 +278,13 @@
       isAddModalOpen = false;
       editingItem = null;
       deleteConfirmState = false;
+      _isRendering = false;
+      _pendingRender = false;
     }
   });
 
   function injectStyles() {
-    var old = document.getElementById('ib-tc-css');
-    if (old) old.remove();
+    if (document.getElementById('ib-tc-css')) return;
     var st = document.createElement('style');
     st.id = 'ib-tc-css';
     st.textContent = `
@@ -789,15 +802,25 @@
 
   async function renderApp() {
     if (!host) return;
-    var schedules = await getSchedules();
-    var curDateStr = formatYMD(currentSelectedDate);
-    var dateDisplay = formatDisplayDate(currentSelectedDate);
-    var isDark = document.body.classList.contains('theme-infernal') || document.body.classList.contains('dark');
+    if (_isRendering) {
+      _pendingRender = true;
+      return;
+    }
+    _isRendering = true;
+    try {
+      if (!currentSelectedDate || isNaN(currentSelectedDate.getTime())) {
+        currentSelectedDate = getLogicToday();
+      }
+      var schedules = await getSchedules();
+      if (!host) return;
+      var curDateStr = formatYMD(currentSelectedDate);
+      var dateDisplay = formatDisplayDate(currentSelectedDate);
+      var isDark = document.body.classList.contains('theme-infernal') || document.body.classList.contains('dark');
 
-    // 过滤出当个作息周期的日程
-    var todayList = schedules.filter(function(s) {
-      return s.date === curDateStr;
-    });
+      // 过滤出当个作息周期的日程
+      var todayList = schedules.filter(function(s) {
+        return s && s.date === curDateStr;
+      });
 
     // 投入统计计算：只统计【当前日历所选逻辑日期（06:00 - 次日06:00）】四大投入，早安和晚安不计入！
     var stats = {};
@@ -1326,20 +1349,23 @@
         if (itemData) openModalForEdit(itemData);
       });
     });
+    } catch(err) {
+      console.warn('[TimelineCal] renderApp error:', err);
+    } finally {
+      _isRendering = false;
+      if (_pendingRender && host) {
+        _pendingRender = false;
+        setTimeout(function() { renderApp(); }, 30);
+      }
+    }
   }
 
   window.addAIScheduleEvent = async function(evData) {
-    try {
-      var all = await (ctx ? ctx.storage.get('my_time_schedules') : JSON.parse(localStorage.getItem('my_time_schedules') || '[]')) || [];
-      all.push(evData);
-      if (ctx) {
-        await ctx.storage.set('my_time_schedules', all);
-      } else {
-        localStorage.setItem('my_time_schedules', JSON.stringify(all));
-      }
-      if (host) renderApp();
-    } catch(e) {
-      console.warn('addAIScheduleEvent error:', e);
+    if (host) {
+      if (_renderDebounceTimer) clearTimeout(_renderDebounceTimer);
+      _renderDebounceTimer = setTimeout(function() {
+        renderApp();
+      }, 50);
     }
   };
 })();
