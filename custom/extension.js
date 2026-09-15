@@ -53,6 +53,8 @@
       // 过滤所有英文/中文方括号语气音效标签：如 [warm][quiet], [pauses], [chuckle], [sighs], [laughs] 等
       // 负向预查排除 Markdown 链接如 [text](url)
       str = str.replace(/\[[^\r\n\]]{1,80}\](?!\()/g, '');
+      // 过滤日程与打卡标签 (包括新增、修改、删除)
+      str = str.replace(/<(?:ws_schedule|ws_cal_schedule|ws_cal_add|ws_cal_edit|ws_cal_delete|ws_cal_del|ws_schedule_edit|ws_schedule_delete|ws_schedule_del)\b[^>]*\/?>/gi, '');
       // 清理由于标签删除留下的多余连续空格和首尾空
       str = str.replace(/[ \t]{2,}/g, ' ').replace(/^[ \t]+|[ \t]+$/gm, '');
     } catch (e) {}
@@ -1562,11 +1564,30 @@
             var fullGroupBlock = formatAllGroupBlocksForPrivate(groupDataList, currentAiName, userLabel);
             if (fullGroupBlock && injectMemoryIntoPayload(payload, fullGroupBlock)) {
               console.info('%c[CrossContext 互通生效] 在单聊「' + currentAiName + '」中成功注入群聊动态:', 'color:#10b981;font-weight:bold', groupDataList.map(function (g) { return g.name; }));
-              return JSON.stringify(payload);
+              injected = true;
             }
           }
         }
       }
+    }
+
+    // 注入日历日程助手能力指令与今日日程参考（确保所有 AI 模型均知晓如何操作日历 App）
+    try {
+      if (typeof window._getSchedulePromptInjection === 'function') {
+        var schBlock = await window._getSchedulePromptInjection();
+        if (schBlock) {
+          var payloadStr = JSON.stringify(payload);
+          if (payloadStr.indexOf('<ws_schedule') === -1) {
+            if (injectMemoryIntoPayload(payload, schBlock)) {
+              injected = true;
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    if (injected) {
+      return JSON.stringify(payload);
     }
 
     return null;
@@ -2683,26 +2704,80 @@
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
+  // 从存储中获取所有日程记录 (同步支持 IndexedDB apiSettings 与 localStorage)
+  async function getAllSchedulesFromStorage() {
+    let list = [];
+    try {
+      if (typeof window.dbGet === 'function') {
+        const row = await window.dbGet('apiSettings', 'app_timeline_cal_my_time_schedules');
+        if (row && Array.isArray(row.val) && row.val.length > 0) {
+          list = row.val;
+        }
+      }
+    } catch(e) {}
+
+    if (!list || list.length === 0) {
+      try {
+        const raw = localStorage.getItem('my_time_schedules');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        }
+      } catch(e) {}
+    }
+    return Array.isArray(list) ? list : [];
+  }
+
+  // 保存所有日程记录到存储并广播更新事件
+  async function saveAllSchedulesToStorage(list) {
+    if (!Array.isArray(list)) list = [];
+    try {
+      localStorage.setItem('my_time_schedules', JSON.stringify(list));
+    } catch(e) {}
+
+    try {
+      if (typeof window.dbPut === 'function') {
+        await window.dbPut('apiSettings', {
+          id: 'app_timeline_cal_my_time_schedules',
+          app: 'timeline_cal',
+          key: 'my_time_schedules',
+          val: list,
+          updated: Date.now()
+        });
+      }
+    } catch(e) {}
+
+    try {
+      if (window.IBApps && typeof window.IBApps._emit === 'function') {
+        window.IBApps._emit('message', { type: 'schedule_update', list: list });
+      }
+    } catch(e) {}
+
+    try {
+      window.dispatchEvent(new CustomEvent('ib-schedule-updated', { detail: { list: list } }));
+    } catch(e) {}
+  }
+
   // 记录单条日程到存储
   async function appendScheduleRecord(record) {
     try {
-      let list = [];
-      try {
-        list = JSON.parse(localStorage.getItem('my_time_schedules') || '[]');
-      } catch(e) {}
-      if (!Array.isArray(list)) list = [];
+      let list = await getAllSchedulesFromStorage();
 
       // 防抖去重：如果 2 分钟内已有相同 category 和时间的记录则跳过
       const isDuplicated = list.some(it => {
-        return it.date === record.date && it.category === record.category && (Math.abs((it.created || 0) - (record.created || 0)) < 120000);
+        return it.date === record.date && it.category === record.category && (
+          (it.startTime === record.startTime && it.endTime === record.endTime) ||
+          (it.time && it.time === record.time) ||
+          (Math.abs((it.created || 0) - (record.created || 0)) < 120000)
+        );
       });
       if (isDuplicated) return false;
 
       list.push(record);
-      localStorage.setItem('my_time_schedules', JSON.stringify(list));
+      await saveAllSchedulesToStorage(list);
 
       if (window.addAIScheduleEvent) {
-        window.addAIScheduleEvent(record);
+        try { window.addAIScheduleEvent(record); } catch(e) {}
       }
       return true;
     } catch(err) {
@@ -2711,94 +2786,430 @@
     }
   }
 
+  // 编辑已存在的日程记录
+  async function editScheduleRecord(target, updates) {
+    try {
+      let list = await getAllSchedulesFromStorage();
+      if (!list || list.length === 0) return null;
+
+      const targetStr = String(target || updates.target || updates.title || updates.old_title || '').trim().toLowerCase();
+      const dateStr = updates.date ? getLogicDateStr(updates.date) : null;
+
+      let idx = -1;
+      if (updates.id) {
+        idx = list.findIndex(it => it.id === updates.id);
+      }
+      if (idx === -1 && targetStr) {
+        idx = list.findIndex(it => {
+          if (dateStr && it.date !== dateStr) return false;
+          const t = String(it.title || '').toLowerCase();
+          const c = String(it.category || '').toLowerCase();
+          const st = String(it.startTime || it.time || '');
+          return t.includes(targetStr) || c.includes(targetStr) || st.includes(targetStr) || targetStr.includes(t);
+        });
+      }
+      if (idx === -1 && targetStr) {
+        const today = getLogicDateStr();
+        idx = list.findIndex(it => (it.date === today) && String(it.title || '').toLowerCase().includes(targetStr));
+      }
+      if (idx === -1) return null;
+
+      const oldItem = list[idx];
+      const newItem = { ...oldItem };
+
+      if (updates.title || updates.new_title) newItem.title = updates.title || updates.new_title;
+      if (updates.category || updates.new_category) {
+        let cat = updates.category || updates.new_category;
+        if (cat.includes('学') || cat.includes('读') || cat.includes('课') || cat.includes('书')) cat = '学习';
+        else if (cat.includes('码') || cat.includes('code') || cat.includes('程序') || cat.includes('开发')) cat = '写代码';
+        else if (cat.includes('乐') || cat.includes('游') || cat.includes('影') || cat.includes('漫')) cat = '娱乐';
+        else if (cat.includes('玩') || cat.includes('出') || cat.includes('逛') || cat.includes('运动')) cat = '出去玩';
+        newItem.category = cat;
+      }
+      if (updates.start || updates.new_start || updates.time) {
+        let s = updates.start || updates.new_start || updates.time;
+        if (s.length === 4 && s[1] === ':') s = '0' + s;
+        newItem.startTime = s;
+        if (newItem.isSpecial) newItem.time = s;
+      }
+      if (updates.end || updates.new_end) {
+        let e = updates.end || updates.new_end;
+        if (e.length === 4 && e[1] === ':') e = '0' + e;
+        newItem.endTime = e;
+      }
+      if (newItem.startTime && newItem.endTime && !newItem.isSpecial) {
+        newItem.duration = parseTimeSpanMinutes(newItem.startTime, newItem.endTime);
+      }
+      if (updates.date || updates.new_date) {
+        newItem.date = getLogicDateStr(updates.date || updates.new_date, newItem.startTime);
+      }
+
+      newItem.updated = Date.now();
+      list[idx] = newItem;
+
+      await saveAllSchedulesToStorage(list);
+      return newItem;
+    } catch(err) {
+      console.warn('[Schedule Patch] 修改日程异常:', err);
+      return null;
+    }
+  }
+
+  // 删除指定的日程记录
+  async function deleteScheduleRecord(targetInfo) {
+    try {
+      let list = await getAllSchedulesFromStorage();
+      if (!list || list.length === 0) return null;
+
+      const targetStr = String(targetInfo.target || targetInfo.title || targetInfo.id || '').trim().toLowerCase();
+      const dateStr = targetInfo.date ? getLogicDateStr(targetInfo.date) : null;
+
+      let idx = -1;
+      if (targetInfo.id) {
+        idx = list.findIndex(it => it.id === targetInfo.id);
+      }
+      if (idx === -1 && targetStr) {
+        idx = list.findIndex(it => {
+          if (dateStr && it.date !== dateStr) return false;
+          const t = String(it.title || '').toLowerCase();
+          const c = String(it.category || '').toLowerCase();
+          const st = String(it.startTime || it.time || '');
+          return t.includes(targetStr) || c.includes(targetStr) || st.includes(targetStr) || targetStr.includes(t);
+        });
+      }
+      if (idx === -1 && targetStr) {
+        const today = getLogicDateStr();
+        idx = list.findIndex(it => (it.date === today) && String(it.title || '').toLowerCase().includes(targetStr));
+      }
+      if (idx === -1) return null;
+
+      const deletedItem = list.splice(idx, 1)[0];
+      await saveAllSchedulesToStorage(list);
+      return deletedItem;
+    } catch(err) {
+      console.warn('[Schedule Patch] 删除日程异常:', err);
+      return null;
+    }
+  }
+
+  // 格式化今日日程摘要供 AI 参考
+  async function getTodayScheduleSummary() {
+    try {
+      const curDate = getLogicDateStr();
+      const list = await getAllSchedulesFromStorage();
+      const todays = list.filter(it => it.date === curDate);
+      if (!todays.length) return '';
+      todays.sort((a, b) => String(a.startTime || a.time || '').localeCompare(String(b.startTime || b.time || '')));
+      const lines = todays.map(it => {
+        if (it.isSpecial || it.category === '早安' || it.category === '晚安') {
+          return `${it.time || it.startTime || ''} ${it.category}打卡（${it.title}）`;
+        }
+        return `${it.startTime}-${it.endTime} [${it.category}] ${it.title}`;
+      });
+      return `【今日日历日程安排】\n${lines.join('；')}`;
+    } catch(e) {
+      return '';
+    }
+  }
+
+  // 日历日程助手系统提示词与能力说明
+  const _SCHEDULE_AI_INSTR = `\n\n【日历日程助手能力与指令】
+你可以帮用户在「日历」App 中记录、修改或删除时间投入与作息打卡，并随时查看/规划日程（四大分类：学习、写代码、娱乐、出去玩；两大特殊打卡：早安、晚安）。
+当用户提到想要记录、修改或删除时间安排、学习/工作/娱乐计划、外出行程、或者作息打卡时，请在你的回复中自然附带以下 XML 标签（系统会自动执行操作并在气泡中隐藏代码）：
+
+1. 跨时间段日程规划标签格式（新增/新建）：
+<ws_schedule category="分类" start="HH:MM" end="HH:MM" title="具体事项名称" date="YYYY-MM-DD" />
+- category（必填）：只能是以下四个之一：「学习」、「写代码」、「娱乐」、「出去玩」
+- start（必填）：开始时间，24小时制（如 "09:00"、"14:30"）
+- end（必填）：结束时间，24小时制（如 "11:30"、"17:00"）
+- title（选填）：具体事项名称。重要：若用户没有明确指出具体的事项名称（例如只说"下午2点到4点看书"或"记个学习"），请完全不要填 title 属性（即保持留空，不写 title="看书"），只有当有明确具体项目/书名时才填写（如 title="高数复习"）。
+- date（选填）：日期 YYYY-MM-DD，省略则默认为今天
+
+2. 特殊单点打卡标签（早安/晚安）：
+<ws_schedule category="早安" time="HH:MM" title="早安 · 起床打卡" />
+<ws_schedule category="晚安" time="HH:MM" title="晚安 · 入睡打卡" />
+- 当用户表达起床、醒了、早安时，输出 category="早安"
+- 当用户表达睡觉、准备睡了、晚安时，输出 category="晚安"
+
+3. 修改/编辑日程标签格式：
+<ws_cal_edit target="原事项名称" title="新事项名称" category="新分类" start="HH:MM" end="HH:MM" date="YYYY-MM-DD" />
+- target（必填）：要修改的原事项名称、原分类或原时间（如 "看书"）
+- title / category / start / end / date（选填）：需要更新的目标字段
+
+4. 删除日程标签格式：
+<ws_cal_delete target="要删除的事项名称" date="YYYY-MM-DD" />
+- target（必填）：要删除的事项名称、分类或时间（如 "看书"）
+
+【示例】：
+用户："我下午2点到4点要看书，帮我记一下日历"
+回复："好的，已为你记入日历，下午2点到4点专注看书，加油～<ws_schedule category="学习" start="14:00" end="16:00" title="看书" />"
+
+用户："把刚才记的看书改成看电影"
+回复："好的，已为您将看书修改为看电影。<ws_cal_edit target="看书" title="看电影" category="娱乐" />"
+
+用户："帮我把下午看电影的日程删掉"
+回复："好的，已为您删除看电影的日程。<ws_cal_delete target="看电影" />"`;
+
+  // 供 fetch 拦截器与 buildCalBlock 注入提示词
+  window._getSchedulePromptInjection = async function() {
+    try {
+      const summary = await getTodayScheduleSummary();
+      return (summary ? (summary + '\n') : '') + _SCHEDULE_AI_INSTR;
+    } catch(e) {
+      return _SCHEDULE_AI_INSTR;
+    }
+  };
+
+  // Hook 原生 buildCalBlock，自动并入时间表背景与日程助手能力
+  function hookBuildCalBlock() {
+    if (typeof window.buildCalBlock === 'function' && !window.buildCalBlock._schHooked) {
+      const origBuildCalBlock = window.buildCalBlock;
+      window.buildCalBlock = async function(cfg) {
+        let base = '';
+        try { base = await origBuildCalBlock.apply(this, arguments); } catch(e) {}
+        try {
+          const schInj = await window._getSchedulePromptInjection();
+          if (schInj) {
+            base = base ? (base + '\n' + schInj) : schInj;
+          }
+        } catch(e) {}
+        return base;
+      };
+      window.buildCalBlock._schHooked = true;
+    }
+  }
+
   // 监听所有 AI 消息生成与落库
   async function processAIMessageForSchedule(msg) {
     if (!msg || !msg.content) return;
     const text = String(msg.content);
 
-    // 1. 匹配标签格式：<ws_schedule category="学习" start="14:00" end="16:00" title="看书" date="2026-09-14" />
-    const reg = /<(?:ws_schedule|ws_cal_schedule)\b([^>]*)\/?>/gi;
+    // 1. 匹配标签格式：<ws_schedule ...> 或 <ws_cal_schedule ...> 或 <ws_cal_add ...> 或 <ws_cal_edit ...> 或 <ws_cal_delete ...> 等
+    const reg = /<(?:ws_schedule|ws_cal_schedule|ws_cal_add|ws_cal_edit|ws_cal_delete|ws_cal_del|ws_schedule_edit|ws_schedule_delete|ws_schedule_del)\b([^>]*)\/?>/gi;
     let match;
     let addedCount = 0;
-    let hasTagHandled = false;
+    let lastAddedInfo = '';
+    const addedOpRecords = [];
 
     while ((match = reg.exec(text)) !== null) {
-      hasTagHandled = true;
+      const tagFull = match[0] || '';
+      const tagName = ((tagFull.match(/^<([^\s>]+)/) || [])[1] || '').toLowerCase();
       const attrs = match[1] || '';
       const getAttr = (name) => {
         const m = attrs.match(new RegExp(`${name}=["']([^"']*)["']`, 'i'));
         return m ? m[1].trim() : '';
       };
 
-      const title = getAttr('title') || '';
-      let category = getAttr('category') || getAttr('kind') || '';
-      const start = getAttr('start') || getAttr('time') || getCurTimeString();
-      const end = getAttr('end') || '15:00';
-      const date = getLogicDateStr(getAttr('date'), start);
+      const action = (getAttr('action') || '').toLowerCase();
+      const isEdit = tagName.includes('edit') || action === 'edit' || action === 'update' || action === 'modify';
+      const isDelete = tagName.includes('del') || tagName.includes('delete') || action === 'delete' || action === 'del' || action === 'remove';
 
-      const isMorning = category.includes('早') || category.includes('醒') || category.includes('起');
-      const isNight = category.includes('晚') || category.includes('睡') || category.includes('休') || category.includes('眠');
-
-      if (isMorning) {
-        const ok = await appendScheduleRecord({
-          id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-          date: date,
-          title: title || '早安 · 起床',
-          category: '早安',
-          time: start,
-          startTime: start,
-          endTime: start,
-          duration: 0,
-          isSpecial: true,
-          byAi: true,
-          author: msg.friendId || 'AI',
-          created: Date.now()
-        });
-        if (ok) addedCount++;
-      } else if (isNight) {
-        const ok = await appendScheduleRecord({
-          id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-          date: date,
-          title: title || '晚安 · 入睡',
-          category: '晚安',
-          time: start,
-          startTime: start,
-          endTime: start,
-          duration: 0,
-          isSpecial: true,
-          byAi: true,
-          author: msg.friendId || 'AI',
-          created: Date.now()
-        });
-        if (ok) addedCount++;
+      if (isDelete) {
+        const target = getAttr('target') || getAttr('title') || getAttr('id') || getAttr('old_title');
+        const targetDate = getAttr('date');
+        const deleted = await deleteScheduleRecord({ target, date: targetDate, id: getAttr('id') });
+        if (deleted) {
+          addedCount++;
+          lastAddedInfo = `已删除「${deleted.title}」`;
+          addedOpRecords.push({
+            ok: true,
+            label: '日历便笺 · 删除日程',
+            detail: `${deleted.date} 已删除：${deleted.title} (${deleted.startTime || deleted.time || ''})`
+          });
+        }
+      } else if (isEdit) {
+        const target = getAttr('target') || getAttr('old_title') || getAttr('id');
+        const updates = {
+          target: target,
+          title: getAttr('title') || getAttr('new_title'),
+          category: getAttr('category') || getAttr('kind') || getAttr('new_category'),
+          start: getAttr('start') || getAttr('new_start') || getAttr('time'),
+          end: getAttr('end') || getAttr('new_end'),
+          date: getAttr('date') || getAttr('new_date'),
+          id: getAttr('id')
+        };
+        const edited = await editScheduleRecord(target, updates);
+        if (edited) {
+          addedCount++;
+          lastAddedInfo = `已修改「${edited.title}」`;
+          addedOpRecords.push({
+            ok: true,
+            label: `日历便笺 · 修改日程`,
+            detail: `${edited.date} ${edited.startTime || edited.time || ''} ${edited.title} [${edited.category}]`
+          });
+        }
       } else {
-        // 标准化分类名称
-        if (category.includes('学') || category.includes('读') || category.includes('课') || category.includes('书')) category = '学习';
-        else if (category.includes('乐') || category.includes('游') || category.includes('影') || category.includes('漫')) category = '娱乐';
-        else if (category.includes('码') || category.includes('code') || category.includes('程序') || category.includes('开发')) category = '写代码';
-        else if (category.includes('玩') || category.includes('出') || category.includes('逛') || category.includes('运动')) category = '出去玩';
-        else category = '学习';
+        const title = getAttr('title') || '';
+        let category = getAttr('category') || getAttr('kind') || '';
+        let start = getAttr('start') || getAttr('time') || getCurTimeString();
+        let end = getAttr('end') || '';
+        const date = getLogicDateStr(getAttr('date'), start);
 
-        const dur = parseTimeSpanMinutes(start, end);
+        // 标准化时间格式 (如 9:00 -> 09:00)
+        if (start && start.length === 4 && start[1] === ':') start = '0' + start;
+        if (end && end.length === 4 && end[1] === ':') end = '0' + end;
+
+        const isMorning = category.includes('早') || category.includes('醒') || category.includes('起');
+        const isNight = category.includes('晚') || category.includes('睡') || category.includes('休') || category.includes('眠');
+
+        if (isMorning) {
+          const ok = await appendScheduleRecord({
+            id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            date: date,
+            title: title || '早安 · 起床打卡',
+            category: '早安',
+            time: start,
+            startTime: start,
+            endTime: start,
+            duration: 0,
+            isSpecial: true,
+            byAi: true,
+            author: msg.friendId || 'AI',
+            created: Date.now()
+          });
+          if (ok) {
+            addedCount++;
+            lastAddedInfo = `早安打卡（${start}）`;
+            addedOpRecords.push({
+              ok: true,
+              label: '日历便笺 · 早安打卡',
+              detail: `${date} ${start} 早安 · 起床打卡`
+            });
+          }
+        } else if (isNight) {
+          const ok = await appendScheduleRecord({
+            id: 'sch_spec_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            date: date,
+            title: title || '晚安 · 入睡打卡',
+            category: '晚安',
+            time: start,
+            startTime: start,
+            endTime: start,
+            duration: 0,
+            isSpecial: true,
+            byAi: true,
+            author: msg.friendId || 'AI',
+            created: Date.now()
+          });
+          if (ok) {
+            addedCount++;
+            lastAddedInfo = `晚安打卡（${start}）`;
+            addedOpRecords.push({
+              ok: true,
+              label: '日历便笺 · 晚安打卡',
+              detail: `${date} ${start} 晚安 · 入睡打卡`
+            });
+          }
+        } else {
+          // 标准化分类名称
+          if (category.includes('学') || category.includes('读') || category.includes('课') || category.includes('书') || category.includes('练')) category = '学习';
+          else if (category.includes('码') || category.includes('code') || category.includes('程序') || category.includes('开发') || category.includes('bug')) category = '写代码';
+          else if (category.includes('乐') || category.includes('游') || category.includes('影') || category.includes('漫') || category.includes('剧') || category.includes('歌')) category = '娱乐';
+          else if (category.includes('玩') || category.includes('出') || category.includes('逛') || category.includes('运动') || category.includes('跑') || category.includes('球')) category = '出去玩';
+          else category = '学习';
+
+          if (!end) {
+            // 如果没有给结束时间，默认加 1.5 小时
+            const sParts = start.split(':');
+            const sMin = parseInt(sParts[0]||0)*60 + parseInt(sParts[1]||0) + 90;
+            const eH = String(Math.floor(sMin / 60) % 24).padStart(2, '0');
+            const eM = String(sMin % 60).padStart(2, '0');
+            end = `${eH}:${eM}`;
+          }
+
+          const dur = parseTimeSpanMinutes(start, end);
+          const recordTitle = (title && title !== category) ? title : '';
+          const ok = await appendScheduleRecord({
+            id: 'sch_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            date: date,
+            title: recordTitle,
+            category: category,
+            startTime: start,
+            endTime: end,
+            duration: dur,
+            isSpecial: false,
+            byAi: true,
+            author: msg.friendId || 'AI',
+            created: Date.now()
+          });
+          if (ok) {
+            addedCount++;
+            const titleLabel = recordTitle ? `（${recordTitle}）` : '';
+            lastAddedInfo = `${category} ${start}–${end}${titleLabel}`;
+            addedOpRecords.push({
+              ok: true,
+              label: `写入日历便笺 · ${category}`,
+              detail: `${date} ${start}–${end} [${category}]${titleLabel}`
+            });
+          }
+        }
+      }
+    }
+
+    // 2. 如果 AI 未输出标签但文本中明确确认已写入日程（兜底智能识别）
+    if (addedCount === 0) {
+      const confirmMatch = text.match(/(?:已(?:帮您|为你|帮你)?(?:在日历中|在日历上|记录|记入|添加|安排)?|已记好|已记录|已安排)[^\n。！？]*?(\d{1,2}:\d{2})\s*(?:[-~至到]|[-~至到]达?)\s*(\d{1,2}:\d{2})/);
+      if (confirmMatch) {
+        let s = confirmMatch[1];
+        let e = confirmMatch[2];
+        if (s.length === 4 && s[1] === ':') s = '0' + s;
+        if (e.length === 4 && e[1] === ':') e = '0' + e;
+        
+        let cat = '学习';
+        if (text.includes('代码') || text.includes('程序') || text.includes('开发') || text.includes('code')) cat = '写代码';
+        else if (text.includes('玩') || text.includes('出') || text.includes('运动') || text.includes('逛')) cat = '出去玩';
+        else if (text.includes('电影') || text.includes('游戏') || text.includes('娱乐') || text.includes('听歌')) cat = '娱乐';
+
+        const dur = parseTimeSpanMinutes(s, e);
+        const curDate = getLogicDateStr(null, s);
         const ok = await appendScheduleRecord({
-          id: 'sch_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-          date: date,
-          title: title || category,
-          category: category,
-          startTime: start,
-          endTime: end,
+          id: 'sch_ai_nl_' + Date.now(),
+          date: curDate,
+          title: cat,
+          category: cat,
+          startTime: s,
+          endTime: e,
           duration: dur,
           isSpecial: false,
           byAi: true,
           author: msg.friendId || 'AI',
           created: Date.now()
         });
-        if (ok) addedCount++;
+        if (ok) {
+          addedCount++;
+          lastAddedInfo = `${cat} ${s}–${e}`;
+          addedOpRecords.push({
+            ok: true,
+            label: `写入日历便笺 · ${cat}`,
+            detail: `${curDate} ${s}–${e} ${cat}`
+          });
+        }
       }
     }
 
-    if (addedCount > 0 && typeof window.toast === 'function') {
-      window.toast(`📅 日历日程已自动同步更新！`);
+    if (addedCount > 0) {
+      if (typeof window.toast === 'function') {
+        window.toast(`📅 日历已记录：${lastAddedInfo}`);
+      }
+
+      // 将操作结果写入 msg.ibOps 并重绘该消息气泡，展示原生工具卡片
+      msg.ibOps = Array.isArray(msg.ibOps) ? msg.ibOps : [];
+      addedOpRecords.forEach(rec => {
+        if (!msg.ibOps.some(e => e.label === rec.label && e.detail === rec.detail)) {
+          msg.ibOps.push(rec);
+        }
+      });
+
+      try {
+        if (typeof window.dbPut === 'function') {
+          await window.dbPut('chatMessages', msg);
+        }
+      } catch(e) {}
+      try {
+        if (typeof window.redrawMsg === 'function') {
+          window.redrawMsg(msg);
+        }
+      } catch(e) {}
     }
   }
 
@@ -2831,8 +3242,18 @@
         byAi: false,
         created: Date.now()
       });
-      if (ok && typeof window.toast === 'function') {
-        window.toast(`已为你记录「晚安」打卡（${curTime}）`);
+      if (ok) {
+        if (typeof window.toast === 'function') {
+          window.toast(`🌙 已为你记录「晚安」打卡（${curTime}）`);
+        }
+        msg.ibOps = Array.isArray(msg.ibOps) ? msg.ibOps : [];
+        msg.ibOps.push({
+          ok: true,
+          label: '日历便笺 · 晚安打卡',
+          detail: `${date} ${curTime} 晚安 · 入睡打卡`
+        });
+        try { if (typeof window.dbPut === 'function') await window.dbPut('chatMessages', msg); } catch(e) {}
+        try { if (typeof window.redrawMsg === 'function') window.redrawMsg(msg); } catch(e) {}
       }
     } else if (isWakeIntent) {
       const ok = await appendScheduleRecord({
@@ -2848,26 +3269,52 @@
         byAi: false,
         created: Date.now()
       });
-      if (ok && typeof window.toast === 'function') {
-        window.toast(`已为你记录「早安」打卡（${curTime}）`);
+      if (ok) {
+        if (typeof window.toast === 'function') {
+          window.toast(`☀️ 已为你记录「早安」打卡（${curTime}）`);
+        }
+        msg.ibOps = Array.isArray(msg.ibOps) ? msg.ibOps : [];
+        msg.ibOps.push({
+          ok: true,
+          label: '日历便笺 · 早安打卡',
+          detail: `${date} ${curTime} 早安 · 起床打卡`
+        });
+        try { if (typeof window.dbPut === 'function') await window.dbPut('chatMessages', msg); } catch(e) {}
+        try { if (typeof window.redrawMsg === 'function') window.redrawMsg(msg); } catch(e) {}
       }
     }
   }
 
-  // 挂载消息监听器
-  const originalDbPut = window.dbPut;
-  if (typeof originalDbPut === 'function') {
-    window.dbPut = async function(storeName, data) {
-      if (storeName === 'chatMessages' && data) {
-        if (data.role === 'assistant') {
-          processAIMessageForSchedule(data);
-        } else if (data.role === 'user') {
-          processUserMessageForIntent(data);
+  // 挂载消息监听器与提示词钩子
+  function initSchedulePatch() {
+    hookBuildCalBlock();
+
+    const originalDbPut = window.dbPut;
+    if (typeof originalDbPut === 'function' && !originalDbPut.__ib_schedule_hooked) {
+      const wrappedDbPut = async function(storeName, data) {
+        if (storeName === 'chatMessages' && data) {
+          try {
+            if (data.role === 'assistant') {
+              processAIMessageForSchedule(data);
+            } else if (data.role === 'user') {
+              processUserMessageForIntent(data);
+            }
+          } catch(err) {
+            console.warn('[Schedule] process msg error:', err);
+          }
         }
-      }
-      return originalDbPut.apply(this, arguments);
-    };
+        return originalDbPut.apply(this, arguments);
+      };
+      wrappedDbPut.__ib_schedule_hooked = true;
+      window.dbPut = wrappedDbPut;
+    }
   }
+
+  // 初始化并在 DOM / 全局函数准备就绪时持续校验挂载
+  initSchedulePatch();
+  setTimeout(initSchedulePatch, 1000);
+  setTimeout(initSchedulePatch, 3000);
+  document.addEventListener('DOMContentLoaded', initSchedulePatch);
 })();
 
 

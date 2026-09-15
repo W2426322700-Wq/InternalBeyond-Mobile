@@ -157,26 +157,66 @@
     };
   }
 
+  var _renderDebounceTimer = null;
+
   async function getSchedules() {
+    var list = [];
     try {
-      var all = await ctx.storage.get('my_time_schedules') || [];
-      return Array.isArray(all) ? all : [];
-    } catch(e) {
+      if (typeof window.dbGet === 'function') {
+        var row = await window.dbGet('apiSettings', 'app_timeline_cal_my_time_schedules');
+        if (row && Array.isArray(row.val) && row.val.length > 0) {
+          list = row.val;
+        }
+      }
+    } catch(e) {}
+
+    if (!list || list.length === 0) {
       try {
         var str = localStorage.getItem('my_time_schedules');
-        return str ? JSON.parse(str) : [];
-      } catch(e2) { return []; }
+        if (str) {
+          var parsed = JSON.parse(str);
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        }
+      } catch(e2) {}
     }
+
+    if ((!list || list.length === 0) && ctx && ctx.storage) {
+      try {
+        var fromCtx = await ctx.storage.get('my_time_schedules');
+        if (Array.isArray(fromCtx) && fromCtx.length > 0) list = fromCtx;
+      } catch(e3) {}
+    }
+
+    return Array.isArray(list) ? list : [];
   }
 
   async function saveSchedules(list) {
-    try {
-      await ctx.storage.set('my_time_schedules', list);
-    } catch(e) {}
+    if (!Array.isArray(list)) list = [];
     try {
       localStorage.setItem('my_time_schedules', JSON.stringify(list));
     } catch(e) {}
+    try {
+      if (typeof window.dbPut === 'function') {
+        await window.dbPut('apiSettings', {
+          id: 'app_timeline_cal_my_time_schedules',
+          app: 'timeline_cal',
+          key: 'my_time_schedules',
+          val: list,
+          updated: Date.now()
+        });
+      }
+    } catch(e) {}
+    try {
+      if (ctx && ctx.storage) {
+        await ctx.storage.set('my_time_schedules', list);
+      }
+    } catch(e) {}
+    try {
+      window.dispatchEvent(new CustomEvent('ib-schedule-updated', { detail: { list: list } }));
+    } catch(e) {}
   }
+
+  var _onScheduleUpdateGlobal = null;
 
   IBApps.register({
     id: 'timeline_cal',
@@ -198,12 +238,28 @@
       await renderApp();
 
       if (ctx.on) {
-        ctx.on('message', async function() {
-          await renderApp();
+        ctx.on('message', function() {
+          if (_renderDebounceTimer) clearTimeout(_renderDebounceTimer);
+          _renderDebounceTimer = setTimeout(function() {
+            renderApp();
+          }, 50);
         });
       }
+
+      _onScheduleUpdateGlobal = function() {
+        if (!host) return;
+        if (_renderDebounceTimer) clearTimeout(_renderDebounceTimer);
+        _renderDebounceTimer = setTimeout(function() {
+          renderApp();
+        }, 50);
+      };
+      window.addEventListener('ib-schedule-updated', _onScheduleUpdateGlobal);
     },
     unmount: function() {
+      if (_onScheduleUpdateGlobal) {
+        window.removeEventListener('ib-schedule-updated', _onScheduleUpdateGlobal);
+        _onScheduleUpdateGlobal = null;
+      }
       if (host) host.innerHTML = '';
       host = null;
       ctx = null;
@@ -743,10 +799,10 @@
       return s.date === curDateStr;
     });
 
-    // 投入统计计算：只统计四大投入（学习、写代码、娱乐、出去玩），早安和晚安不计入！
+    // 投入统计计算：只统计【当前日历所选逻辑日期（06:00 - 次日06:00）】四大投入，早安和晚安不计入！
     var stats = {};
     CATEGORIES.forEach(function(c) { stats[c.name] = 0; });
-    schedules.forEach(function(s) {
+    todayList.forEach(function(s) {
       var catName = s.category;
       if (s.isSpecial || catName === '早安' || catName === '晚安' || s.duration === 0) return;
       if (stats[catName] !== undefined) {
@@ -754,7 +810,7 @@
         stats[catName] += dur;
       }
     });
-    var totalMin = Object.values(stats).reduce(function(a, b) { return a + b; }, 0) || 1;
+    var totalMin = Object.values(stats).reduce(function(a, b) { return a + b; }, 0) || 0;
 
     // 生成 24 个小时（06:00 -> 23:00 -> 00:00 -> 05:00）的刻度
     var hourRowsHtml = '';
@@ -807,7 +863,7 @@
               ${specObj.icon}
             </div>
             <div class="ib-cal-point-txt">${displayTitle}</div>
-            <div class="ib-cal-point-time">${pointTime} ${item.byAi ? '<span style="opacity:0.75;">[AI]</span>' : ''}</div>
+            <div class="ib-cal-point-time">${pointTime}</div>
           </div>
         `;
       }
@@ -823,6 +879,9 @@
       var catObj = CATEGORIES.find(function(c) { return c.name === item.category; }) || CATEGORIES[0];
       var isLateNight = (parseInt((item.startTime||'').split(':')[0]||0, 10) < 6);
 
+      var hasCustomTitle = item.title && String(item.title).trim() && String(item.title).trim() !== item.category;
+      var titleHtml = hasCustomTitle ? `<div class="ib-cal-ev-title" style="color: ${catObj.txColor};">${item.title}</div>` : '';
+
       return `
         <div class="ib-cal-event-block" style="top: ${topPx}px; height: ${heightPx}px; background: ${catObj.lightBg}; border-color: ${catObj.border}; color: ${catObj.txColor};" data-id="${item.id || idx}">
           <div class="ib-cal-ev-top">
@@ -830,10 +889,9 @@
               ${catObj.icon}
               <span>${item.category || '学习'}</span>
               ${isLateNight ? `<span style="font-size:0.58rem;opacity:0.85;">[深夜]</span>` : ''}
-              ${item.byAi ? `<span style="font-size:0.58rem;color:var(--acc);">[AI]</span>` : ''}
             </div>
           </div>
-          <div class="ib-cal-ev-title" style="color: ${catObj.txColor};">${item.title || item.category || '日常事项'}</div>
+          ${titleHtml}
           <div class="ib-cal-ev-time" style="color: ${catObj.txColor};">${item.startTime || '00:00'} – ${item.endTime || '00:00'} (${item.duration || 60}m)</div>
         </div>
       `;
@@ -866,7 +924,7 @@
             ${CATEGORIES.map(function(c) {
               var mins = stats[c.name] || 0;
               var hrs = (mins / 60).toFixed(1);
-              var pct = Math.round((mins / totalMin) * 100);
+              var pct = totalMin > 0 ? Math.round((mins / totalMin) * 100) : 0;
               return `
                 <div class="ib-tc-stat-tile">
                   <div class="ib-tc-stat-ico" style="background: ${c.bg}; color: ${c.solid};">
