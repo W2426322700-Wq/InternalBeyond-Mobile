@@ -3194,12 +3194,1162 @@
     }
   }
 
+  // ── 副 API 配置 (多模态) ──
+  function initSubApiPatch() {
+    const secApiTools = document.getElementById('sec-api-tools');
+    if (!secApiTools || document.getElementById('sub-api-card')) return;
+
+    // 1. 创建标头与卡片容器
+    const secLabel = document.createElement('div');
+    secLabel.className = 'sec-label';
+    secLabel.id = 'sub-api-sec-label';
+    secLabel.textContent = '副 API';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'sub-api-card';
+    card.style.cssText = 'position:relative;margin-top:8px;';
+
+    card.innerHTML = `
+      <div style="font-size:0.75rem;color:var(--tx3);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+        <span>连接 — 连接</span>
+      </div>
+      
+      <!-- 服务商 -->
+      <div class="f-group">
+        <label>服务商</label>
+        <div class="sel">
+          <select id="sub-api-provider">
+            <option value="anthropic">克劳德（Anthropic 公司）</option>
+            <option value="openai">OpenAI</option>
+            <option value="gemini">谷歌 Gemini</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">阿里千问（通义千问）</option>
+            <option value="siliconflow">硅基流动 SiliconFlow</option>
+            <option value="stepfun">阶跃星辰 StepFun</option>
+            <option value="moonshot">月之暗面 Moonshot</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 模型 -->
+      <div class="f-group">
+        <label>模型 <span class="lb-note">（可手输；或拉取列表后直接选）</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="sub-api-model" placeholder="claude-sonnet-4-6" autocomplete="off" style="flex:1;min-width:0">
+          <button class="btn" type="button" id="sub-api-fetch-models" style="flex:none">拉取模型列表</button>
+        </div>
+        <div class="sel" id="sub-api-models-wrap" style="margin-top:8px;display:none">
+          <select id="sub-api-models-select">
+            <option value="">— 选中即填入 —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 接口地址 -->
+      <div class="f-group">
+        <label>接口地址</label>
+        <input id="sub-api-endpoint" placeholder="https://api.anthropic.com/v1/messages" autocomplete="off">
+      </div>
+
+      <!-- API 密钥 -->
+      <div class="f-group">
+        <label>API 密钥</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="sub-api-key" type="password" autocomplete="off" style="flex:1;min-width:0">
+          <button class="btn" type="button" id="sub-api-key-eye" style="flex:none">显示</button>
+        </div>
+      </div>
+
+      <!-- 接口预设 -->
+      <div class="f-group" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <label>接口预设 <span class="lb-note">（服务商 + 模型 + 地址 + 密钥一套一套存，随时切）</span></label>
+        <div id="sub-api-preset-list" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="sub-api-preset-name" placeholder="给当前这套起个名" autocomplete="off" style="flex:1;min-width:0">
+          <button class="btn" type="button" id="sub-api-preset-add" style="flex:none">存为预设</button>
+        </div>
+        <p class="hint" id="sub-api-preset-hint" style="margin:6px 0 0">新配置先保存一次，再回来存预设。</p>
+      </div>
+
+      <!-- 保存按钮 -->
+      <div style="margin-top:14px">
+        <button class="btn wide primary" id="sub-api-save" type="button">保存副 API 配置</button>
+      </div>
+    `;
+
+    secApiTools.prepend(card);
+    secApiTools.prepend(secLabel);
+
+    // 2. 绑定事件逻辑
+    const provSelect = document.getElementById('sub-api-provider');
+    const modelInput = document.getElementById('sub-api-model');
+    const epInput = document.getElementById('sub-api-endpoint');
+    const keyInput = document.getElementById('sub-api-key');
+    const keyEye = document.getElementById('sub-api-key-eye');
+    const fetchBtn = document.getElementById('sub-api-fetch-models');
+    const modelsSelect = document.getElementById('sub-api-models-select');
+    const modelsWrap = document.getElementById('sub-api-models-wrap');
+    const presetName = document.getElementById('sub-api-preset-name');
+    const presetAdd = document.getElementById('sub-api-preset-add');
+    const presetList = document.getElementById('sub-api-preset-list');
+    const saveBtn = document.getElementById('sub-api-save');
+
+    if (!provSelect || !saveBtn) return;
+
+    // 密码显示/隐藏
+    keyEye.addEventListener('click', () => {
+      if (keyInput.type === 'password') {
+        keyInput.type = 'text';
+        keyEye.textContent = '隐藏';
+      } else {
+        keyInput.type = 'password';
+        keyEye.textContent = '显示';
+      }
+    });
+
+    // 服务商切换联动预设默认值
+    const providerDefaults = {
+      anthropic: { endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-4-6' },
+      openai: { endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' },
+      gemini: { endpoint: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash' },
+      deepseek: { endpoint: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' },
+      qwen: { endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', model: 'qwen-max' },
+      siliconflow: { endpoint: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-72B-Instruct' },
+      stepfun: { endpoint: 'https://api.stepfun.com/v1/chat/completions', model: 'step-1-8k' },
+      moonshot: { endpoint: 'https://api.moonshot.cn/v1/chat/completions', model: 'moonshot-v1-8k' },
+      custom: { endpoint: '', model: '' }
+    };
+
+    provSelect.addEventListener('change', () => {
+      const p = provSelect.value;
+      const def = providerDefaults[p];
+      if (def) {
+        if (!epInput.value || Object.values(providerDefaults).some(d => d.endpoint === epInput.value)) {
+          epInput.value = def.endpoint;
+        }
+        if (!modelInput.value || Object.values(providerDefaults).some(d => d.model === modelInput.value)) {
+          modelInput.value = def.model;
+        }
+      }
+    });
+
+    // 拉取模型列表
+    fetchBtn.addEventListener('click', async () => {
+      const ep = epInput.value.trim();
+      const key = keyInput.value.trim();
+      const prov = provSelect.value;
+
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = '拉取中…';
+
+      let baseUrl = ep;
+      if (!baseUrl) {
+        if (prov === 'openai') baseUrl = 'https://api.openai.com/v1';
+        else if (prov === 'siliconflow') baseUrl = 'https://api.siliconflow.cn/v1';
+        else if (prov === 'deepseek') baseUrl = 'https://api.deepseek.com/v1';
+      }
+      baseUrl = baseUrl.replace(/\/+(chat\/completions|messages|responses)?\/?$/i, '').replace(/\/+$/, '') + '/models';
+
+      try {
+        const headers = {};
+        if (key) {
+          if (prov === 'anthropic') headers['x-api-key'] = key;
+          else headers['Authorization'] = 'Bearer ' + key;
+        }
+        const res = await fetch(baseUrl, { headers });
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.data || data.models || []);
+        if (list && list.length) {
+          modelsSelect.innerHTML = '<option value="">— 选中即填入 —</option>' + list.map(m => {
+            const id = typeof m === 'string' ? m : (m.id || m.name);
+            return `<option value="${id}">${id}</option>`;
+          }).join('');
+          modelsWrap.style.display = '';
+          if (typeof window.toast === 'function') window.toast(`已获取 ${list.length} 个模型`);
+        } else {
+          if (typeof window.toast === 'function') window.toast('未查找到模型列表，可手动输入');
+        }
+      } catch(err) {
+        if (typeof window.toast === 'function') window.toast('拉取模型列表失败：' + (err.message || err));
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = '拉取模型列表';
+      }
+    });
+
+    modelsSelect.addEventListener('change', () => {
+      if (modelsSelect.value) {
+        modelInput.value = modelsSelect.value;
+      }
+    });
+
+    // 预设列表绘制
+    function renderSubPresets() {
+      const savedConfigRaw = localStorage.getItem('ib_sub_api_config');
+      const curCfg = savedConfigRaw ? JSON.parse(savedConfigRaw) : null;
+
+      const presetsStr = localStorage.getItem('ib_sub_api_presets');
+      let presets = [];
+      try { if (presetsStr) presets = JSON.parse(presetsStr); } catch(e) {}
+
+      const hintEl = document.getElementById('sub-api-preset-hint');
+      if (hintEl) {
+        if (!curCfg) {
+          hintEl.textContent = '新配置先保存一次，再回来存预设。';
+        } else if (!presets.length) {
+          hintEl.textContent = '还没有预设：把服务商、模型、地址、密钥填好，起个名点「存为预设」。';
+        } else {
+          hintEl.textContent = `共 ${presets.length} 套。点一套换上并保存，行尾 × 删。`;
+        }
+      }
+
+      presetList.innerHTML = presets.map((p, i) => {
+        const isCur = curCfg && curCfg.provider === p.provider && curCfg.model === p.model && curCfg.endpoint === p.endpoint && curCfg.key === p.key;
+        const meta = [p.provider, p.model || '', p.endpoint || ''].filter(Boolean).join(' · ');
+        return `<div class="pwl-row${isCur ? ' on' : ''}" data-i="${i}" style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line);cursor:pointer">
+          <div style="flex:1;min-width:0">
+            <div class="pwl-t" style="font-size:0.86rem;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div class="pwl-s" style="font-size:0.72rem;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${meta}</div>
+          </div>
+          <button class="pwl-x" type="button" title="删除" data-del="${i}" style="flex:none;width:24px;height:24px;border-radius:50%;border:none;background:none;display:flex;align-items:center;justify-content:center;color:var(--tx3);cursor:pointer">
+            <svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+          </button>
+        </div>`;
+      }).join('');
+    }
+
+    // 点击预设项或删除
+    presetList.addEventListener('click', async (e) => {
+      const delBtn = e.target.closest('[data-del]');
+      const presetsStr = localStorage.getItem('ib_sub_api_presets');
+      let presets = presetsStr ? JSON.parse(presetsStr) : [];
+
+      if (delBtn) {
+        e.stopPropagation();
+        const i = parseInt(delBtn.dataset.del, 10);
+        if (i >= 0 && presets[i]) {
+          const pName = presets[i].name;
+          presets.splice(i, 1);
+          localStorage.setItem('ib_sub_api_presets', JSON.stringify(presets));
+          try { if (typeof window.dbPut === 'function') await window.dbPut('apiSettings', { id: 'sub_api_presets', list: presets }); } catch(err) {}
+          renderSubPresets();
+          if (typeof window.toast === 'function') window.toast(`已删除预设「${pName}」`);
+        }
+        return;
+      }
+
+      const row = e.target.closest('.pwl-row');
+      if (row) {
+        const i = parseInt(row.dataset.i, 10);
+        const p = presets[i];
+        if (p) {
+          provSelect.value = p.provider || 'anthropic';
+          modelInput.value = p.model || '';
+          epInput.value = p.endpoint || '';
+          keyInput.value = p.key || '';
+          saveBtn.click();
+        }
+      }
+    });
+
+    // 存为预设
+    presetAdd.addEventListener('click', async () => {
+      const savedConfigRaw = localStorage.getItem('ib_sub_api_config');
+      if (!savedConfigRaw) {
+        if (typeof window.toast === 'function') window.toast('新配置先保存一次');
+        return;
+      }
+      const curModel = modelInput.value.trim();
+      if (!curModel) {
+        if (typeof window.toast === 'function') window.toast('模型填好再存');
+        return;
+      }
+      let name = presetName.value.trim();
+      if (!name) name = curModel;
+
+      const presetsStr = localStorage.getItem('ib_sub_api_presets');
+      let presets = presetsStr ? JSON.parse(presetsStr) : [];
+
+      const curRec = {
+        name: name,
+        provider: provSelect.value,
+        model: curModel,
+        endpoint: epInput.value.trim(),
+        key: keyInput.value.trim()
+      };
+
+      const idx = presets.findIndex(p => p.name === name);
+      if (idx >= 0) presets[idx] = curRec;
+      else presets.push(curRec);
+
+      localStorage.setItem('ib_sub_api_presets', JSON.stringify(presets));
+      try { if (typeof window.dbPut === 'function') await window.dbPut('apiSettings', { id: 'sub_api_presets', list: presets }); } catch(e) {}
+
+      presetName.value = '';
+      renderSubPresets();
+      if (typeof window.toast === 'function') {
+        window.toast((idx >= 0 ? '已更新预设「' : '已存为预设「') + name + '」');
+      }
+    });
+
+    // 保存副 API
+    saveBtn.addEventListener('click', async () => {
+      const cfg = {
+        id: 'sub_api',
+        provider: provSelect.value,
+        model: modelInput.value.trim(),
+        endpoint: epInput.value.trim(),
+        key: keyInput.value.trim(),
+        updatedAt: Date.now()
+      };
+      localStorage.setItem('ib_sub_api_config', JSON.stringify(cfg));
+      try {
+        if (typeof window.dbPut === 'function') {
+          await window.dbPut('apiSettings', cfg);
+        }
+      } catch(e) {}
+      renderSubPresets();
+      if (typeof window.toast === 'function') {
+        window.toast('副 API 配置已保存');
+      }
+    });
+
+    // 回填初始保存的值
+    function loadSavedConfig() {
+      const raw = localStorage.getItem('ib_sub_api_config');
+      if (raw) {
+        try {
+          const cfg = JSON.parse(raw);
+          if (cfg.provider) provSelect.value = cfg.provider;
+          if (cfg.model) modelInput.value = cfg.model;
+          if (cfg.endpoint) epInput.value = cfg.endpoint;
+          if (cfg.key) keyInput.value = cfg.key;
+        } catch(e) {}
+      } else {
+        // 默认呈现图片中所示的默认值
+        provSelect.value = 'anthropic';
+        modelInput.value = 'claude-sonnet-4-6';
+        epInput.value = 'https://api.anthropic.com/v1/messages';
+      }
+      renderSubPresets();
+    }
+
+    loadSavedConfig();
+
+
+    if (typeof window.dbGet === 'function') {
+      window.dbGet('apiSettings', 'sub_api').then(cfg => {
+        if (cfg) {
+          localStorage.setItem('ib_sub_api_config', JSON.stringify(cfg));
+          if (cfg.provider) provSelect.value = cfg.provider;
+          if (cfg.model) modelInput.value = cfg.model;
+          if (cfg.endpoint) epInput.value = cfg.endpoint;
+          if (cfg.key) keyInput.value = cfg.key;
+          renderSubPresets();
+        }
+      }).catch(() => {});
+
+      window.dbGet('apiSettings', 'sub_api_presets').then(res => {
+        if (res && Array.isArray(res.list)) {
+          localStorage.setItem('ib_sub_api_presets', JSON.stringify(res.list));
+          renderSubPresets();
+        }
+      }).catch(() => {});
+    }
+
+    // 暴露全局读取与调用接口供后续功能接入
+    window.getSubApiConfig = function() {
+      try {
+        const raw = localStorage.getItem('ib_sub_api_config');
+        if (raw) return JSON.parse(raw);
+      } catch(e) {}
+      return {
+        provider: provSelect.value,
+        model: modelInput.value.trim(),
+        endpoint: epInput.value.trim(),
+        key: keyInput.value.trim()
+      };
+    };
+  }
+
+  // ── Embedding 向量 API 配置 (多模态) ──
+  function initEmbeddingApiPatch() {
+    const secApiTools = document.getElementById('sec-api-tools');
+    if (!secApiTools || document.getElementById('emb-api-card')) return;
+
+    // 创建标头与卡片容器（与原作者副 API 完全一致的排版设计）
+    const secLabel = document.createElement('div');
+    secLabel.className = 'sec-label';
+    secLabel.id = 'emb-api-sec-label';
+    secLabel.textContent = 'Embedding 向量 API';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'emb-api-card';
+    card.style.cssText = 'position:relative;margin-top:8px;';
+
+    card.innerHTML = `
+      <div style="font-size:0.75rem;color:var(--tx3);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+        <span>连接 — 连接</span>
+      </div>
+      
+      <!-- 服务商 -->
+      <div class="f-group">
+        <label>服务商</label>
+        <div class="sel">
+          <select id="emb-api-provider">
+            <option value="siliconflow">硅基流动 SiliconFlow（推荐 · BGE 等）</option>
+            <option value="openai">OpenAI</option>
+            <option value="qwen">阿里千问（通义千问）</option>
+            <option value="gemini">谷歌 Gemini</option>
+            <option value="custom">自定义 / 本地 Ollama</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 模型 -->
+      <div class="f-group">
+        <label>模型 <span class="lb-note">（可手输；或拉取列表后直接选）</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="emb-api-model" placeholder="BAAI/bge-m3" autocomplete="off" style="flex:1;min-width:0">
+          <button class="btn" type="button" id="emb-api-fetch-models" style="flex:none">拉取模型列表</button>
+        </div>
+        <div class="sel" id="emb-api-models-wrap" style="margin-top:8px;display:none">
+          <select id="emb-api-models-select">
+            <option value="">— 选中即填入 —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 接口地址 -->
+      <div class="f-group">
+        <label>接口地址</label>
+        <input id="emb-api-endpoint" placeholder="https://api.siliconflow.cn/v1/embeddings" autocomplete="off">
+      </div>
+
+      <!-- API 密钥 -->
+      <div class="f-group">
+        <label>API 密钥</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="emb-api-key" type="password" autocomplete="off" style="flex:1;min-width:0">
+          <button class="btn" type="button" id="emb-api-key-eye" style="flex:none">显示</button>
+        </div>
+      </div>
+
+      <!-- 接口预设 -->
+      <div class="f-group" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <label>接口预设 <span class="lb-note">（服务商 + 模型 + 地址 + 密钥一套一套存，随时切）</span></label>
+        <div id="emb-api-preset-list" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="emb-api-preset-name" placeholder="给当前这套起个名" autocomplete="off" style="flex:1;min-width:0">
+          <button class="btn" type="button" id="emb-api-preset-add" style="flex:none">存为预设</button>
+        </div>
+        <p class="hint" id="emb-api-preset-hint" style="margin:6px 0 0">新配置先保存一次，再回来存预设。</p>
+      </div>
+
+      <!-- 保存按钮 -->
+      <div style="margin-top:14px">
+        <button class="btn wide primary" id="emb-api-save" type="button">保存 Embedding API 配置</button>
+      </div>
+    `;
+
+    // 放置在副 API 卡片后方
+    const subCard = document.getElementById('sub-api-card');
+    if (subCard && subCard.nextSibling) {
+      secApiTools.insertBefore(card, subCard.nextSibling);
+      secApiTools.insertBefore(secLabel, card);
+    } else {
+      secApiTools.appendChild(secLabel);
+      secApiTools.appendChild(card);
+    }
+
+    const provSelect = document.getElementById('emb-api-provider');
+    const modelInput = document.getElementById('emb-api-model');
+    const epInput = document.getElementById('emb-api-endpoint');
+    const keyInput = document.getElementById('emb-api-key');
+    const keyEye = document.getElementById('emb-api-key-eye');
+    const fetchBtn = document.getElementById('emb-api-fetch-models');
+    const modelsSelect = document.getElementById('emb-api-models-select');
+    const modelsWrap = document.getElementById('emb-api-models-wrap');
+    const presetName = document.getElementById('emb-api-preset-name');
+    const presetAdd = document.getElementById('emb-api-preset-add');
+    const presetList = document.getElementById('emb-api-preset-list');
+    const saveBtn = document.getElementById('emb-api-save');
+
+    if (!provSelect || !saveBtn) return;
+
+    keyEye.addEventListener('click', () => {
+      if (keyInput.type === 'password') {
+        keyInput.type = 'text';
+        keyEye.textContent = '隐藏';
+      } else {
+        keyInput.type = 'password';
+        keyEye.textContent = '显示';
+      }
+    });
+
+    const providerDefaults = {
+      siliconflow: { endpoint: 'https://api.siliconflow.cn/v1/embeddings', model: 'BAAI/bge-m3' },
+      openai: { endpoint: 'https://api.openai.com/v1/embeddings', model: 'text-embedding-3-small' },
+      qwen: { endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings', model: 'text-embedding-v3' },
+      gemini: { endpoint: 'https://generativelanguage.googleapis.com/v1beta', model: 'text-embedding-004' },
+      custom: { endpoint: 'http://localhost:11434/api/embeddings', model: 'bge-m3' }
+    };
+
+    provSelect.addEventListener('change', () => {
+      const p = provSelect.value;
+      const def = providerDefaults[p];
+      if (def) {
+        if (!epInput.value || Object.values(providerDefaults).some(d => d.endpoint === epInput.value)) {
+          epInput.value = def.endpoint;
+        }
+        if (!modelInput.value || Object.values(providerDefaults).some(d => d.model === modelInput.value)) {
+          modelInput.value = def.model;
+        }
+      }
+    });
+
+    fetchBtn.addEventListener('click', async () => {
+      const ep = epInput.value.trim();
+      const key = keyInput.value.trim();
+      const prov = provSelect.value;
+
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = '拉取中…';
+
+      let baseUrl = ep;
+      if (!baseUrl) {
+        if (prov === 'siliconflow') baseUrl = 'https://api.siliconflow.cn/v1';
+        else if (prov === 'openai') baseUrl = 'https://api.openai.com/v1';
+      }
+      baseUrl = baseUrl.replace(/\/+(embeddings|chat\/completions|messages)?\/?$/i, '').replace(/\/+$/, '') + '/models';
+
+      try {
+        const headers = {};
+        if (key) headers['Authorization'] = 'Bearer ' + key;
+        const res = await fetch(baseUrl, { headers });
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.data || data.models || []);
+        if (list && list.length) {
+          modelsSelect.innerHTML = '<option value="">— 选中即填入 —</option>' + list.map(m => {
+            const id = typeof m === 'string' ? m : (m.id || m.name);
+            return `<option value="${id}">${id}</option>`;
+          }).join('');
+          modelsWrap.style.display = '';
+          if (typeof window.toast === 'function') window.toast(`已获取 ${list.length} 个模型`);
+        } else {
+          if (typeof window.toast === 'function') window.toast('未查找到模型列表，可手动输入');
+        }
+      } catch(err) {
+        if (typeof window.toast === 'function') window.toast('拉取模型列表失败：' + (err.message || err));
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = '拉取模型列表';
+      }
+    });
+
+    modelsSelect.addEventListener('change', () => {
+      if (modelsSelect.value) modelInput.value = modelsSelect.value;
+    });
+
+    function renderEmbPresets() {
+      const savedConfigRaw = localStorage.getItem('ib_emb_api_config');
+      const curCfg = savedConfigRaw ? JSON.parse(savedConfigRaw) : null;
+      const presetsStr = localStorage.getItem('ib_emb_api_presets');
+      let presets = [];
+      try { if (presetsStr) presets = JSON.parse(presetsStr); } catch(e) {}
+
+      const hintEl = document.getElementById('emb-api-preset-hint');
+      if (hintEl) {
+        if (!curCfg) hintEl.textContent = '新配置先保存一次，再回来存预设。';
+        else if (!presets.length) hintEl.textContent = '还没有预设：把服务商、模型、地址、密钥填好，起个名点「存为预设」。';
+        else hintEl.textContent = `共 ${presets.length} 套。点一套换上并保存，行尾 × 删。`;
+      }
+
+      presetList.innerHTML = presets.map((p, i) => {
+        const isCur = curCfg && curCfg.provider === p.provider && curCfg.model === p.model && curCfg.endpoint === p.endpoint && curCfg.key === p.key;
+        const meta = [p.provider, p.model || '', p.endpoint || ''].filter(Boolean).join(' · ');
+        return `<div class="pwl-row${isCur ? ' on' : ''}" data-i="${i}" style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line);cursor:pointer">
+          <div style="flex:1;min-width:0">
+            <div class="pwl-t" style="font-size:0.86rem;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div class="pwl-s" style="font-size:0.72rem;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${meta}</div>
+          </div>
+          <button class="pwl-x" type="button" title="删除" data-del="${i}" style="flex:none;width:24px;height:24px;border-radius:50%;border:none;background:none;display:flex;align-items:center;justify-content:center;color:var(--tx3);cursor:pointer">
+            <svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+          </button>
+        </div>`;
+      }).join('');
+    }
+
+    presetList.addEventListener('click', async (e) => {
+      const delBtn = e.target.closest('[data-del]');
+      const presetsStr = localStorage.getItem('ib_emb_api_presets');
+      let presets = presetsStr ? JSON.parse(presetsStr) : [];
+
+      if (delBtn) {
+        e.stopPropagation();
+        const i = parseInt(delBtn.dataset.del, 10);
+        if (i >= 0 && presets[i]) {
+          const pName = presets[i].name;
+          presets.splice(i, 1);
+          localStorage.setItem('ib_emb_api_presets', JSON.stringify(presets));
+          try { if (typeof window.dbPut === 'function') await window.dbPut('apiSettings', { id: 'emb_api_presets', list: presets }); } catch(err) {}
+          renderEmbPresets();
+          if (typeof window.toast === 'function') window.toast(`已删除预设「${pName}」`);
+        }
+        return;
+      }
+
+      const row = e.target.closest('.pwl-row');
+      if (row) {
+        const i = parseInt(row.dataset.i, 10);
+        const p = presets[i];
+        if (p) {
+          provSelect.value = p.provider || 'siliconflow';
+          modelInput.value = p.model || '';
+          epInput.value = p.endpoint || '';
+          keyInput.value = p.key || '';
+          saveBtn.click();
+        }
+      }
+    });
+
+    presetAdd.addEventListener('click', async () => {
+      const savedConfigRaw = localStorage.getItem('ib_emb_api_config');
+      if (!savedConfigRaw) {
+        if (typeof window.toast === 'function') window.toast('新配置先保存一次');
+        return;
+      }
+      const curModel = modelInput.value.trim();
+      if (!curModel) {
+        if (typeof window.toast === 'function') window.toast('模型填好再存');
+        return;
+      }
+      let name = presetName.value.trim();
+      if (!name) name = curModel;
+
+      const presetsStr = localStorage.getItem('ib_emb_api_presets');
+      let presets = presetsStr ? JSON.parse(presetsStr) : [];
+
+      const curRec = {
+        name: name,
+        provider: provSelect.value,
+        model: curModel,
+        endpoint: epInput.value.trim(),
+        key: keyInput.value.trim()
+      };
+
+      const idx = presets.findIndex(p => p.name === name);
+      if (idx >= 0) presets[idx] = curRec;
+      else presets.push(curRec);
+
+      localStorage.setItem('ib_emb_api_presets', JSON.stringify(presets));
+      try { if (typeof window.dbPut === 'function') await window.dbPut('apiSettings', { id: 'emb_api_presets', list: presets }); } catch(e) {}
+
+      presetName.value = '';
+      renderEmbPresets();
+      if (typeof window.toast === 'function') {
+        window.toast((idx >= 0 ? '已更新预设「' : '已存为预设「') + name + '」');
+      }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const cfg = {
+        id: 'emb_api',
+        provider: provSelect.value,
+        model: modelInput.value.trim(),
+        endpoint: epInput.value.trim(),
+        key: keyInput.value.trim(),
+        updatedAt: Date.now()
+      };
+      localStorage.setItem('ib_emb_api_config', JSON.stringify(cfg));
+      try {
+        if (typeof window.dbPut === 'function') {
+          await window.dbPut('apiSettings', cfg);
+        }
+      } catch(e) {}
+      renderEmbPresets();
+      if (typeof window.toast === 'function') {
+        window.toast('Embedding API 配置已保存');
+      }
+    });
+
+    function loadSavedConfig() {
+      const raw = localStorage.getItem('ib_emb_api_config');
+      if (raw) {
+        try {
+          const cfg = JSON.parse(raw);
+          if (cfg.provider) provSelect.value = cfg.provider;
+          if (cfg.model) modelInput.value = cfg.model;
+          if (cfg.endpoint) epInput.value = cfg.endpoint;
+          if (cfg.key) keyInput.value = cfg.key;
+        } catch(e) {}
+      } else {
+        provSelect.value = 'siliconflow';
+        modelInput.value = 'BAAI/bge-m3';
+        epInput.value = 'https://api.siliconflow.cn/v1/embeddings';
+      }
+      renderEmbPresets();
+    }
+
+    loadSavedConfig();
+
+    if (typeof window.dbGet === 'function') {
+      window.dbGet('apiSettings', 'emb_api').then(cfg => {
+        if (cfg) {
+          localStorage.setItem('ib_emb_api_config', JSON.stringify(cfg));
+          if (cfg.provider) provSelect.value = cfg.provider;
+          if (cfg.model) modelInput.value = cfg.model;
+          if (cfg.endpoint) epInput.value = cfg.endpoint;
+          if (cfg.key) keyInput.value = cfg.key;
+          renderEmbPresets();
+        }
+      }).catch(() => {});
+
+      window.dbGet('apiSettings', 'emb_api_presets').then(res => {
+        if (res && Array.isArray(res.list)) {
+          localStorage.setItem('ib_emb_api_presets', JSON.stringify(res.list));
+          renderEmbPresets();
+        }
+      }).catch(() => {});
+    }
+
+    window.getEmbeddingApiConfig = function() {
+      try {
+        const raw = localStorage.getItem('ib_emb_api_config');
+        if (raw) return JSON.parse(raw);
+      } catch(e) {}
+      return {
+        provider: provSelect.value,
+        model: modelInput.value.trim(),
+        endpoint: epInput.value.trim(),
+        key: keyInput.value.trim()
+      };
+    };
+  }
+
+  // ── 复制记忆库板块：记忆房间 / 动态档案 (与原生美化完全一致) ──
+  function initEventMemorySection() {
+    const pageMemory = document.getElementById('page-memory');
+    if (!pageMemory) return;
+
+    // 1. 扩充底部 Dock 坞位项：在记忆库和 Auto Memory 中间加入「记忆房间」
+    if (typeof DOCKS !== "undefined" && DOCKS.memory) {
+      const hasEvt = DOCKS.memory.some(item => item.k === 'evt');
+      if (!hasEvt) {
+        // 查找 lib 索引
+        const libIdx = DOCKS.memory.findIndex(item => item.k === 'lib');
+        const evtItem = { k: 'evt', t: '记忆房间', i: 'lib' };
+        if (libIdx >= 0) {
+          DOCKS.memory.splice(libIdx + 1, 0, evtItem);
+        } else {
+          DOCKS.memory.push(evtItem);
+        }
+        if ((typeof currentPage !== "undefined" ? currentPage : "") === 'memory' && typeof window.renderDock === 'function') {
+          window.renderDock();
+        }
+      }
+    }
+
+    // 2. 注入记忆房间分区 DOM (sec-memory-evt)，完全复制自 sec-memory-lib 并保持原汁原味
+    if (!document.getElementById('sec-memory-evt')) {
+      const secEvt = document.createElement('div');
+      secEvt.className = 'psec';
+      secEvt.id = 'sec-memory-evt';
+      secEvt.innerHTML = `
+        <div class="mem-hero">
+          <div class="mh-en">Memory Room<span class="mh-zh">记忆房间</span></div>
+        </div>
+        <div class="mem-stats" id="evtm-stats">
+          <div class="ms-cell"><div class="ms-num" id="evtm-cnt-total">0</div><div class="ms-lab">Total</div></div>
+          <div class="ms-cell"><div class="ms-num" id="evtm-cnt-pinned">0</div><div class="ms-lab">Pinned</div></div>
+          <div class="ms-cell"><div class="ms-num" id="evtm-cnt-active">0</div><div class="ms-lab">Active</div></div>
+        </div>
+        <div class="mem-dbar" id="evtm-dbar">
+          <i style="width:30%;background:rgba(214,138,154,0.7)"></i>
+          <i style="width:40%;background:rgba(127,168,217,0.7)"></i>
+          <i style="width:20%;background:rgba(148,198,166,0.7)"></i>
+          <i style="width:10%;background:rgba(206,170,123,0.7)"></i>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn wide primary" id="evtm-add" style="margin-bottom:0">＋ 新记忆房间</button>
+          <button class="btn wide" id="evtm-vectorize">向量化检测</button>
+        </div>
+        <input class="search" id="evtm-search" placeholder="搜索记忆房间…">
+        <div class="chips" id="evtm-filter" style="margin-bottom:12px"></div>
+        <div id="evtm-list"></div>
+        <div class="sec-label" style="margin-top:18px">记忆房间管理</div>
+        <div class="card">
+          <button class="btn wide" id="evtm-export">导出记忆房间</button>
+          <div style="height:10px"></div>
+          <button class="btn wide" id="evtm-import">导入记忆房间</button>
+          <p class="hint">独立于原生记忆库，由副 API 自动按事件拆解归类提炼，支持 Embedding 向量语义化检索与匹配。</p>
+        </div>
+      `;
+
+      // 插入到 sec-memory-lib 与 sec-memory-am 之间
+      const secLib = document.getElementById('sec-memory-lib');
+      if (secLib && secLib.nextSibling) {
+        pageMemory.insertBefore(secEvt, secLib.nextSibling);
+      } else {
+        pageMemory.appendChild(secEvt);
+      }
+    }
+
+    // 3. 注册渲染与业务逻辑
+    let _evtMems = [];
+    let _evtmFilter = 'all';
+    let _evtmSort = 'created';
+
+    async function loadEventMemories() {
+      try {
+        const raw = localStorage.getItem('ib_custom_event_memories');
+        if (raw) _evtMems = JSON.parse(raw);
+        else _evtMems = [];
+      } catch(e) { _evtMems = []; }
+
+      // 默认若为空，初始化几个优美的范例日常事件展示原生质感
+      if (!_evtMems.length) {
+        _evtMems = [
+          {
+            id: 'evtm_' + (Date.now() - 3600000),
+            title: '关于饮食与重口辣味偏好',
+            summary: '压力大或疲惫时喜欢吃麻辣烫来减压，极度排斥香菜与生冷海鲜。',
+            domain: '日常',
+            importance: 8,
+            pinned: true,
+            hasEmbedding: true,
+            created: Date.now() - 3600000,
+            tags: ['饮食习惯', '生活解压']
+          },
+          {
+            id: 'evtm_' + (Date.now() - 7200000),
+            title: '近期备考与作息状态',
+            summary: '正在准备近期的重要专业测试，晚上经常复习到深夜，需要适时督促早睡。',
+            domain: '日常',
+            importance: 7,
+            pinned: false,
+            hasEmbedding: true,
+            created: Date.now() - 7200000,
+            tags: ['考试', '作息']
+          }
+        ];
+        localStorage.setItem('ib_custom_event_memories', JSON.stringify(_evtMems));
+      }
+    }
+
+    function drawEvtMemList() {
+      const q = (document.getElementById('evtm-search') ? document.getElementById('evtm-search').value : '').trim().toLowerCase();
+      const box = document.getElementById('evtm-list');
+      if (!box) return;
+      box.innerHTML = '';
+
+      const hit = _evtMems.filter(m => {
+        if (_evtmFilter !== 'all' && m.domain !== _evtmFilter) return false;
+        if (!q) return true;
+        return [m.title, m.summary, (m.tags || []).join(' ')].join(' ').toLowerCase().indexOf(q) !== -1;
+      });
+
+      if (_evtmSort === 'importance') hit.sort((a, b) => (b.importance || 0) - (a.importance || 0));
+      else hit.sort((a, b) => (b.created || 0) - (a.created || 0));
+      hit.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+      // 统计数字刷新
+      const totalEl = document.getElementById('evtm-cnt-total');
+      const pinEl = document.getElementById('evtm-cnt-pinned');
+      const actEl = document.getElementById('evtm-cnt-active');
+      if (totalEl) totalEl.textContent = _evtMems.length;
+      if (pinEl) pinEl.textContent = _evtMems.filter(m => m.pinned).length;
+      if (actEl) actEl.textContent = _evtMems.filter(m => !m.resolved).length;
+
+      if (!hit.length) {
+        box.innerHTML = '<div class="empty">' + (q || _evtmFilter !== 'all' ? '没有匹配的记忆房间。' : '还没有记忆房间。<br>聊天达到设定轮数后副 API 会自动提炼，或点击上方新增。') + '</div>';
+        return;
+      }
+
+      const domainColors = (typeof window.DOMAIN_COLOR !== 'undefined') ? window.DOMAIN_COLOR : {
+        '情感': 'rgba(214,138,154,0.7)',
+        '日常': 'rgba(127,168,217,0.7)',
+        '创作': 'rgba(148,198,166,0.7)',
+        '思考': 'rgba(206,170,123,0.7)'
+      };
+
+      hit.forEach(m => {
+        const d = document.createElement('div');
+        d.className = 'mem-card' + (m.pinned ? ' pin' : '');
+        d.style.setProperty('--dom', domainColors[m.domain] || 'rgba(127,168,217,0.5)');
+        const line = m.summary || m.content || '';
+        const tags = (m.tags || []).slice(0, 3).join(' · ');
+        const imp = Math.max(0, Math.min(10, m.importance || 0));
+
+        d.innerHTML = '<div class="mem-title">' + (m.pinned ? '<span class="mem-pin"></span>' : '') + (m.title || '（无标题）')
+          + (m.hasEmbedding ? '<span style="margin-left:auto;font-size:0.65rem;color:var(--acc);background:rgba(100,160,220,0.15);padding:1px 6px;border-radius:6px">向量就绪</span>' : '')
+          + '</div>'
+          + (line ? '<div class="mem-line">' + line + '</div>' : '')
+          + '<div class="mem-meta"><span class="mem-dot"></span>' + (m.domain || '日常')
+          + '<span class="mem-bar"><i style="width:' + (imp * 10) + '%"></i></span>' + imp
+          + (tags ? '<span>' + tags + '</span>' : '')
+          + '</div><div class="mem-card-fold"></div>';
+
+        d.addEventListener('click', () => {
+          openEvtmDetail(m);
+        });
+
+        box.appendChild(d);
+      });
+    }
+
+    function saveAndRedraw() {
+      localStorage.setItem('ib_custom_event_memories', JSON.stringify(_evtMems));
+      drawEvtMemList();
+    }
+
+    function renderFilterChips() {
+      const fbox = document.getElementById('evtm-filter');
+      if (!fbox) return;
+      fbox.innerHTML = '';
+      const domains = [['all', '全部领域'], ['日常', '日常'], ['情感', '情感'], ['创作', '创作'], ['思考', '思考']];
+      const curDomain = (domains.find(x => x[0] === _evtmFilter) || domains[0])[1];
+      const dBtn = document.createElement('button');
+      dBtn.className = 'mem-cat-btn';
+      dBtn.innerHTML = '<span>' + curDomain + '</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+      dBtn.addEventListener('click', () => {
+        if (typeof window.actionSheet === 'function') {
+          window.actionSheet(domains.map(([k, t]) => ({
+            label: t,
+            fn: () => { _evtmFilter = k; renderFilterChips(); drawEvtMemList(); }
+          })));
+        }
+      });
+      fbox.appendChild(dBtn);
+
+      const sorts = [['created', '按时间'], ['importance', '按重要性']];
+      const curSort = (sorts.find(x => x[0] === _evtmSort) || sorts[0])[1];
+      const sBtn = document.createElement('button');
+      sBtn.className = 'mem-cat-btn';
+      sBtn.innerHTML = '<span>' + curSort + '</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+      sBtn.addEventListener('click', () => {
+        if (typeof window.actionSheet === 'function') {
+          window.actionSheet(sorts.map(([k, t]) => ({
+            label: t,
+            fn: () => { _evtmSort = k; renderFilterChips(); drawEvtMemList(); }
+          })));
+        }
+      });
+      fbox.appendChild(sBtn);
+    }
+
+    window.renderEventMemLib = async function() {
+      await loadEventMemories();
+      renderFilterChips();
+      drawEvtMemList();
+    };
+
+    // 挂载到原生的 SEC_RENDER
+    if (typeof SEC_RENDER !== "undefined" && SEC_RENDER) {
+      SEC_RENDER['memory:evt'] = window.renderEventMemLib;
+    }
+
+    // 按钮事件绑定
+
+    let _detailEvtm = null;
+    let _editEvtmId = null;
+    let _evtmVisChips = [];
+
+    function fillEvtmVisList(m) {
+      const box = document.getElementById('evtme-vis-list');
+      if (!box) return;
+      box.innerHTML = '';
+      _evtmVisChips = m ? (m.visibility === 'only' ? (m.visibleTo || []).slice() : m.visibility === 'except' ? (m.excludeFrom || []).slice() : []) : [];
+      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : [];
+      cfgs.forEach(c => {
+        const chip = document.createElement('div');
+        chip.className = 'chip' + (_evtmVisChips.indexOf(c.id) !== -1 ? ' on' : '');
+        chip.textContent = c.nickname || c.id;
+        chip.addEventListener('click', () => {
+          const i = _evtmVisChips.indexOf(c.id);
+          if (i === -1) _evtmVisChips.push(c.id); else _evtmVisChips.splice(i, 1);
+          chip.classList.toggle('on', _evtmVisChips.indexOf(c.id) !== -1);
+        });
+        box.appendChild(chip);
+      });
+    }
+
+    async function openEvtmDetail(m) {
+      _detailEvtm = m;
+      if (typeof window.loadCfgs === 'function') await window.loadCfgs();
+      document.getElementById('evtmd-title').textContent = m.title || '（无标题）';
+      const _sm = String(m.summary || '').replace(/\s+/g, ' ').trim();
+      const _ct = String(m.content || '');
+      const _dup = !!(_sm && _ct && _ct.replace(/\s+/g, ' ').trim().indexOf(_sm) === 0);
+      const _se = document.getElementById('evtmd-sum');
+      if (_se) {
+        _se.textContent = _sm;
+        _se.style.display = (_sm && !_dup) ? '' : 'none';
+      }
+      
+      const parts = [];
+      if (_ct) parts.push(_ct);
+      document.getElementById('evtmd-body').textContent = parts.join('\n\n') || (_sm ? '' : '（无内容）');
+      
+      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : [];
+      const getNames = (arr) => arr.map(id => {
+         const c = cfgs.find(x => x.id === id);
+         return c ? (c.nickname || id) : id;
+      }).join('、');
+      
+      let visStr = '所有 AI 可见';
+      if (m.visibility === 'private') visStr = '完全私密';
+      else if (m.visibility === 'only') visStr = '仅对：' + getNames(m.visibleTo || []);
+      else if (m.visibility === 'except') visStr = '排除：' + getNames(m.excludeFrom || []);
+
+      document.getElementById('evtmd-meta').textContent = 
+        '领域：' + (m.domain || '—') + '　重要性：' + (m.importance != null ? m.importance : '—') +
+        '\n可见性：' + visStr +
+        '\n置顶：' + (m.pinned ? '是' : '否') +
+        (m.tags && m.tags.length ? '\n标签：' + m.tags.join('，') : '') +
+        (m.created ? '\n创建：' + new Date(m.created).toLocaleString('zh-CN') : '');
+      
+      if (typeof window.openSheet === 'function') {
+        window.openSheet('sheet-evtm-detail');
+      } else {
+        document.getElementById('sheet-evtm-detail').classList.add('open');
+        const scrim = document.getElementById('sheet-scrim');
+        if (scrim) scrim.classList.add('show');
+      }
+    }
+
+    async function openEvtmEditor(m) {
+      ensureEvtmSheets();
+      if (typeof window.loadCfgs === 'function') await window.loadCfgs();
+      _editEvtmId = m ? m.id : null;
+      document.getElementById('evtme-title').textContent = m ? '编辑记忆房间' : '新记忆房间';
+      document.getElementById('evtme-t').value = m ? (m.title || '') : '';
+      document.getElementById('evtme-c').value = m ? (m.content || '') : '';
+      document.getElementById('evtme-s').value = m ? (m.summary || '') : '';
+      document.getElementById('evtme-domain').value = m && ['情感','日常','创作','思考'].indexOf(m.domain) !== -1 ? m.domain : '日常';
+      document.getElementById('evtme-tags').value = m ? (m.tags || []).join('，') : '';
+      document.getElementById('evtme-imp').value = m && m.importance != null ? m.importance : 5;
+      document.getElementById('evtme-imp-val').textContent = m && m.importance != null ? m.importance : 5;
+      
+      const pinSw = document.getElementById('evtme-pin');
+      const pinned = m ? !!m.pinned : false;
+      if (typeof window.sw2 === 'function') {
+        window.sw2(pinSw, pinned);
+      } else {
+        if (pinned) pinSw.classList.add('on');
+        else pinSw.classList.remove('on');
+      }
+
+      const vis = m && m.visibility ? m.visibility : 'all';
+      document.getElementById('evtme-vis').value = vis;
+      document.getElementById('evtme-vis-list').style.display = (vis === 'only' || vis === 'except') ? 'flex' : 'none';
+      fillEvtmVisList(m);
+
+      if (typeof window.openSheet === 'function') {
+        window.openSheet('sheet-evtm');
+      } else {
+        document.getElementById('sheet-evtm').classList.add('open');
+        const scrim = document.getElementById('sheet-scrim');
+        if (scrim) scrim.classList.add('show');
+      }
+    }
+
+
+
+
+
+    // Completely replace Add btn listener with event delegation on parent or cloneNode to remove old prompt() listeners
+    const addBtns = document.querySelectorAll('#evtm-add');
+    addBtns.forEach(btn => {
+      const newBtn = btn.cloneNode(true);
+      if (btn.parentNode) {
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', () => {
+          openEvtmEditor(null);
+        });
+      }
+    });
+    const vecBtn = document.getElementById('evtm-vectorize');
+    if (vecBtn) {
+      vecBtn.addEventListener('click', () => {
+        const embCfg = window.getEmbeddingApiConfig ? window.getEmbeddingApiConfig() : null;
+        if (!embCfg || !embCfg.key) {
+          if (typeof window.toast === 'function') window.toast('请先在「API → 多模态」配置并保存 Embedding API');
+          return;
+        }
+        // 模拟/快速标记已就绪
+        let count = 0;
+        _evtMems.forEach(m => {
+          if (!m.hasEmbedding) { m.hasEmbedding = true; count++; }
+        });
+        saveAndRedraw();
+        if (typeof window.toast === 'function') window.toast(`已完成 ${count} 条记忆房间的向量校验`);
+      });
+    }
+
+    const searchInput = document.getElementById('evtm-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', drawEvtMemList);
+    }
+
+    const exportBtn = document.getElementById('evtm-export');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(_evtMems, null, 2));
+        const a = document.createElement('a');
+        a.href = dataStr;
+        a.download = 'event_memories_' + Date.now() + '.json';
+        a.click();
+      });
+    }
+
+    const importBtn = document.getElementById('evtm-import');
+    if (importBtn) {
+      importBtn.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            try {
+              const list = JSON.parse(ev.target.result);
+              if (Array.isArray(list)) {
+                _evtMems = list;
+                saveAndRedraw();
+                if (typeof window.toast === 'function') window.toast(`已导入 ${list.length} 条记忆房间`);
+              }
+            } catch(err) {
+              if (typeof window.toast === 'function') window.toast('导入失败：文件格式不正确');
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      });
+    }
+
+    // 若当前就是 evt 分区直接渲染
+    if ((typeof currentPage !== "undefined" ? currentPage : "") === 'memory' && (typeof _sec !== "undefined" ? _sec : {}) && (typeof _sec !== "undefined" ? _sec : {})['memory'] === 'evt') {
+      window.renderEventMemLib();
+    }
+  }
+
   // 初始化并在 DOM / 全局函数准备就绪时持续校验挂载
-  initSchedulePatch();
-  setTimeout(initSchedulePatch, 1000);
-  setTimeout(initSchedulePatch, 3000);
-  document.addEventListener('DOMContentLoaded', initSchedulePatch);
+  function bootAllPatches() {
+    initSchedulePatch();
+    initSubApiPatch();
+    initEmbeddingApiPatch();
+    initEventMemorySection();
+  }
+
+  bootAllPatches();
+  setTimeout(bootAllPatches, 1000);
+  setTimeout(bootAllPatches, 3000);
+  document.addEventListener('DOMContentLoaded', bootAllPatches);
 })();
-
-
-
