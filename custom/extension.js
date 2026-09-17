@@ -5959,16 +5959,33 @@
       return null;
     }
     
-    // 截取最近指定数量或默认 25 条对话
-    const count = options.count || 25;
-    const sliceMsgs = msgs.slice(-count);
+    // 截取指定范围或指定数量的对话
+    let sliceMsgs = msgs;
+    let actualStartIdx = 1;
+    let actualEndIdx = msgs.length;
+
+    if (options.startIndex != null && options.endIndex != null) {
+      actualStartIdx = Math.max(1, parseInt(options.startIndex, 10) || 1);
+      actualEndIdx = Math.min(msgs.length, parseInt(options.endIndex, 10) || msgs.length);
+      if (actualStartIdx > actualEndIdx) {
+        let tmp = actualStartIdx;
+        actualStartIdx = actualEndIdx;
+        actualEndIdx = tmp;
+      }
+      sliceMsgs = msgs.slice(actualStartIdx - 1, actualEndIdx);
+    } else {
+      const count = Math.min(msgs.length, Math.max(1, parseInt(options.count || 25, 10)));
+      actualStartIdx = Math.max(1, msgs.length - count + 1);
+      actualEndIdx = msgs.length;
+      sliceMsgs = msgs.slice(-count);
+    }
 
     let lines = [];
     sliceMsgs.forEach(m => {
       const speaker = m.role === 'user' ? userName : (m.senderName || aiName);
       let t = String(m.content || '').trim();
       if (!t && m.voice) t = String(m.voice.transcript || '').trim() || '（语音）';
-      if (t) lines.push(speaker + '：' + t.slice(0, 200));
+      if (t) lines.push(speaker + '：' + (t.length > 3000 ? t.slice(0, 3000) + '...' : t));
     });
 
     if (lines.length < 2) {
@@ -6040,6 +6057,9 @@
         localStorage.setItem('ib_custom_event_memories', JSON.stringify(list));
       }
       _lastAutoSavedMsgCount = (window._msgs || []).length;
+      try {
+        localStorage.setItem('ib_last_summarized_msg_count_' + (cfg.id || 'default'), String(actualEndIdx));
+      } catch(e) {}
       
       // 若当前正停留在记忆房间，立即重绘
       if (typeof window.renderEventMemLib === 'function') {
@@ -6055,7 +6075,170 @@
     return memItem;
   };
 
-  // ── 挂载聊天菜单「进入房间」按钮 ──
+
+  // ── 弹出提炼记忆房间的交互弹窗 ──
+  async function openEvtmExtractModal() {
+    let sheet = document.getElementById('sheet-evtm-extract');
+    if (!sheet) {
+      sheet = document.createElement('div');
+      sheet.className = 'sheet';
+      sheet.id = 'sheet-evtm-extract';
+      document.body.appendChild(sheet);
+    }
+
+    const cfg = getActiveCharacterConfig() || {};
+    const aiName = (typeof window.cfgName === 'function') ? window.cfgName(cfg) : (cfg.nickname || cfg.name || cfg.id || 'AI');
+    const cfgId = cfg.id || 'default';
+
+    let msgs = window._msgs || [];
+    if ((!msgs || msgs.length < 2) && cfg.id && typeof window.dbGetByIndex === 'function') {
+      try {
+        const dbMsgs = await window.dbGetByIndex('chatMessages', 'byFriend', cfg.id);
+        if (dbMsgs && dbMsgs.length >= 2) {
+          msgs = dbMsgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        }
+      } catch(e) {}
+    }
+    if ((!msgs || msgs.length < 2) && cfg.id && typeof window.dbGetAll === 'function') {
+      try {
+        const allMsgs = await window.dbGetAll('chatMessages');
+        const filtered = (allMsgs || []).filter(m => m && (m.friendId === cfg.id || m.senderId === cfg.id));
+        if (filtered.length >= 2) {
+          msgs = filtered.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        }
+      } catch(e) {}
+    }
+
+    const totalCount = msgs ? msgs.length : 0;
+    if (totalCount < 2) {
+      safeToast('与「' + aiName + '」读取到 ' + totalCount + ' 条聊天记录，多聊几句再来提炼吧');
+      return;
+    }
+
+    const lastSummarized = parseInt(localStorage.getItem('ib_last_summarized_msg_count_' + cfgId) || '0', 10);
+    const unsummarized = Math.max(0, totalCount - lastSummarized);
+
+    let defaultStart = lastSummarized > 0 && lastSummarized < totalCount ? (lastSummarized + 1) : 1;
+    let defaultEnd = totalCount;
+
+    sheet.innerHTML = `
+      <h3 style="font-size:1.2rem;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <span>提炼记忆至「记忆房间」</span>
+      </h3>
+      <div style="background:var(--bg-2, rgba(255,255,255,0.05));padding:12px;border-radius:10px;margin-bottom:14px;font-size:0.86rem;line-height:1.6;border:1px solid var(--line, rgba(255,255,255,0.1))">
+        <div style="font-weight:600;margin-bottom:4px;color:var(--tx-1)">角色：${aiName}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.82rem">
+          <span style="background:var(--card, rgba(0,0,0,0.2));padding:2px 8px;border-radius:6px;border:1px solid var(--line)">📊 对话总数：<b>${totalCount}</b> 条</span>
+          <span style="background:var(--card, rgba(0,0,0,0.2));padding:2px 8px;border-radius:6px;border:1px solid var(--line)">🔖 上次提炼位置：<b>${lastSummarized > 0 ? ('第 ' + lastSummarized + ' 条') : '未有记录'}</b></span>
+          <span style="background:var(--card, rgba(0,0,0,0.2));color:var(--pri, #6366f1);padding:2px 8px;border-radius:6px;border:1px solid var(--line);font-weight:600">⚡ 距离上次沉淀：<b>${lastSummarized > 0 ? (unsummarized + ' 条新对话') : (totalCount + ' 条未沉淀')}</b></span>
+        </div>
+      </div>
+
+      <div class="f-group">
+        <label>快捷选择范围</label>
+        <div class="chips" id="evtm-ext-chips" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          ${unsummarized > 0 ? `<button type="button" class="chip active" data-start="${lastSummarized + 1}" data-end="${totalCount}">未沉淀对话 (${unsummarized}条)</button>` : ''}
+          <button type="button" class="chip ${unsummarized === 0 ? 'active' : ''}" data-start="${Math.max(1, totalCount - 30 + 1)}" data-end="${totalCount}">最近 30 条</button>
+          <button type="button" class="chip" data-start="${Math.max(1, totalCount - 50 + 1)}" data-end="${totalCount}">最近 50 条</button>
+          <button type="button" class="chip" data-start="${Math.max(1, totalCount - 100 + 1)}" data-end="${totalCount}">最近 100 条</button>
+          <button type="button" class="chip" data-start="1" data-end="${totalCount}">全部对话 (${totalCount}条)</button>
+        </div>
+      </div>
+
+      <div class="f-group" style="margin-top:12px">
+        <label>自定义提炼范围（可手动设定起点与终点）</label>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <span style="font-size:0.85rem;color:var(--tx-2)">从第</span>
+          <input type="number" id="evtm-ext-start" min="1" max="${totalCount}" value="${defaultStart}" style="width:75px;text-align:center;padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--tx-1)">
+          <span style="font-size:0.85rem;color:var(--tx-2)">条  到 第</span>
+          <input type="number" id="evtm-ext-end" min="1" max="${totalCount}" value="${defaultEnd}" style="width:75px;text-align:center;padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--tx-1)">
+          <span style="font-size:0.85rem;color:var(--tx-2)">条对话</span>
+        </div>
+        <div id="evtm-ext-tip" style="margin-top:8px;font-size:0.82rem;color:var(--tx-2);background:var(--bg-2);padding:6px 10px;border-radius:6px"></div>
+      </div>
+
+      <div class="sheet-btns" style="margin-top:16px">
+        <button class="btn" id="evtm-ext-cancel" data-close="1">取消</button>
+        <button class="btn primary" id="evtm-ext-submit">🚀 开始提炼沉淀</button>
+      </div>
+    `;
+
+    safeOpenSheet('sheet-evtm-extract');
+
+    const inStart = sheet.querySelector('#evtm-ext-start');
+    const inEnd = sheet.querySelector('#evtm-ext-end');
+    const tip = sheet.querySelector('#evtm-ext-tip');
+    const chips = sheet.querySelectorAll('#evtm-ext-chips .chip');
+
+    function updatePreviewTip() {
+      let s = parseInt(inStart.value, 10) || 1;
+      let e = parseInt(inEnd.value, 10) || totalCount;
+      if (s < 1) s = 1;
+      if (e > totalCount) e = totalCount;
+      if (s > e) {
+        tip.innerHTML = `<span style="color:var(--danger, #ef4444)">⚠️ 起始条数（第 ${s} 条）不能大于结束条数（第 ${e} 条）</span>`;
+        return false;
+      }
+      const count = e - s + 1;
+      tip.innerHTML = `即将提炼：<b>第 ${s} 条 至 第 ${e} 条</b> 对话（共 <b>${count}</b> 条内容）`;
+      return true;
+    }
+
+    updatePreviewTip();
+
+    inStart.oninput = () => {
+      chips.forEach(c => c.classList.remove('active'));
+      updatePreviewTip();
+    };
+    inEnd.oninput = () => {
+      chips.forEach(c => c.classList.remove('active'));
+      updatePreviewTip();
+    };
+
+    chips.forEach(btnChip => {
+      btnChip.onclick = (e) => {
+        e.preventDefault();
+        chips.forEach(c => c.classList.remove('active'));
+        btnChip.classList.add('active');
+        const st = btnChip.getAttribute('data-start');
+        const ed = btnChip.getAttribute('data-end');
+        if (st && ed) {
+          inStart.value = st;
+          inEnd.value = ed;
+          updatePreviewTip();
+        }
+      };
+    });
+
+    const btnCancel = sheet.querySelector('#evtm-ext-cancel');
+    if (btnCancel) {
+      btnCancel.onclick = (e) => {
+        e.preventDefault();
+        safeCloseSheets();
+      };
+    }
+
+    const btnSubmit = sheet.querySelector('#evtm-ext-submit');
+    if (btnSubmit) {
+      btnSubmit.onclick = async (e) => {
+        e.preventDefault();
+        if (!updatePreviewTip()) return;
+        let s = parseInt(inStart.value, 10) || 1;
+        let eIdx = parseInt(inEnd.value, 10) || totalCount;
+        if (s > eIdx) return;
+
+        safeCloseSheets();
+        try {
+          await window.saveToEventMemoryRoom({ startIndex: s, endIndex: eIdx, messages: msgs });
+        } catch(err) {
+          safeToast('提炼失败：' + (err.message || err));
+        }
+      };
+    }
+  }
+  window.openEvtmExtractModal = openEvtmExtractModal;
+
+// ── 挂载聊天菜单「进入房间」按钮 ──
   function hookChatSideDrawer() {
     const csOps = document.getElementById('cs-ops');
     if (!csOps || document.getElementById('cs-evtm-room-btn')) return;
@@ -6065,23 +6248,10 @@
     btn.id = 'cs-evtm-room-btn';
     btn.innerHTML = '<i class="cs-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M14 10l3 2-3 2"/></svg></i><span>Memory Room <b class="cs-cn">进入房间</b></span>';
     
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const cs = document.getElementById('chat-side');
       if (cs) cs.classList.remove('open');
-      
-      // 弹出轻量快捷操作确认
-      const act = typeof window.confirmDlg === 'function' 
-        ? await window.confirmDlg('提取近期对话并沉淀至「记忆房间」？', '开始提炼')
-        : confirm('提取近期对话并沉淀至「记忆房间」？');
-      if (!act) return;
-
-      try {
-        await window.saveToEventMemoryRoom({ count: 30 });
-      } catch(e) {
-        if (typeof window.toast === 'function') {
-          window.toast('记忆沉淀失败：' + (e.message || e));
-        }
-      }
+      openEvtmExtractModal();
     });
 
     // 插入在 Select 选择消息或 Save Memory 之后
