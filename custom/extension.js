@@ -1397,6 +1397,164 @@
     return injected;
   }
 
+  // 余弦相似度计算 (Cosine Similarity)
+  function calcCosineSimilarity(vecA, vecB) {
+    if (!Array.isArray(vecA) || !Array.isArray(vecB) || vecA.length !== vecB.length || vecA.length === 0) return 0;
+    var dot = 0, normA = 0, normB = 0;
+    for (var i = 0; i < vecA.length; i++) {
+      dot += vecA[i] * vecB[i];
+      normA += vecA[i] * vecA[i];
+      normB += vecB[i] * vecB[i];
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
+  // 记忆房间向量召回引擎：在对话发生的瞬间，自动对「记忆房间」中的卡片进行实时向量/关键词比对并注入
+  async function processEventMemoryVectorRecall(payload) {
+    if (!payload) return false;
+    try {
+      var raw = localStorage.getItem('ib_custom_event_memories');
+      var memList = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(memList) || memList.length === 0) return false;
+
+      // 提取最后一条用户发出的消息文本
+      var lastUserMsgText = '';
+      if (Array.isArray(payload.messages)) {
+        for (var i = payload.messages.length - 1; i >= 0; i--) {
+          if (payload.messages[i] && payload.messages[i].role === 'user') {
+            var c = payload.messages[i].content;
+            if (typeof c === 'string') lastUserMsgText = c;
+            else if (Array.isArray(c)) {
+              for (var j = 0; j < c.length; j++) {
+                if (c[j] && c[j].type === 'text' && c[j].text) {
+                  lastUserMsgText = c[j].text;
+                  break;
+                }
+              }
+            }
+            break;
+          }
+        }
+      } else if (Array.isArray(payload.contents)) {
+        for (var g = payload.contents.length - 1; g >= 0; g--) {
+          if (payload.contents[g] && payload.contents[g].role === 'user' && Array.isArray(payload.contents[g].parts)) {
+            for (var p = 0; p < payload.contents[g].parts.length; p++) {
+              if (payload.contents[g].parts[p] && payload.contents[g].parts[p].text) {
+                lastUserMsgText = payload.contents[g].parts[p].text;
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      // 避免重复注入
+      var payloadStr = JSON.stringify(payload);
+      if (payloadStr.indexOf('【角色与用户的记忆房间（长期记忆召回）】') !== -1) return false;
+
+      // 清理以往的系统级前缀注入标志，纯粹化用户实际发出的文字
+      lastUserMsgText = lastUserMsgText.replace(/【[^】]+】[\s\S]*?\n\n/g, '').trim();
+      if (!lastUserMsgText) return false;
+
+      // 过滤当前 AI 角色的卡片可见性权限
+      var curAiId = (window._activeCfg && window._activeCfg.id) || (window._lastActiveConvInfo && window._lastActiveConvInfo.id) || null;
+      var memListAllowed = memList.filter(function (card) {
+        if (!card) return false;
+        if (card.visibility === 'private') {
+          return !!(card.sourceAiId && curAiId && card.sourceAiId === curAiId);
+        }
+        if (card.visibility === 'only') {
+          var allowed = Array.isArray(card.visibleTo) ? card.visibleTo.slice() : [];
+          if (card.sourceAiId && allowed.indexOf(card.sourceAiId) === -1) allowed.push(card.sourceAiId);
+          if (!curAiId) return false;
+          return allowed.indexOf(curAiId) !== -1;
+        }
+        if (card.visibility === 'except') {
+          var blocked = Array.isArray(card.excludeFrom) ? card.excludeFrom : [];
+          if (curAiId && blocked.indexOf(curAiId) !== -1) return false;
+        }
+        return true;
+      });
+
+      if (memListAllowed.length === 0) return false;
+
+      var matchedCards = [];
+
+      // 1. 尝试 Embedding 向量计算与比对
+      var userVec = null;
+      var embedFn = window.callEmbeddingApi || (typeof callEmbeddingApi === 'function' ? callEmbeddingApi : null);
+      if (embedFn) {
+        try {
+          userVec = await embedFn(lastUserMsgText.slice(0, 500), false);
+        } catch(e) {}
+      }
+
+      if (userVec && Array.isArray(userVec) && userVec.length > 0) {
+        var scored = [];
+        memListAllowed.forEach(function (card) {
+          if (!card) return;
+          if (card.pinned) {
+            scored.push({ card: card, score: 1.0 });
+            return;
+          }
+          if (card.embedding && Array.isArray(card.embedding) && card.embedding.length === userVec.length) {
+            var sim = calcCosineSimilarity(userVec, card.embedding);
+            if (sim >= 0.28) {
+              scored.push({ card: card, score: sim });
+            }
+          } else {
+            var text = ((card.title || '') + ' ' + (card.summary || '') + ' ' + (card.content || '')).toLowerCase();
+            var q = lastUserMsgText.toLowerCase();
+            if (q.length >= 2 && text.indexOf(q.slice(0, 4)) !== -1) {
+              scored.push({ card: card, score: 0.35 });
+            }
+          }
+        });
+
+        scored.sort(function (a, b) { return b.score - a.score; });
+        matchedCards = scored.slice(0, 3).map(function (s) { return s.card; });
+      } else {
+        // 2. 降级模式：未配 Embedding 或失败时，召回【置顶卡片】+【文本关键词包含卡片】
+        var matched = [];
+        var qStr = lastUserMsgText.toLowerCase();
+        memListAllowed.forEach(function (card) {
+          if (!card) return;
+          if (card.pinned) {
+            matched.push(card);
+            return;
+          }
+          var text = ((card.title || '') + ' ' + (card.summary || '') + ' ' + (card.content || '') + ' ' + (card.tags || []).join(' ')).toLowerCase();
+          var words = qStr.split(/\s+/);
+          var hit = words.some(function (w) { return w.length >= 2 && text.indexOf(w) !== -1; });
+          if (hit) matched.push(card);
+        });
+        matchedCards = matched.slice(0, 3);
+      }
+
+      if (!matchedCards || matchedCards.length === 0) return false;
+
+      var lines = matchedCards.map(function (c, idx) {
+        return '[记忆 ' + (idx + 1) + '] 《' + (c.title || '关于用户的记忆') + '》 (领域: ' + (c.domain || '日常') + ')\n' +
+               '- 概要: ' + (c.summary || '') + '\n' +
+               '- 核心事实: ' + (c.content || '') +
+               (c.tags && c.tags.length ? '\n- 标签: ' + c.tags.join(', ') : '');
+      });
+
+      var memoryBlock = '【角色与用户的记忆房间（长期记忆召回）】\n' +
+        '系统已根据当前对话语义，从记忆房间中精准检索出以下 ' + matchedCards.length + ' 条相关长期记忆（这是你与用户曾经经历或沉淀的事实记忆；请将其作为你的真实知识与记忆积累，自然地融会贯通在对话中，无需刻意声明“根据卡片”）：\n\n' +
+        lines.join('\n\n');
+
+      console.info('%c[MemoryRoom 向量召回生效] 成功召回卡片 ' + matchedCards.length + ' 张:', 'color:#8b5cf6;font-weight:bold', matchedCards.map(function (c) { return c.title; }));
+      return injectMemoryIntoPayload(payload, memoryBlock);
+
+    } catch(e) {
+      console.warn('[MemoryRoom] 向量召回过程异常:', e);
+    }
+    return false;
+  }
+
   // 跟踪当前活跃会话
   window._lastActiveConvInfo = null;
   function hookOpenConvTracker() {
@@ -1430,6 +1588,7 @@
       return null;
     }
 
+    var injected = false;
     var userLabel = await getUserNickname();
     var allGroups = await queryStoreAll('groups');
     var allConfigs = await queryStoreAll('apiConfigs');
@@ -1511,7 +1670,7 @@
             var privBlock = formatPrivateMsgsForGroup(privMsgs, speakerName || speakerCfg.nickname || speakerCfg.name || '你', userLabel);
             if (privBlock && injectMemoryIntoPayload(payload, privBlock)) {
               console.info('%c[CrossContext 互通生效] 在群聊「' + groupName + '」中成功注入角色「' + (speakerName || speakerCfg.name) + '」的单聊记忆 (' + privMsgs.length + '条)', 'color:#10b981;font-weight:bold');
-              return JSON.stringify(payload);
+              injected = true;
             }
           }
         }
@@ -1569,6 +1728,15 @@
           }
         }
       }
+    }
+
+    // 注入记忆房间向量召回卡片（自动比对余弦相似度并注入相关记忆）
+    try {
+      if (await processEventMemoryVectorRecall(payload)) {
+        injected = true;
+      }
+    } catch(eEvt) {
+      console.warn('[MemoryRoom] processEventMemoryVectorRecall error:', eEvt);
     }
 
     // 注入日历日程助手能力指令与今日日程参考（确保所有 AI 模型均知晓如何操作日历 App）
@@ -3273,10 +3441,12 @@
         <p class="hint" id="sub-api-preset-hint" style="margin:6px 0 0">新配置先保存一次，再回来存预设。</p>
       </div>
 
-      <!-- 保存按钮 -->
-      <div style="margin-top:14px">
-        <button class="btn wide primary" id="sub-api-save" type="button">保存副 API 配置</button>
+      <!-- 保存与测试按钮 -->
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center">
+        <button class="btn primary" id="sub-api-save" type="button" style="flex:1">保存副 API 配置</button>
+        <button class="btn" id="sub-api-test" type="button" style="flex:none">测试连通性</button>
       </div>
+      <div id="sub-api-test-result" style="margin-top:10px;display:none;padding:10px;border-radius:8px;font-size:0.82rem;line-height:1.5;word-break:break-all"></div>
     `;
 
     secApiTools.prepend(card);
@@ -3516,6 +3686,64 @@
       }
     });
 
+    const subTestBtn = document.getElementById('sub-api-test');
+    const subResultBox = document.getElementById('sub-api-test-result');
+    if (subTestBtn) {
+      subTestBtn.addEventListener('click', async () => {
+        const key = keyInput.value.trim();
+        if (!key) {
+          if (typeof window.toast === 'function') window.toast('请先填写 API 密钥');
+          return;
+        }
+        subTestBtn.disabled = true;
+        subTestBtn.textContent = '测试中…';
+        if (subResultBox) {
+          subResultBox.style.display = 'block';
+          subResultBox.style.background = 'rgba(255, 255, 255, 0.05)';
+          subResultBox.style.border = '1px solid var(--line)';
+          subResultBox.style.color = 'var(--tx2)';
+          subResultBox.innerHTML = '⏳ 正在向副 API 发送测试提炼请求，请稍候…';
+        }
+        try {
+          const testCfg = {
+            provider: provSelect.value,
+            model: modelInput.value.trim(),
+            endpoint: epInput.value.trim(),
+            key: key
+          };
+          localStorage.setItem('ib_sub_api_config', JSON.stringify(testCfg));
+
+          const res = await callSubApiForSummary('用户：你好！测试副 API 连通性。\nAI：收到，副 API 工作正常！');
+          if (subResultBox) {
+            subResultBox.style.background = 'rgba(16, 185, 129, 0.12)';
+            subResultBox.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+            subResultBox.style.color = 'var(--tx1)';
+            subResultBox.innerHTML = `
+              <div style="font-weight:bold;color:#10b981;margin-bottom:4px">✅ 副 API 测试成功！</div>
+              <div><b>标题：</b>${res.title}</div>
+              <div><b>概要：</b>${res.summary}</div>
+              <div><b>领域：</b>${res.domain} | <b>标签：</b>${res.tags ? res.tags.join(', ') : ''}</div>
+            `;
+          }
+          if (typeof window.toast === 'function') window.toast('副 API 测试成功！');
+        } catch (err) {
+          if (subResultBox) {
+            subResultBox.style.background = 'rgba(239, 68, 68, 0.12)';
+            subResultBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+            subResultBox.style.color = 'var(--tx1)';
+            subResultBox.innerHTML = `
+              <div style="font-weight:bold;color:#ef4444;margin-bottom:4px">❌ 副 API 测试失败</div>
+              <div style="font-size:0.8rem;color:var(--tx2);margin-top:2px">${err.message || err}</div>
+            `;
+          }
+          if (typeof window.toast === 'function') window.toast('副 API 测试失败');
+        } finally {
+          subTestBtn.disabled = false;
+          subTestBtn.textContent = '测试连通性';
+        }
+      });
+    }
+
     // 回填初始保存的值
     function loadSavedConfig() {
       const raw = localStorage.getItem('ib_sub_api_config');
@@ -3649,10 +3877,12 @@
         <p class="hint" id="emb-api-preset-hint" style="margin:6px 0 0">新配置先保存一次，再回来存预设。</p>
       </div>
 
-      <!-- 保存按钮 -->
-      <div style="margin-top:14px">
-        <button class="btn wide primary" id="emb-api-save" type="button">保存 Embedding API 配置</button>
+      <!-- 保存与测试按钮 -->
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center">
+        <button class="btn primary" id="emb-api-save" type="button" style="flex:1">保存 Embedding API 配置</button>
+        <button class="btn" id="emb-api-test" type="button" style="flex:none">测试连通性</button>
       </div>
+      <div id="emb-api-test-result" style="margin-top:10px;display:none;padding:10px;border-radius:8px;font-size:0.82rem;line-height:1.5;word-break:break-all"></div>
     `;
 
     // 放置在副 API 卡片后方
@@ -3876,6 +4106,77 @@
       }
     });
 
+    const embTestBtn = document.getElementById('emb-api-test');
+    const embResultBox = document.getElementById('emb-api-test-result');
+    if (embTestBtn) {
+      embTestBtn.addEventListener('click', async () => {
+        const key = keyInput.value.trim();
+        if (!key) {
+          if (typeof window.toast === 'function') window.toast('请先填写 API 密钥');
+          return;
+        }
+        embTestBtn.disabled = true;
+        embTestBtn.textContent = '测试中…';
+        if (embResultBox) {
+          embResultBox.style.display = 'block';
+          embResultBox.style.background = 'rgba(255, 255, 255, 0.05)';
+          embResultBox.style.border = '1px solid var(--line)';
+          embResultBox.style.color = 'var(--tx2)';
+          embResultBox.innerHTML = '⏳ 正在发送向量计算测试请求，请稍候…';
+        }
+        try {
+          const testCfg = {
+            provider: provSelect.value,
+            model: modelInput.value.trim(),
+            endpoint: epInput.value.trim(),
+            key: key
+          };
+          localStorage.setItem('ib_emb_api_config', JSON.stringify(testCfg));
+
+          const vec = await callEmbeddingApi('测试 Embedding 向量连通性', true);
+          if (Array.isArray(vec) && vec.length > 0) {
+            const preview = vec.slice(0, 3).map(n => Number(n).toFixed(4)).join(', ');
+            if (embResultBox) {
+              embResultBox.style.background = 'rgba(16, 185, 129, 0.12)';
+              embResultBox.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+              embResultBox.style.color = 'var(--tx1)';
+              embResultBox.innerHTML = `
+                <div style="font-weight:bold;color:#10b981;margin-bottom:4px">✅ Embedding API 测试成功！</div>
+                <div><b>向量维度：</b>${vec.length} 维</div>
+                <div><b>前3维预览：</b>[${preview}...]</div>
+              `;
+            }
+            if (typeof window.toast === 'function') window.toast('Embedding API 测试成功！');
+          } else {
+            if (embResultBox) {
+              embResultBox.style.background = 'rgba(239, 68, 68, 0.12)';
+              embResultBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+              embResultBox.style.color = 'var(--tx1)';
+              embResultBox.innerHTML = `
+                <div style="font-weight:bold;color:#ef4444;margin-bottom:4px">❌ Embedding API 返回异常</div>
+                <div style="font-size:0.8rem;color:var(--tx2)">接口响应成功，但返回数据中未包含有效的向量数组</div>
+              `;
+            }
+            if (typeof window.toast === 'function') window.toast('Embedding API 测试未返回向量');
+          }
+        } catch (err) {
+          if (embResultBox) {
+            embResultBox.style.background = 'rgba(239, 68, 68, 0.12)';
+            embResultBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+            embResultBox.style.color = 'var(--tx1)';
+            embResultBox.innerHTML = `
+              <div style="font-weight:bold;color:#ef4444;margin-bottom:4px">❌ Embedding API 测试失败</div>
+              <div style="font-size:0.8rem;color:var(--tx2);margin-top:2px">${err.message || err}</div>
+            `;
+          }
+          if (typeof window.toast === 'function') window.toast('Embedding API 测试失败');
+        } finally {
+          embTestBtn.disabled = false;
+          embTestBtn.textContent = '测试连通性';
+        }
+      });
+    }
+
     function loadSavedConfig() {
       const raw = localStorage.getItem('ib_emb_api_config');
       if (raw) {
@@ -3973,15 +4274,22 @@
           <i style="width:20%;background:rgba(148,198,166,0.7)"></i>
           <i style="width:10%;background:rgba(206,170,123,0.7)"></i>
         </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn primary" id="evtm-add" style="flex:1.15;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 8px;font-size:0.85rem;white-space:nowrap"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> 添加记忆</button>
+          <button class="btn" id="evtm-classify" style="flex:1.15;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 8px;font-size:0.85rem;white-space:nowrap"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h14"/><circle cx="18" cy="12" r="2"/></svg> 归纳分类</button>
+          <button class="btn" id="evtm-vectorize" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 8px;font-size:0.85rem;white-space:nowrap"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> 向量化</button>
+        </div>
         <input class="search" id="evtm-search" placeholder="搜索记忆房间…">
         <div class="chips" id="evtm-filter" style="margin-bottom:12px"></div>
         <div id="evtm-list"></div>
         <div class="sec-label" style="margin-top:18px">记忆房间管理</div>
         <div class="card">
-          <button class="btn wide" id="evtm-export">导出记忆房间</button>
-          <div style="height:10px"></div>
-          <button class="btn wide" id="evtm-import">导入记忆房间</button>
-          <p class="hint">独立于原生记忆库，由副 API 自动按事件拆解归类提炼，支持 Embedding 向量语义化检索与匹配。</p>
+          <div style="display:flex;gap:10px;margin-bottom:8px">
+            <button class="btn wide" id="evtm-export" style="flex:1">导出记忆</button>
+            <button class="btn wide" id="evtm-import" style="flex:1">导入记忆</button>
+          </div>
+          <button class="btn wide" id="evtm-rollback" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 回退归纳</button>
+          <p class="hint" style="margin-top:10px;line-height:1.4">智能归纳分类会将未封存的旧记忆替换为重组后的新卡片；若对归纳结果不满意，可点击<b>【回退归纳】</b>撤回上一次的记忆房间状态；已被<b>【封存】</b>的卡片锁定且不参与归纳。</p>
         </div>
       `;
 
@@ -4000,15 +4308,156 @@
     let _evtmAiFilter = 'all';
     let _evtmSort = 'created';
 
-    async function loadEventMemories() {
+    async function getStoredMemories() {
+      let idbData = null;
+      let idbTime = 0;
+      try {
+        let r = null;
+        if (typeof dbGet === 'function') {
+          r = await dbGet('apiSettings', 'ib_custom_event_memories');
+        } else if (typeof window.dbGet === 'function') {
+          r = await window.dbGet('apiSettings', 'ib_custom_event_memories');
+        }
+        if (r) {
+          if (Array.isArray(r.v)) {
+            idbData = r.v;
+            idbTime = r.updated || 0;
+          } else if (Array.isArray(r)) {
+            idbData = r;
+          }
+        }
+      } catch(e) {}
+
+      let lsData = null;
+      let lsTime = 0;
       try {
         const raw = localStorage.getItem('ib_custom_event_memories');
-        if (raw) _evtMems = JSON.parse(raw);
-        else _evtMems = [];
-      } catch(e) { _evtMems = []; }
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            lsData = parsed;
+          }
+        }
+        const rawT = localStorage.getItem('ib_custom_event_memories_updated');
+        if (rawT) lsTime = parseInt(rawT, 10) || 0;
+      } catch(e) {}
 
-      // 默认若为空，初始化几个优美的范例日常事件展示原生质感
-      if (!_evtMems.length) {
+      if (idbData && lsData) {
+        if (idbTime > lsTime) {
+          try {
+            localStorage.setItem('ib_custom_event_memories', JSON.stringify(idbData));
+            localStorage.setItem('ib_custom_event_memories_updated', String(idbTime));
+          } catch(e) {}
+          return idbData;
+        } else if (lsTime > idbTime) {
+          try {
+            const dbFn = typeof dbPut === 'function' ? dbPut : window.dbPut;
+            if (dbFn) dbFn('apiSettings', { id: 'ib_custom_event_memories', v: lsData, inited: true, updated: lsTime });
+          } catch(e) {}
+          return lsData;
+        } else {
+          return idbData.length >= lsData.length ? idbData : lsData;
+        }
+      }
+
+      if (idbData) {
+        try {
+          localStorage.setItem('ib_custom_event_memories', JSON.stringify(idbData));
+          localStorage.setItem('ib_custom_event_memories_updated', String(idbTime || Date.now()));
+        } catch(e) {}
+        return idbData;
+      }
+
+      if (lsData) {
+        try {
+          const dbFn = typeof dbPut === 'function' ? dbPut : window.dbPut;
+          if (dbFn) dbFn('apiSettings', { id: 'ib_custom_event_memories', v: lsData, inited: true, updated: lsTime || Date.now() });
+        } catch(e) {}
+        return lsData;
+      }
+
+      return null;
+    }
+
+    async function setStoredMemories(list) {
+      if (!Array.isArray(list)) list = [];
+      const now = Date.now();
+      try {
+        localStorage.setItem('ib_custom_event_memories', JSON.stringify(list));
+        localStorage.setItem('ib_custom_event_memories_updated', String(now));
+        localStorage.setItem('ib_custom_event_memories_inited', '1');
+      } catch(e) { console.warn('LS set err', e); }
+      try {
+        const dbFn = typeof dbPut === 'function' ? dbPut : window.dbPut;
+        if (dbFn) {
+          await dbFn('apiSettings', { id: 'ib_custom_event_memories', v: list, inited: true, updated: now });
+        }
+      } catch(e) { console.warn('IDB set err', e); }
+    }
+
+    async function getStoredHistoryBackup() {
+      let idbData = null;
+      let idbTime = 0;
+      try {
+        let r = null;
+        if (typeof dbGet === 'function') {
+          r = await dbGet('apiSettings', 'ib_custom_event_memories_history_backup');
+        } else if (typeof window.dbGet === 'function') {
+          r = await window.dbGet('apiSettings', 'ib_custom_event_memories_history_backup');
+        }
+        if (r && Array.isArray(r.v)) {
+          idbData = r.v;
+          idbTime = r.updated || 0;
+        }
+      } catch(e) {}
+
+      let lsData = null;
+      let lsTime = 0;
+      try {
+        const raw = localStorage.getItem('ib_custom_event_memories_history_backup');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) lsData = parsed;
+        }
+        const rawT = localStorage.getItem('ib_custom_event_memories_history_backup_updated');
+        if (rawT) lsTime = parseInt(rawT, 10) || 0;
+      } catch(e) {}
+
+      if (idbData && lsData) {
+        if (idbTime > lsTime) return idbData;
+        if (lsTime > idbTime) return lsData;
+        return idbData.length >= lsData.length ? idbData : lsData;
+      }
+      return idbData || lsData || null;
+    }
+
+    async function setStoredHistoryBackup(list) {
+      if (!Array.isArray(list)) list = [];
+      const now = Date.now();
+      try {
+        localStorage.setItem('ib_custom_event_memories_history_backup', JSON.stringify(list));
+        localStorage.setItem('ib_custom_event_memories_history_backup_updated', String(now));
+      } catch(e) {}
+      try {
+        const dbFn = typeof dbPut === 'function' ? dbPut : window.dbPut;
+        if (dbFn) {
+          await dbFn('apiSettings', { id: 'ib_custom_event_memories_history_backup', v: list, updated: now });
+        }
+      } catch(e) {}
+    }
+
+    window.getStoredEventMemories = getStoredMemories;
+    window.setStoredEventMemories = setStoredMemories;
+    window.getStoredHistoryBackup = getStoredHistoryBackup;
+    window.setStoredHistoryBackup = setStoredHistoryBackup;
+
+    async function loadEventMemories() {
+      const stored = await getStoredMemories();
+      const inited = localStorage.getItem('ib_custom_event_memories_inited');
+      if (stored !== null) {
+        _evtMems = stored;
+      } else if (!inited) {
+        // 仅在首次使用且无任何持久化记录时初始化范例事件
         _evtMems = [
           {
             id: 'evtm_' + (Date.now() - 3600000),
@@ -4017,7 +4466,7 @@
             domain: '日常',
             importance: 8,
             pinned: true,
-            hasEmbedding: true,
+            hasEmbedding: false,
             created: Date.now() - 3600000,
             tags: ['饮食习惯', '生活解压']
           },
@@ -4028,12 +4477,14 @@
             domain: '日常',
             importance: 7,
             pinned: false,
-            hasEmbedding: true,
+            hasEmbedding: false,
             created: Date.now() - 7200000,
             tags: ['考试', '作息']
           }
         ];
-        localStorage.setItem('ib_custom_event_memories', JSON.stringify(_evtMems));
+        await setStoredMemories(_evtMems);
+      } else {
+        _evtMems = [];
       }
     }
 
@@ -4046,7 +4497,14 @@
       const hit = _evtMems.filter(m => {
         if (_evtmFilter !== 'all' && m.domain !== _evtmFilter) return false;
         if (_evtmAiFilter !== 'all') {
-          if (m.sourceAiId !== _evtmAiFilter && (!m.visibleTo || !m.visibleTo.includes(_evtmAiFilter))) return false;
+          if (m.visibility === 'private') {
+            if (m.sourceAiId !== _evtmAiFilter) return false;
+          } else if (m.visibility === 'only') {
+            const allowed = (m.visibleTo || []).concat(m.sourceAiId ? [m.sourceAiId] : []);
+            if (allowed.indexOf(_evtmAiFilter) === -1) return false;
+          } else if (m.visibility === 'except') {
+            if ((m.excludeFrom || []).indexOf(_evtmAiFilter) !== -1) return false;
+          }
         }
         if (!q) return true;
         return [m.title, m.summary, (m.tags || []).join(' ')].join(' ').toLowerCase().indexOf(q) !== -1;
@@ -4078,14 +4536,25 @@
 
       hit.forEach(m => {
         const d = document.createElement('div');
-        d.className = 'mem-card' + (m.pinned ? ' pin' : '');
+        d.className = 'mem-card' + (m.pinned ? ' pin' : '') + (m.sealed ? ' sealed' : '');
         d.style.setProperty('--dom', domainColors[m.domain] || 'rgba(127,168,217,0.5)');
+        if (m.sealed) {
+          d.style.borderLeft = '3px solid #d97706';
+        }
         const line = m.summary || m.content || '';
         const tags = (m.tags || []).slice(0, 3).join(' · ');
         const imp = Math.max(0, Math.min(10, m.importance || 0));
 
+        let badges = '';
+        if (m.sealed) {
+          badges += '<span style="font-size:0.65rem;color:#b45309;background:rgba(245,158,11,0.18);padding:1px 6px;border-radius:6px;margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-weight:600">🔒 封存</span>';
+        }
+        if (m.hasEmbedding) {
+          badges += '<span style="' + (m.sealed ? 'margin-left:4px;' : 'margin-left:auto;') + 'font-size:0.65rem;color:var(--acc);background:rgba(100,160,220,0.15);padding:1px 6px;border-radius:6px">向量就绪</span>';
+        }
+
         d.innerHTML = '<div class="mem-title">' + (m.pinned ? '<span class="mem-pin"></span>' : '') + (m.title || '（无标题）')
-          + (m.hasEmbedding ? '<span style="margin-left:auto;font-size:0.65rem;color:var(--acc);background:rgba(100,160,220,0.15);padding:1px 6px;border-radius:6px">向量就绪</span>' : '')
+          + badges
           + '</div>'
           + (line ? '<div class="mem-line">' + line + '</div>' : '')
           + '<div class="mem-meta"><span class="mem-dot"></span>' + (m.domain || '日常')
@@ -4102,7 +4571,7 @@
     }
 
     function saveAndRedraw() {
-      localStorage.setItem('ib_custom_event_memories', JSON.stringify(_evtMems));
+      setStoredMemories(_evtMems);
       drawEvtMemList();
     }
 
@@ -4264,6 +4733,7 @@
           <div class="detail-block" id="evtmd-body"></div>
           <div class="detail-meta" id="evtmd-meta"></div>
           <div class="sheet-btns">
+            <button class="btn warning" id="evtmd-seal">🔒 封存</button>
             <button class="btn danger" id="evtmd-del">删除</button>
             <button class="btn" id="evtmd-close" data-close="1">关闭</button>
             <button class="btn primary" id="evtmd-edit">编辑</button>
@@ -4279,12 +4749,30 @@
           };
         }
 
+        const btnSeal = detailSheet.querySelector('#evtmd-seal');
+        if (btnSeal) {
+          btnSeal.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!_detailEvtm) return;
+            _detailEvtm.sealed = !_detailEvtm.sealed;
+            _detailEvtm.updated = Date.now();
+            saveAndRedraw();
+            openEvtmDetail(_detailEvtm);
+            safeToast(_detailEvtm.sealed ? '已封存此记忆卡片（锁定修改，不参与归纳）' : '已解除卡片封存状态');
+          };
+        }
+
         const btnEdit = detailSheet.querySelector('#evtmd-edit');
         if (btnEdit) {
           btnEdit.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
             if (!_detailEvtm) return;
+            if (_detailEvtm.sealed) {
+              safeToast('该记忆卡片已被封存，不许修改！请先在详情页解除封存');
+              return;
+            }
             const m = _detailEvtm;
             safeCloseSheets();
             setTimeout(() => {
@@ -4299,6 +4787,10 @@
             e.preventDefault();
             e.stopPropagation();
             if (!_detailEvtm) return;
+            if (_detailEvtm.sealed) {
+              safeToast('已封存的记忆处于锁定状态，无法删除。请先解除封存');
+              return;
+            }
             const targetId = _detailEvtm.id;
             const ok = await safeConfirm('删除这条记忆房间？', '删除');
             if (!ok) return;
@@ -4328,6 +4820,9 @@
           </div>
           <div class="f-group"><label>置顶</label>
             <div class="tog"><div class="tog-m"><div class="tog-t">置顶此记忆房间</div></div><div class="sw2" id="evtme-pin"></div></div>
+          </div>
+          <div class="f-group"><label>封存状态</label>
+            <div class="tog"><div class="tog-m"><div class="tog-t">封存此卡片（锁定修改，不进入归纳范畴）</div></div><div class="sw2" id="evtme-sealed"></div></div>
           </div>
           <div class="f-group"><label>可见性</label>
             <div class="sel">
@@ -4371,11 +4866,27 @@
           });
         }
 
+        const sealSw = editSheet.querySelector('#evtme-sealed');
+        if (sealSw) {
+          sealSw.addEventListener('click', () => {
+            const on = !sealSw.classList.contains('on');
+            if (typeof window.sw2 === 'function') window.sw2(sealSw, on);
+            else {
+              try { if (typeof sw2 === 'function') sw2(sealSw, on); else sealSw.classList.toggle('on', on); } catch(e) { sealSw.classList.toggle('on', on); }
+            }
+          });
+        }
+
         const visSel = editSheet.querySelector('#evtme-vis');
         const visBox = editSheet.querySelector('#evtme-vis-list');
         if (visSel && visBox) {
-          visSel.addEventListener('change', () => {
-            visBox.style.display = (visSel.value === 'only' || visSel.value === 'except') ? 'flex' : 'none';
+          visSel.addEventListener('change', async () => {
+            const show = (visSel.value === 'only' || visSel.value === 'except');
+            visBox.style.display = show ? 'flex' : 'none';
+            if (show) {
+              const curMem = _editEvtmId ? _evtMems.find(x => x.id === _editEvtmId) : null;
+              await fillEvtmVisList(curMem);
+            }
           });
         }
 
@@ -4420,6 +4931,7 @@
             const inTags = document.getElementById('evtme-tags');
             const inImp = document.getElementById('evtme-imp');
             const pinToggle = document.getElementById('evtme-pin');
+            const sealToggle = document.getElementById('evtme-sealed');
             const inVis = document.getElementById('evtme-vis');
 
             const summary = inS ? inS.value.trim() : '';
@@ -4428,6 +4940,7 @@
             const tags = inTags ? inTags.value.split(/[,，]/).map(x => x.trim()).filter(Boolean) : [];
             const importance = inImp ? parseInt(inImp.value, 10) : 5;
             const pinned = pinToggle ? pinToggle.classList.contains('on') : false;
+            const sealed = sealToggle ? sealToggle.classList.contains('on') : false;
             const visibility = inVis ? inVis.value : 'all';
 
             let target = _editEvtmId ? _evtMems.find(x => x.id === _editEvtmId) : null;
@@ -4435,7 +4948,9 @@
             if (isNew) {
               target = {
                 id: 'evtm_' + Date.now(),
-                created: Date.now()
+                created: Date.now(),
+                hasEmbedding: false,
+                embedding: null
               };
               _evtMems.unshift(target);
             }
@@ -4447,6 +4962,7 @@
             target.tags = tags;
             target.importance = importance;
             target.pinned = pinned;
+            target.sealed = sealed;
             target.visibility = visibility;
             if (visibility === 'only') {
               target.visibleTo = _evtmVisChips.slice();
@@ -4460,42 +4976,82 @@
             }
             target.updated = Date.now();
 
-            // 保存时自动静默进行向量化更新
-            const textToEmbed = [title, summary, content].filter(Boolean).join('\n');
-            if (typeof window.callEmbeddingApi === 'function' && textToEmbed) {
-              window.callEmbeddingApi(textToEmbed).then(vec => {
-                if (vec && Array.isArray(vec)) {
-                  target.embedding = vec;
-                  target.hasEmbedding = true;
-                  saveAndRedraw();
-                }
-              }).catch(err => {
-                console.warn('[MemoryRoom] 向量更新跳过:', err);
-              });
-            }
-
             saveAndRedraw();
             safeCloseSheets();
-            safeToast(isNew ? '已创建记忆房间' : '已保存');
+            safeToast(isNew ? '已添加记忆卡片（可点击上方“向量化”生成向量）' : '已保存');
           };
         }
       }
     }
 
-    function fillEvtmVisList(m) {
+    async function getAvailableCfgs() {
+      let list = [];
+      try {
+        if (typeof loadCfgs === 'function') list = await loadCfgs();
+        else if (typeof window.loadCfgs === 'function') list = await window.loadCfgs();
+      } catch(e) {}
+      if (!list || !list.length) {
+        try {
+          if (typeof dbGetAll === 'function') {
+            const all = await dbGetAll('apiConfigs');
+            list = (all || []).filter(c => c && !c.archived);
+          } else if (typeof window.dbGetAll === 'function') {
+            const all = await window.dbGetAll('apiConfigs');
+            list = (all || []).filter(c => c && !c.archived);
+          }
+        } catch(e) {}
+      }
+      if (!list || !list.length) {
+        try {
+          if (typeof _cfgs !== 'undefined' && Array.isArray(_cfgs)) list = _cfgs;
+          else if (window._cfgs && Array.isArray(window._cfgs)) list = window._cfgs;
+        } catch(e) {}
+      }
+      return (list || []).filter(x => x && x.id);
+    }
+
+    function getCfgDisplayName(c) {
+      if (!c) return '';
+      try {
+        if (typeof cfgName === 'function') return cfgName(c);
+        else if (typeof window.cfgName === 'function') return window.cfgName(c);
+      } catch(e) {}
+      return c.nickname || c.name || (c.provider ? c.provider : 'AI') || c.id || 'AI';
+    }
+
+    async function fillEvtmVisList(m) {
       const box = document.getElementById('evtme-vis-list');
       if (!box) return;
       box.innerHTML = '';
       _evtmVisChips = m ? (m.visibility === 'only' ? (m.visibleTo || []).slice() : m.visibility === 'except' ? (m.excludeFrom || []).slice() : []) : [];
-      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : (function(){ try { return _cfgs || []; } catch(e) { return []; } })();
+      if (m && m.visibility === 'only' && m.sourceAiId && _evtmVisChips.indexOf(m.sourceAiId) === -1) {
+        _evtmVisChips.push(m.sourceAiId);
+      }
+
+      const cfgs = await getAvailableCfgs();
+      if (!cfgs || !cfgs.length) {
+        box.innerHTML = '<div style="font-size:0.75rem;color:var(--tx3);padding:4px 0">暂无已添加的 AI 角色</div>';
+        return;
+      }
+
       cfgs.forEach(c => {
+        if (!c || !c.id) return;
+        const cName = getCfgDisplayName(c);
         const chip = document.createElement('div');
         chip.className = 'chip' + (_evtmVisChips.indexOf(c.id) !== -1 ? ' on' : '');
-        chip.textContent = c.nickname || c.id;
-        chip.addEventListener('click', () => {
+        chip.textContent = cName;
+        chip.setAttribute('data-id', c.id);
+        chip.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const i = _evtmVisChips.indexOf(c.id);
-          if (i === -1) _evtmVisChips.push(c.id); else _evtmVisChips.splice(i, 1);
-          chip.classList.toggle('on', _evtmVisChips.indexOf(c.id) !== -1);
+          if (i === -1) {
+            _evtmVisChips.push(c.id);
+            chip.classList.add('on');
+          } else {
+            _evtmVisChips.splice(i, 1);
+            chip.classList.remove('on');
+          }
         });
         box.appendChild(chip);
       });
@@ -4504,10 +5060,8 @@
     async function openEvtmDetail(m) {
       _detailEvtm = m;
       ensureEvtmSheets();
-      try {
-        if (typeof loadCfgs === 'function') await loadCfgs();
-        else if (typeof window.loadCfgs === 'function') await window.loadCfgs();
-      } catch(e) {}
+      
+      const cfgs = await getAvailableCfgs();
       
       const titleEl = document.getElementById('evtmd-title');
       if (titleEl) titleEl.textContent = m.title || '（无标题）';
@@ -4528,16 +5082,15 @@
         bodyEl.textContent = parts.join('\n\n') || (_sm ? '' : '（无内容）');
       }
       
-      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : (function(){ try { return _cfgs || []; } catch(e) { return []; } })();
       const getNames = (arr) => arr.map(id => {
          const c = cfgs.find(x => x.id === id);
-         return c ? (c.nickname || id) : id;
+         return c ? getCfgDisplayName(c) : id;
       }).join('、');
       
       let visStr = '所有 AI 可见';
       if (m.visibility === 'private') visStr = '完全私密';
-      else if (m.visibility === 'only') visStr = '仅对：' + getNames(m.visibleTo || []);
-      else if (m.visibility === 'except') visStr = '排除：' + getNames(m.excludeFrom || []);
+      else if (m.visibility === 'only') visStr = '仅对：' + (getNames(m.visibleTo || []) || '（未选择）');
+      else if (m.visibility === 'except') visStr = '排除：' + (getNames(m.excludeFrom || []) || '（未选择）');
 
       const metaEl = document.getElementById('evtmd-meta');
       if (metaEl) {
@@ -4545,9 +5098,31 @@
           '领域：' + (m.domain || '—') + '　重要性：' + (m.importance != null ? m.importance : '—') +
           '\n可见性：' + visStr +
           '\n置顶：' + (m.pinned ? '是' : '否') +
+          '\n封存状态：' + (m.sealed ? '🔒 已封存（锁定修改，不参与归纳）' : '未封存') +
           (m.hasEmbedding ? '\n向量状态：已就绪' : '\n向量状态：未向量化') +
           (m.tags && m.tags.length ? '\n标签：' + m.tags.join('，') : '') +
           (m.created ? '\n创建：' + new Date(m.created).toLocaleString('zh-CN') : '');
+      }
+
+      const btnSeal = document.getElementById('evtmd-seal');
+      if (btnSeal) {
+        if (m.sealed) {
+          btnSeal.textContent = '🔓 解封';
+          btnSeal.className = 'btn warning';
+        } else {
+          btnSeal.textContent = '🔒 封存';
+          btnSeal.className = 'btn';
+        }
+        btnSeal.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!_detailEvtm) return;
+          _detailEvtm.sealed = !_detailEvtm.sealed;
+          _detailEvtm.updated = Date.now();
+          saveAndRedraw();
+          openEvtmDetail(_detailEvtm);
+          safeToast(_detailEvtm.sealed ? '已封存此记忆卡片（锁定修改，不参与归纳）' : '已解除卡片封存状态');
+        };
       }
 
       // 确保详情抽屉上的按钮事件始终牢固绑定
@@ -4558,6 +5133,10 @@
           e.stopPropagation();
           const targetMem = _detailEvtm;
           if (!targetMem) return;
+          if (targetMem.sealed) {
+            safeToast('该记忆卡片已被封存，不许修改！请先解除封存');
+            return;
+          }
           safeCloseSheets();
           setTimeout(() => {
             openEvtmEditor(targetMem);
@@ -4571,6 +5150,10 @@
           e.preventDefault();
           e.stopPropagation();
           if (!_detailEvtm) return;
+          if (_detailEvtm.sealed) {
+            safeToast('已封存的记忆处于锁定状态，无法删除。请先解除封存');
+            return;
+          }
           const targetId = _detailEvtm.id;
           const ok = await safeConfirm('删除这条记忆房间？', '删除');
           if (!ok) return;
@@ -4593,6 +5176,10 @@
     }
 
     async function openEvtmEditor(m) {
+      if (m && m.sealed) {
+        safeToast('该记忆卡片已被封存，不许修改！请先在详情页解除封存');
+        return;
+      }
       ensureEvtmSheets();
       try {
         if (typeof loadCfgs === 'function') await loadCfgs();
@@ -4649,12 +5236,31 @@
         }
       }
 
+      const sealSw = document.getElementById('evtme-sealed');
+      const isSealed = m ? !!m.sealed : false;
+      if (sealSw) {
+        if (typeof window.sw2 === 'function') {
+          window.sw2(sealSw, isSealed);
+        } else {
+          try {
+            if (typeof sw2 === 'function') sw2(sealSw, isSealed);
+            else {
+              if (isSealed) sealSw.classList.add('on');
+              else sealSw.classList.remove('on');
+            }
+          } catch(e) {
+            if (isSealed) sealSw.classList.add('on');
+            else sealSw.classList.remove('on');
+          }
+        }
+      }
+
       const vis = m && m.visibility ? m.visibility : 'all';
       const inVis = document.getElementById('evtme-vis');
       if (inVis) inVis.value = vis;
       const visList = document.getElementById('evtme-vis-list');
       if (visList) visList.style.display = (vis === 'only' || vis === 'except') ? 'flex' : 'none';
-      fillEvtmVisList(m);
+      await fillEvtmVisList(m);
 
       const delBtn = document.getElementById('evtme-del');
       if (delBtn) {
@@ -4673,32 +5279,337 @@
         };
       }
 
+      const btnCancel = document.getElementById('evtme-cancel');
+      if (btnCancel) {
+        btnCancel.onclick = (e) => {
+          e.preventDefault();
+          safeCloseSheets();
+        };
+      }
+
+      const btnSave = document.getElementById('evtme-save');
+      if (btnSave) {
+        btnSave.onclick = async (e) => {
+          e.preventDefault();
+          const inT = document.getElementById('evtme-t');
+          const title = (inT ? inT.value : '').trim();
+          if (!title) {
+            safeToast('请填写标题');
+            return;
+          }
+
+          const inS = document.getElementById('evtme-s');
+          const inC = document.getElementById('evtme-c');
+          const inDom = document.getElementById('evtme-domain');
+          const inTags = document.getElementById('evtme-tags');
+          const inImp = document.getElementById('evtme-imp');
+          const pinToggle = document.getElementById('evtme-pin');
+          const sealToggle = document.getElementById('evtme-sealed');
+          const inVis = document.getElementById('evtme-vis');
+
+          const summary = inS ? inS.value.trim() : '';
+          const content = inC ? inC.value.trim() : '';
+          const domain = inDom ? inDom.value : '日常';
+          const tags = inTags ? inTags.value.split(/[,，]/).map(x => x.trim()).filter(Boolean) : [];
+          const importance = inImp ? parseInt(inImp.value, 10) : 5;
+          const pinned = pinToggle ? pinToggle.classList.contains('on') : false;
+          const sealed = sealToggle ? sealToggle.classList.contains('on') : false;
+          const visibility = inVis ? inVis.value : 'all';
+
+          let target = _editEvtmId ? _evtMems.find(x => x.id === _editEvtmId) : null;
+          const isNew = !target;
+          if (isNew) {
+            target = {
+              id: 'evtm_' + Date.now(),
+              created: Date.now(),
+              hasEmbedding: false,
+              embedding: null
+            };
+            _evtMems.unshift(target);
+          }
+
+          target.title = title;
+          target.summary = summary;
+          target.content = content;
+          target.domain = domain;
+          target.tags = tags;
+          target.importance = importance;
+          target.pinned = pinned;
+          target.sealed = sealed;
+          target.visibility = visibility;
+          if (visibility === 'only') {
+            target.visibleTo = _evtmVisChips.slice();
+            delete target.excludeFrom;
+          } else if (visibility === 'except') {
+            target.excludeFrom = _evtmVisChips.slice();
+            delete target.visibleTo;
+          } else {
+            delete target.visibleTo;
+            delete target.excludeFrom;
+          }
+          target.updated = Date.now();
+
+          saveAndRedraw();
+          safeCloseSheets();
+          safeToast(isNew ? '已添加记忆卡片（可点击上方“向量化”生成向量）' : '已保存');
+        };
+      }
+
       safeOpenSheet('sheet-evtm');
     }
 
+    async function batchVectorizeMemories() {
+      const targets = _evtMems.filter(m => !m.hasEmbedding);
+      if (targets.length === 0) {
+        safeToast('所有记忆卡片已完成向量化，无需重复操作');
+        return;
+      }
+      const ok = await safeConfirm(`共有 ${targets.length} 条记忆未向量化，确定开始批量向量化计算？`, '一键向量化');
+      if (!ok) return;
 
+      safeToast(`正在批量向量化 (0/${targets.length})...`);
+      let count = 0;
+      let failCount = 0;
 
+      for (let i = 0; i < targets.length; i++) {
+        const m = targets[i];
+        const textToEmbed = [m.title, m.summary, m.content].filter(Boolean).join('\n');
+        if (!textToEmbed) continue;
+        try {
+          if (typeof window.callEmbeddingApi === 'function') {
+            const vec = await window.callEmbeddingApi(textToEmbed, true);
+            if (vec && Array.isArray(vec) && vec.length > 0) {
+              m.embedding = vec;
+              m.hasEmbedding = true;
+              count++;
+            } else {
+              failCount++;
+            }
+          }
+        } catch(err) {
+          console.error('[MemoryRoom] 向量化失败:', m.title, err);
+          failCount++;
+        }
+        safeToast(`向量化进度: ${i + 1}/${targets.length}...`);
+      }
 
+      saveAndRedraw();
+      if (failCount === 0) {
+        safeToast(`一键向量化完成！共成功处理 ${count} 条记忆`);
+      } else {
+        safeToast(`向量化完成：成功 ${count} 条，失败 ${failCount} 条（请检查「API → 多模态」中的 Embedding API 配置）`);
+      }
+    }
+
+    async function consolidateAndClassifyMemories() {
+      try {
+        const stored = await getStoredMemories();
+        if (stored && Array.isArray(stored)) _evtMems = stored;
+      } catch(e) {}
+
+      const unsealedList = _evtMems.filter(m => !m.sealed);
+      const sealedList = _evtMems.filter(m => m.sealed);
+
+      if (unsealedList.length === 0) {
+        if (_evtMems.length === 0) {
+          safeToast('记忆房间中暂无记忆卡片，请先点击左上角“添加记忆”');
+        } else {
+          safeToast(`现有 ${_evtMems.length} 条记忆全部处于【🔒 封存】状态，已跳过归纳`);
+        }
+        return;
+      }
+
+      const subCfg = window.getSubApiConfig ? window.getSubApiConfig() : null;
+      if (!subCfg || !subCfg.key) {
+        safeToast('请先在「API → 多模态」中配置并保存副 API 密钥，归纳分类需要调用副模型');
+        return;
+      }
+
+      const confirmMsg = sealedList.length > 0 
+        ? `准备归纳 ${unsealedList.length} 条未封存记忆（已跳过 ${sealedList.length} 条封存记忆）。确定使用副 API 进行重组提炼分类吗？`
+        : `准备对现有 ${unsealedList.length} 条记忆进行智能归纳分类与合并。确定继续吗？`;
+
+      const ok = await safeConfirm(confirmMsg, '归纳分类');
+      if (!ok) return;
+
+      safeToast('副 API 正在智能归纳分类与合并记忆，请稍候...');
+
+      const inputSummaryList = unsealedList.map((m, idx) => {
+        return `【记忆 #${idx + 1}】
+标题: ${m.title || '无'}
+领域: ${m.domain || '日常'}
+概述: ${m.summary || '无'}
+内容: ${m.content || '无'}
+标签: ${(m.tags || []).join(', ')}
+重要性: ${m.importance || 5}`;
+      }).join('\n\n---\n\n');
+
+      const sysPrompt = `你是一个专业的记忆与认知整理专家。请仔细分析输入的【未封存记忆列表】，将其按照事件主题与领域分类进行深度归纳、分类与重组。
+
+【核心原则与严格约束】：
+1. 【严禁删减细节】：绝对禁止随意删减、概括省略或丢弃原记忆中的关键细节、对话过程、具体事实、情绪感受和脉络背景。
+2. 【合理合并与独立保留】：
+   - 只有【明确属于同一事件或强相关事件】的散落记忆，才合并为一张更完整详细的记忆卡片。合并时，content 字段必须详实完整地汇总原有多条记忆的所有细节，禁止过度压缩！
+   - 对于【不同事件、不同主题、不同时段独立发生的事情】，必须分别保留为独立的卡片，严禁把风马牛不相及的事件强行合并压缩成一段话。
+3. 【领域分类】：每张卡片的 domain 必须严格为以下四个领域之一：情感、日常、创作、思考。
+4. 【卡片字段格式】：
+   - title: 简短醒目的事件标题 (尽量保留核心特征)
+   - domain: "情感" | "日常" | "创作" | "思考"
+   - summary: 提炼的核心概述 (清晰概括事件主旨)
+   - content: 详尽完整的内容脉络，完整保留所有原细节、对话与背景
+   - tags: 2-5 个关键字标签数组
+   - importance: 重要性数值 (1-10 整数)
+
+【输出要求】：
+请严格且仅输出一个标准 JSON 数组，绝不要包含任何 markdown 解释或闲聊文字。`;
+
+      const userPrompt = `请对以下输入的记忆进行归纳分类重组（注意：保留全部细节，非同事件不强行合并），并输出 JSON 数组：\n\n${inputSummaryList}`;
+
+      try {
+        let respStr = '';
+        if (typeof callSubApiForRawText === 'function') {
+          respStr = await callSubApiForRawText(userPrompt, sysPrompt);
+        } else if (typeof window.callSubApiForRawText === 'function') {
+          respStr = await window.callSubApiForRawText(userPrompt, sysPrompt);
+        } else {
+          throw new Error('副 API 服务未就绪');
+        }
+
+        if (!respStr || !respStr.trim()) {
+          throw new Error('副 API 返回为空，请检查模型与网络');
+        }
+
+        let cleanJson = respStr.trim();
+        cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+        let newCards = [];
+        try {
+          const parsed = JSON.parse(cleanJson);
+          if (Array.isArray(parsed)) {
+            newCards = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            if (Array.isArray(parsed.memories)) newCards = parsed.memories;
+            else if (Array.isArray(parsed.cards)) newCards = parsed.cards;
+            else if (Array.isArray(parsed.list)) newCards = parsed.list;
+            else if (Array.isArray(parsed.data)) newCards = parsed.data;
+            else if (parsed.title) newCards = [parsed];
+          }
+        } catch(e) {
+          const matchArr = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (matchArr) {
+            try { newCards = JSON.parse(matchArr[0]); } catch(e2) {}
+          } else {
+            const matchObj = cleanJson.match(/\{[\s\S]*\}/);
+            if (matchObj) {
+              try {
+                const singleObj = JSON.parse(matchObj[0]);
+                if (singleObj && singleObj.title) newCards = [singleObj];
+              } catch(e3) {}
+            }
+          }
+        }
+
+        if (!Array.isArray(newCards) || newCards.length === 0) {
+          throw new Error('未能从副 API 返回内容中解析出有效的记忆卡片数组');
+        }
+
+        safeToast(`归纳完成！生成 ${newCards.length} 张新记忆卡片...`);
+
+        // 在真正替换前，将当前完整记忆列表备份至持久化历史快照（用于回退归纳）
+        await setStoredHistoryBackup(_evtMems);
+
+        const formattedCards = [];
+        for (let i = 0; i < newCards.length; i++) {
+          const c = newCards[i];
+          const newCard = {
+            id: 'evtm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            title: String(c.title || '归纳事件').trim(),
+            domain: ['情感', '日常', '创作', '思考'].includes(c.domain) ? c.domain : '日常',
+            summary: String(c.summary || '').trim(),
+            content: String(c.content || '').trim(),
+            tags: Array.isArray(c.tags) ? c.tags.map(t => String(t).trim()).filter(Boolean) : ['归纳整合'],
+            importance: typeof c.importance === 'number' ? Math.max(1, Math.min(10, c.importance)) : 6,
+            pinned: false,
+            sealed: false,
+            visibility: 'all',
+            hasEmbedding: false,
+            embedding: null,
+            created: Date.now(),
+            updated: Date.now()
+          };
+          formattedCards.push(newCard);
+        }
+
+        // 归纳成功：将未封存旧记忆彻底删除替换为归纳卡片，保留封存卡片，并同时写入 IndexedDB 与 localStorage
+        _evtMems = [...sealedList, ...formattedCards];
+        await setStoredMemories(_evtMems);
+        drawEvtMemList();
+
+        safeToast(`归纳分类成功！已将 ${unsealedList.length} 条未封存记忆重组为 ${formattedCards.length} 张卡片（如需撤销可点击下方【回退归纳】）`);
+
+      } catch(err) {
+        console.error('[MemoryRoom] 归纳分类过程出错:', err);
+        safeToast('归纳分类失败：' + (err.message || '未知错误'));
+      }
+    }
+
+    const rollbackBtn = document.getElementById('evtm-rollback');
+    if (rollbackBtn) {
+      rollbackBtn.onclick = async () => {
+        const backupList = await getStoredHistoryBackup();
+        if (!backupList || !Array.isArray(backupList) || backupList.length === 0) {
+          safeToast('暂无历史归纳记录可回退');
+          return;
+        }
+        const ok = await safeConfirm(`确定将记忆房间回退至上一次归纳前的状态吗？（将恢复 ${backupList.length} 条记忆）`, '回退归纳');
+        if (!ok) return;
+
+        // 交换当前状态与备份，允许撤回后再次反向撤回
+        const currentList = [..._evtMems];
+        _evtMems = backupList;
+        await setStoredHistoryBackup(currentList);
+        await setStoredMemories(_evtMems);
+        drawEvtMemList();
+        safeToast(`已成功回退！当前恢复为 ${backupList.length} 条记忆卡片`);
+      };
+    }
 
     const searchInput = document.getElementById('evtm-search');
     if (searchInput) {
-      searchInput.addEventListener('input', drawEvtMemList);
+      searchInput.oninput = drawEvtMemList;
+    }
+
+    const addBtn = document.getElementById('evtm-add');
+    if (addBtn) {
+      addBtn.onclick = () => {
+        openEvtmEditor(null);
+      };
+    }
+
+    const classifyBtn = document.getElementById('evtm-classify');
+    if (classifyBtn) {
+      classifyBtn.onclick = consolidateAndClassifyMemories;
+    }
+
+    const vectorizeBtn = document.getElementById('evtm-vectorize');
+    if (vectorizeBtn) {
+      vectorizeBtn.onclick = batchVectorizeMemories;
     }
 
     const exportBtn = document.getElementById('evtm-export');
     if (exportBtn) {
-      exportBtn.addEventListener('click', () => {
+      exportBtn.onclick = () => {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(_evtMems, null, 2));
         const a = document.createElement('a');
         a.href = dataStr;
         a.download = 'event_memories_' + Date.now() + '.json';
         a.click();
-      });
+      };
     }
 
     const importBtn = document.getElementById('evtm-import');
     if (importBtn) {
-      importBtn.addEventListener('click', () => {
+      importBtn.onclick = () => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
@@ -4721,7 +5632,7 @@
           reader.readAsText(file);
         };
         input.click();
-      });
+      };
     }
 
     // 确保记忆房间的详情与编辑抽屉在 DOM 中已就绪
@@ -4747,15 +5658,99 @@
   document.addEventListener('DOMContentLoaded', bootAllPatches);
 
 
+  // 安全请求：直接 fetch 失败（如跨域 CORS 拦截）时，自动回退到服务端代理发送
+  async function safeFetch(url, opts) {
+    opts = opts || {};
+    try {
+      const res = await fetch(url, opts);
+      return res;
+    } catch (err) {
+      console.warn('[API Proxy] 直连 fetch 异常，尝试通过服务端代理代理转发:', err);
+      try {
+        const proxyRes = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: url,
+            method: opts.method || 'POST',
+            headers: opts.headers || {},
+            body: opts.body || ''
+          })
+        });
+        return proxyRes;
+      } catch (proxyErr) {
+        throw err;
+      }
+    }
+  }
+
   // ── 记忆房间：副 API 提炼与 Embedding 向量化引擎 ──
-  async function callSubApiForSummary(promptText) {
+  async function callSubApiForRawText(promptText, customSysPrompt) {
     const cfg = window.getSubApiConfig ? window.getSubApiConfig() : null;
     if (!cfg || !cfg.key) {
       throw new Error('请先在「API → 多模态」中配置并保存副 API 密钥');
     }
+    const prov = (cfg.provider || 'siliconflow').toLowerCase();
     const endpoint = (cfg.endpoint || 'https://api.siliconflow.cn/v1/chat/completions').trim();
     const model = (cfg.model || 'Qwen/Qwen2.5-7B-Instruct').trim();
-    
+    const sysPrompt = customSysPrompt || '你是一个精准的记忆与认知整理专家。请根据提供的用户与AI近期对话内容，提炼出一段值得沉淀为长期记忆的卡片。';
+
+    let resp, resContent = '';
+
+    if (prov === 'anthropic' || endpoint.includes('/v1/messages')) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': cfg.key.trim(),
+        'anthropic-version': '2023-06-01'
+      };
+      const body = {
+        model: model,
+        max_tokens: 4096,
+        system: sysPrompt,
+        messages: [{ role: 'user', content: promptText }]
+      };
+      resp = await safeFetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!resp.ok) {
+        const errTxt = await resp.text();
+        throw new Error('副 API 请求失败(' + resp.status + '): ' + errTxt.slice(0, 150));
+      }
+      const data = await resp.json();
+      resContent = (data.content && data.content[0] && data.content[0].text) || '';
+    } else {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + cfg.key.trim()
+      };
+      const body = {
+        model: model,
+        messages: [
+          { role: 'system', content: sysPrompt },
+          { role: 'user', content: promptText }
+        ],
+        temperature: 0.3,
+        max_tokens: 4096
+      };
+      resp = await safeFetch(endpoint, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) {
+        const errTxt = await resp.text();
+        throw new Error('副 API 请求失败(' + resp.status + '): ' + errTxt.slice(0, 150));
+      }
+      const data = await resp.json();
+      resContent = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    }
+
+    if (!resContent) {
+      throw new Error('副 API 返回了空响应，请检查模型名称或 API 密钥状态');
+    }
+    return resContent;
+  }
+  window.callSubApiForRawText = callSubApiForRawText;
+
+  async function callSubApiForSummary(promptText) {
     const sysPrompt = `你是一个精准的记忆与认知整理专家。请根据提供的用户与AI近期对话内容，提炼出一段值得沉淀为长期记忆的卡片。
 请严格输出合法的 JSON 对象，格式如下（不包含 markdown 反引号包裹）：
 {
@@ -4768,34 +5763,8 @@
 }
 注意：domain 必须为 "情感"、"日常"、"创作"、"思考" 之一；importance 为 1-10 的整数；tags 数组包含2-4个短标签。`;
 
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + cfg.key.trim()
-    };
-    
-    const body = {
-      model: model,
-      messages: [
-        { role: 'system', content: sysPrompt },
-        { role: 'user', content: promptText }
-      ],
-      temperature: 0.3
-    };
+    const resContent = await callSubApiForRawText(promptText, sysPrompt);
 
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(body)
-    });
-
-    if (!resp.ok) {
-      const errTxt = await resp.text();
-      throw new Error('副 API 请求失败(' + resp.status + '): ' + errTxt.slice(0, 80));
-    }
-
-    const data = await resp.json();
-    const resContent = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
-    
     // 尝试提取 JSON
     let cleanJson = resContent.trim();
     cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -4825,9 +5794,10 @@
     }
   }
 
-  async function callEmbeddingApi(text) {
+  async function callEmbeddingApi(text, throwOnError) {
     const cfg = window.getEmbeddingApiConfig ? window.getEmbeddingApiConfig() : null;
     if (!cfg || !cfg.key) {
+      if (throwOnError) throw new Error('请先在「API → 多模态」中配置并保存 Embedding API 密钥');
       console.warn('[Embedding] 未配置 Embedding API，跳过向量计算');
       return null;
     }
@@ -4835,7 +5805,7 @@
     const model = (cfg.model || 'BAAI/bge-m3').trim();
 
     try {
-      const resp = await fetch(endpoint, {
+      const resp = await safeFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -4848,31 +5818,146 @@
       });
 
       if (!resp.ok) {
-        console.warn('[Embedding] 向量接口响应非200:', resp.status);
+        const errTxt = await resp.text();
+        const err = new Error('Embedding 接口响应异常(' + resp.status + '): ' + errTxt.slice(0, 150));
+        if (throwOnError) throw err;
+        console.warn('[Embedding]', err);
         return null;
       }
       const data = await resp.json();
       if (data.data && data.data[0] && Array.isArray(data.data[0].embedding)) {
         return data.data[0].embedding;
       }
+      if (throwOnError) throw new Error('Embedding 接口数据结构非标准（缺少 data[0].embedding）');
     } catch(e) {
+      if (throwOnError) throw e;
       console.warn('[Embedding] 向量计算发生异常:', e);
     }
     return null;
   }
+  window.callEmbeddingApi = callEmbeddingApi;
+
+  // 智能获取当前激活角色配置
+  function getActiveCharacterConfig() {
+    if (window._activeCfg && window._activeCfg.id) return window._activeCfg;
+
+    const cvNameEl = document.getElementById('cv-name');
+    const cvNameText = cvNameEl ? cvNameEl.textContent.trim() : '';
+    const lastId = localStorage.getItem('ib_hb_lastconv');
+
+    let candidates = [];
+    if (typeof window.cfgList === 'function') {
+      try { candidates = window.cfgList() || []; } catch(e){}
+    }
+    if ((!candidates || !candidates.length) && typeof window._cfgs !== 'undefined' && Array.isArray(window._cfgs)) {
+      candidates = window._cfgs;
+    }
+
+    if (lastId && candidates.length > 0) {
+      const matchById = candidates.find(c => c && c.id === lastId);
+      if (matchById) {
+        window._activeCfg = matchById;
+        return matchById;
+      }
+    }
+
+    if (cvNameText && candidates.length > 0) {
+      const pureName = cvNameText.split(' · ')[0].trim();
+      const matchByName = candidates.find(c => {
+        if (!c) return false;
+        const name = (typeof window.cfgName === 'function') ? window.cfgName(c) : (c.nickname || c.name || c.model || '');
+        return name && (name === pureName || pureName.includes(name) || name.includes(pureName));
+      });
+      if (matchByName) {
+        window._activeCfg = matchByName;
+        return matchByName;
+      }
+    }
+
+    if (candidates.length > 0) {
+      window._activeCfg = candidates[0];
+      return candidates[0];
+    }
+
+    return window._activeCfg || null;
+  }
+
+  // Hook openConv 保证 window._activeCfg 与 window._activeThread 实时同步到全局
+  function hookOpenConv() {
+    if (typeof window.openConv === 'function') {
+      if (window.openConv.__ibHooked) return;
+      const origOpenConv = window.openConv;
+      const hooked = function(cfg, thread) {
+        if (cfg) window._activeCfg = cfg;
+        window._activeThread = thread || null;
+        return origOpenConv.apply(this, arguments);
+      };
+      hooked.__ibHooked = true;
+      window.openConv = hooked;
+    } else {
+      let _origOpenConv = window.openConv;
+      Object.defineProperty(window, 'openConv', {
+        configurable: true,
+        enumerable: true,
+        get() { return _origOpenConv; },
+        set(fn) {
+          if (fn && fn.__ibHooked) {
+            _origOpenConv = fn;
+            return;
+          }
+          const hooked = function(cfg, thread) {
+            if (cfg) window._activeCfg = cfg;
+            window._activeThread = thread || null;
+            return fn.apply(this, arguments);
+          };
+          hooked.__ibHooked = true;
+          _origOpenConv = hooked;
+        }
+      });
+    }
+  }
+  hookOpenConv();
+  setTimeout(hookOpenConv, 800);
 
   // 统一核心方法：从对话中沉淀并存入记忆房间
   window.saveToEventMemoryRoom = async function(options) {
     options = options || {};
-    const msgs = Array.isArray(options.messages) ? options.messages : (window._msgs || []);
-    if (!msgs || msgs.length < 2) {
-      if (typeof window.toast === 'function') window.toast('对话记录太少，无法提炼记忆房间');
-      return null;
+    const cfg = getActiveCharacterConfig() || {};
+    let msgs = Array.isArray(options.messages) ? options.messages : (window._msgs || []);
+    const aiName = (typeof window.cfgName === 'function') ? window.cfgName(cfg) : (cfg.nickname || cfg.name || cfg.id || 'AI');
+    const userName = (typeof window._amUserName === 'function') ? window._amUserName() : '用户';
+
+    // 尝试从 IndexedDB 加载当前 AI 聊天记录补全
+    if ((!msgs || msgs.length < 2) && cfg.id && typeof window.dbGetByIndex === 'function') {
+      try {
+        const dbMsgs = await window.dbGetByIndex('chatMessages', 'byFriend', cfg.id);
+        if (dbMsgs && dbMsgs.length >= 2) {
+          msgs = dbMsgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        }
+      } catch(e) {}
     }
 
-    const cfg = window._activeCfg || {};
-    const aiName = (typeof window.cfgName === 'function') ? window.cfgName(cfg) : (cfg.nickname || cfg.id || 'AI');
-    const userName = (typeof window._amUserName === 'function') ? window._amUserName() : '用户';
+    // 第二重回退：从所有 chatMessages 中筛选
+    if ((!msgs || msgs.length < 2) && cfg.id && typeof window.dbGetAll === 'function') {
+      try {
+        const allMsgs = await window.dbGetAll('chatMessages');
+        const filtered = (allMsgs || []).filter(m => m && (m.friendId === cfg.id || m.senderId === cfg.id));
+        if (filtered.length >= 2) {
+          msgs = filtered.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        }
+      } catch(e) {}
+    }
+
+    if (!msgs || msgs.length < 2) {
+      if (typeof window.toast === 'function') {
+        if (!cfg.id) {
+          window.toast('请先进入某个 AI 角色的聊天窗口，再选择提炼记忆房间');
+        } else {
+          window.toast('与「' + aiName + '」读取到 ' + (msgs ? msgs.length : 0) + ' 条聊天记录，多聊几句再来沉淀吧');
+        }
+      }
+      return null;
+    }
     
     // 截取最近指定数量或默认 25 条对话
     const count = options.count || 25;
@@ -4887,14 +5972,20 @@
     });
 
     if (lines.length < 2) {
-      if (typeof window.toast === 'function') window.toast('可提炼的文本记录不足');
+      if (typeof window.toast === 'function') window.toast('可提炼的文本记录不足（检测到有效文本少于 2 句）');
       return null;
     }
 
     const transcript = lines.join('\n');
     if (typeof window.toast === 'function') window.toast('正在使用副 API 提炼记忆房间…');
 
-    const summaryResult = await callSubApiForSummary(transcript);
+    let summaryResult;
+    try {
+      summaryResult = await callSubApiForSummary(transcript);
+    } catch(err) {
+      if (typeof window.toast === 'function') window.toast('提炼失败：' + (err.message || err));
+      throw err;
+    }
     
     // 准备向量计算文本：标题 + 概述 + 核心事实 + 标签
     const textToEmbed = [
@@ -4905,7 +5996,12 @@
     ].filter(Boolean).join(' ');
 
     if (typeof window.toast === 'function') window.toast('正在进行 Embedding 语义向量化…');
-    const embeddingVec = await callEmbeddingApi(textToEmbed);
+    let embeddingVec = null;
+    try {
+      embeddingVec = await callEmbeddingApi(textToEmbed, false);
+    } catch(e) {
+      console.warn('[MemoryRoom] Embedding 计算失败，降级保存:', e);
+    }
 
     const memItem = {
       id: 'evtm_' + Date.now(),
@@ -4916,8 +6012,8 @@
       tags: summaryResult.tags,
       importance: summaryResult.importance,
       pinned: false,
-      visibility: 'all',
-      visibleTo: [],
+      visibility: cfg.id ? 'only' : 'all',
+      visibleTo: cfg.id ? [cfg.id] : [],
       excludeFrom: [],
       hasEmbedding: !!(embeddingVec && embeddingVec.length > 0),
       embedding: embeddingVec || null,
@@ -4926,13 +6022,23 @@
       sourceAiName: aiName
     };
 
-    // 存入记忆房间
+    // 存入记忆房间（支持双重持久化 IndexedDB + localStorage）
     try {
-      const raw = localStorage.getItem('ib_custom_event_memories');
-      let list = raw ? JSON.parse(raw) : [];
+      let list = [];
+      if (typeof window.getStoredEventMemories === 'function') {
+        list = await window.getStoredEventMemories() || [];
+      } else {
+        const raw = localStorage.getItem('ib_custom_event_memories');
+        list = raw ? JSON.parse(raw) : [];
+      }
       if (!Array.isArray(list)) list = [];
       list.unshift(memItem);
-      localStorage.setItem('ib_custom_event_memories', JSON.stringify(list));
+      
+      if (typeof window.setStoredEventMemories === 'function') {
+        await window.setStoredEventMemories(list);
+      } else {
+        localStorage.setItem('ib_custom_event_memories', JSON.stringify(list));
+      }
       _lastAutoSavedMsgCount = (window._msgs || []).length;
       
       // 若当前正停留在记忆房间，立即重绘

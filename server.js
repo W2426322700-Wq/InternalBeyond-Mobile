@@ -207,6 +207,34 @@ app.get('/api/v2/storage/status', (req, res) => {
   }
 });
 
+// 通用 API 代理，解决前端 CORS 跨域问题（如 Anthropic、SiliconFlow 等）
+app.post('/api/proxy', async (req, res) => {
+  try {
+    const { url, method, headers, body } = req.body;
+    if (!url) return res.status(400).json({ ok: false, error: 'Missing url' });
+
+    const fetchRes = await fetch(url, {
+      method: method || 'POST',
+      headers: headers || {},
+      body: typeof body === 'object' ? JSON.stringify(body) : body
+    });
+
+    const status = fetchRes.status;
+    const contentType = fetchRes.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const data = await fetchRes.json();
+      return res.status(status).json(data);
+    } else {
+      const text = await fetchRes.text();
+      return res.status(status).send(text);
+    }
+  } catch (e) {
+    console.error('[API Proxy] Error:', e);
+    res.status(500).json({ error: e.message || 'Proxy request failed' });
+  }
+});
+
 // Serve static assets with appropriate headers
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {
