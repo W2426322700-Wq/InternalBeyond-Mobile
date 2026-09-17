@@ -5784,17 +5784,23 @@
   window.callSubApiForRawText = callSubApiForRawText;
 
   async function callSubApiForSummary(promptText) {
-    const sysPrompt = `你是一个精准的记忆与认知整理专家。请根据提供的用户与AI近期对话内容，提炼出一段值得沉淀为长期记忆的卡片。
+    const sysPrompt = `你是一个精准的记忆与认知整理专家。请仔细阅读用户与AI提供的近期对话记录，将其沉淀为一段高质量的长期记忆卡片。
+
+【核心原则】：
+1. 严禁过度压缩：务必完整保留核心故事情节、关键细节、人名/地名/物品名，以及双方表达的核心感受与观点。
+2. 拒绝流水账：不要像日记一样简单罗列，而是要梳理出事件的前因后果、核心事实与对话脉络。
+3. 保持原汁原味：提炼的 content 字段需要极其详实，确保 AI 以后召回这段记忆时，能瞬间回想起当时的全部细节。
+
 请严格输出合法的 JSON 对象，格式如下（不包含 markdown 反引号包裹）：
 {
-  "title": "简短醒目的标题(15字内)",
-  "summary": "一两句话提炼概述(50字内)",
-  "content": "核心事实与对话详情脉络(先事实后感受，真实无杜撰，150字内)",
+  "title": "简短醒目的标题(20字内)",
+  "summary": "核心事件概述(60字内，概括主旨)",
+  "content": "详尽完整的内容脉络，完整保留关键事实、对话细节与具体感受（不限字数，越详细越好）",
   "domain": "情感 或 日常 或 创作 或 思考",
   "tags": ["标签1", "标签2"],
   "importance": 7
 }
-注意：domain 必须为 "情感"、"日常"、"创作"、"思考" 之一；importance 为 1-10 的整数；tags 数组包含2-4个短标签。`;
+注意：domain 必须为 "情感"、"日常"、"创作"、"思考" 之一；importance 为 1-10 的整数；tags 数组包含3-5个短标签。`;
 
     const resContent = await callSubApiForRawText(promptText, sysPrompt);
 
