@@ -5465,10 +5465,30 @@
       const ok = await safeConfirm(confirmMsg, '归纳分类');
       if (!ok) return;
 
-      safeToast('副 API 正在智能归纳分类与合并记忆，请稍候...');
+      safeToast('副 API 正在深度分析并归纳记忆，请稍候...');
+
+      // 提取唯一的可见性配置，防止跨角色串台
+      const visMap = new Map();
+      let visCounter = 1;
+      
+      unsealedList.forEach(m => {
+        const cfg = { visibility: m.visibility || 'all', visibleTo: m.visibleTo, excludeFrom: m.excludeFrom };
+        const visKey = JSON.stringify(cfg);
+        if (!visMap.has(visKey)) {
+          visMap.set(visKey, { id: visCounter++, cfg: cfg });
+        }
+        m._vis_id = visMap.get(visKey).id;
+      });
 
       const inputSummaryList = unsealedList.map((m, idx) => {
+        let visDesc = "全局共享 (所有AI可见)";
+        if (m.visibility === 'only' && Array.isArray(m.visibleTo) && m.visibleTo.length > 0) {
+          visDesc = "仅特定AI可见 (" + m.visibleTo.join(',') + ")";
+        } else if (m.visibility === 'except' && Array.isArray(m.excludeFrom) && m.excludeFrom.length > 0) {
+          visDesc = "排除部分AI (" + m.excludeFrom.join(',') + ")";
+        }
         return `【记忆 #${idx + 1}】
+归属权限组ID: ${m._vis_id} (权限配置: ${visDesc})
 标题: ${m.title || '无'}
 领域: ${m.domain || '日常'}
 概述: ${m.summary || '无'}
@@ -5477,26 +5497,28 @@
 重要性: ${m.importance || 5}`;
       }).join('\n\n---\n\n');
 
-      const sysPrompt = `你是一个专业的记忆与认知整理专家。请仔细分析输入的【未封存记忆列表】，将其按照事件主题与领域分类进行深度归纳、分类与重组。
+      const sysPrompt = `你是一个专业的记忆与认知整理专家。请仔细分析输入的【未封存记忆列表】，对其进行深度拆分、归纳与重组。
 
-【核心原则与严格约束】：
-1. 【严禁删减细节】：绝对禁止随意删减、概括省略或丢弃原记忆中的关键细节、对话过程、具体事实、情绪感受和脉络背景。
-2. 【合理合并与独立保留】：
-   - 只有【明确属于同一事件或强相关事件】的散落记忆，才合并为一张更完整详细的记忆卡片。合并时，content 字段必须详实完整地汇总原有多条记忆的所有细节，禁止过度压缩！
-   - 对于【不同事件、不同主题、不同时段独立发生的事情】，必须分别保留为独立的卡片，严禁把风马牛不相及的事件强行合并压缩成一段话。
-3. 【领域分类】：每张卡片的 domain 必须严格为以下四个领域之一：情感、日常、创作、思考。
-4. 【卡片字段格式】：
-   - title: 简短醒目的事件标题 (尽量保留核心特征)
-   - domain: "情感" | "日常" | "创作" | "思考"
-   - summary: 提炼的核心概述 (清晰概括事件主旨)
-   - content: 详尽完整的内容脉络，完整保留所有原细节、对话与背景
-   - tags: 2-5 个关键字标签数组
-   - importance: 重要性数值 (1-10 整数)
+【核心原则与极其严格的约束】：
+1. 【权限绝对隔离】：每条输入记忆都有一个【归属权限组ID】。你绝对禁止将不同【归属权限组ID】的记忆合并在一起！生成的每张新卡片，必须且只能属于一个原有的 vis_id。
+2. 【深度事件拆分（重要）】：如果一条输入记忆中揉杂了多个不同时间发生、完全不相关的独立事件，你必须将其【拆分】为多张独立的记忆卡片！绝对不要把风马牛不相及的多个事件强行压缩在一张卡片里。
+3. 【同组同事件合并】：只有【归属权限组ID完全相同】且【明确属于同一事件或强相关事件】的散落记忆，才能合并。
+4. 【严禁删减细节】：绝对禁止随意删减原记忆中的关键细节、对话过程、人物情绪、具体事实和脉络背景。合并或拆分后，内容必须极其详实。
+5. 【领域分类】：domain 必须为：情感、日常、创作、思考。
 
-【输出要求】：
-请严格且仅输出一个标准 JSON 数组，绝不要包含任何 markdown 解释或闲聊文字。`;
+【输出JSON格式要求】：
+请严格且仅输出一个标准 JSON 数组，数组中每个对象必须包含以下字段，绝不要包含 markdown 解释：
+[{
+  "vis_id": (整数) 严格继承自输入数据的归属权限组ID,
+  "title": "简短醒目的事件标题(20字内)",
+  "domain": "情感 或 日常 或 创作 或 思考",
+  "summary": "提炼的核心概述(概括主旨)",
+  "content": "详尽完整的内容脉络，完整保留所有原细节、对话与背景（不限字数，越详细越好）",
+  "tags": ["标签1", "标签2", "标签3"],
+  "importance": 7
+}]`;
 
-      const userPrompt = `请对以下输入的记忆进行归纳分类重组（注意：保留全部细节，非同事件不强行合并），并输出 JSON 数组：\n\n${inputSummaryList}`;
+      const userPrompt = `请对以下输入的记忆进行深度拆分、归纳分类与同组重组（保留全部细节，不同权限组绝不合并！），并仅输出 JSON 数组：\n\n${inputSummaryList}`;
 
       try {
         let respStr = '';
@@ -5513,7 +5535,7 @@
         }
 
         let cleanJson = respStr.trim();
-        cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        cleanJson = cleanJson.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
 
         let newCards = [];
         try {
@@ -5546,14 +5568,20 @@
           throw new Error('未能从副 API 返回内容中解析出有效的记忆卡片数组');
         }
 
-        safeToast(`归纳完成！生成 ${newCards.length} 张新记忆卡片...`);
+        safeToast(`深度归纳完成！生成 ${newCards.length} 张独立记忆卡片...`);
 
         // 在真正替换前，将当前完整记忆列表备份至持久化历史快照（用于回退归纳）
         await setStoredHistoryBackup(_evtMems);
 
+        // 构建逆向映射表
+        const idToVis = {};
+        visMap.forEach((val) => { idToVis[val.id] = val.cfg; });
+
         const formattedCards = [];
         for (let i = 0; i < newCards.length; i++) {
           const c = newCards[i];
+          const cfg = idToVis[c.vis_id] || { visibility: 'all' }; // 容错回退
+
           const newCard = {
             id: 'evtm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
             title: String(c.title || '归纳事件').trim(),
@@ -5564,12 +5592,14 @@
             importance: typeof c.importance === 'number' ? Math.max(1, Math.min(10, c.importance)) : 6,
             pinned: false,
             sealed: false,
-            visibility: 'all',
+            visibility: cfg.visibility || 'all',
             hasEmbedding: false,
             embedding: null,
             created: Date.now(),
             updated: Date.now()
           };
+          if (cfg.visibleTo) newCard.visibleTo = cfg.visibleTo;
+          if (cfg.excludeFrom) newCard.excludeFrom = cfg.excludeFrom;
           formattedCards.push(newCard);
         }
 
@@ -5738,7 +5768,7 @@
       };
       const body = {
         model: model,
-        max_tokens: 4096,
+        max_tokens: 16384,
         system: sysPrompt,
         messages: [{ role: 'user', content: promptText }]
       };
@@ -5761,7 +5791,7 @@
           { role: 'user', content: promptText }
         ],
         temperature: 0.3,
-        max_tokens: 4096
+        max_tokens: 16384
       };
       resp = await safeFetch(endpoint, {
         method: 'POST',
@@ -5815,7 +5845,7 @@
       return {
         title: String(parsed.title || '对话记忆').slice(0, 30),
         summary: String(parsed.summary || '').slice(0, 100),
-        content: String(parsed.content || '').slice(0, 300),
+        content: String(parsed.content || ''),
         domain: ['情感', '日常', '创作', '思考'].includes(parsed.domain) ? parsed.domain : '日常',
         tags: Array.isArray(parsed.tags) ? parsed.tags.map(t => String(t).slice(0, 8)) : ['对话记录'],
         importance: Math.max(1, Math.min(10, parseInt(parsed.importance, 10) || 6))
