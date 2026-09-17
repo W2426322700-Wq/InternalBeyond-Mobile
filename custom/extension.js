@@ -3973,10 +3973,6 @@
           <i style="width:20%;background:rgba(148,198,166,0.7)"></i>
           <i style="width:10%;background:rgba(206,170,123,0.7)"></i>
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <button class="btn wide primary" id="evtm-add" style="margin-bottom:0">＋ 新记忆房间</button>
-          <button class="btn wide" id="evtm-vectorize">向量化检测</button>
-        </div>
         <input class="search" id="evtm-search" placeholder="搜索记忆房间…">
         <div class="chips" id="evtm-filter" style="margin-bottom:12px"></div>
         <div id="evtm-list"></div>
@@ -4001,6 +3997,7 @@
     // 3. 注册渲染与业务逻辑
     let _evtMems = [];
     let _evtmFilter = 'all';
+    let _evtmAiFilter = 'all';
     let _evtmSort = 'created';
 
     async function loadEventMemories() {
@@ -4048,6 +4045,9 @@
 
       const hit = _evtMems.filter(m => {
         if (_evtmFilter !== 'all' && m.domain !== _evtmFilter) return false;
+        if (_evtmAiFilter !== 'all') {
+          if (m.sourceAiId !== _evtmAiFilter && (!m.visibleTo || !m.visibleTo.includes(_evtmAiFilter))) return false;
+        }
         if (!q) return true;
         return [m.title, m.summary, (m.tags || []).join(' ')].join(' ').toLowerCase().indexOf(q) !== -1;
       });
@@ -4065,7 +4065,7 @@
       if (actEl) actEl.textContent = _evtMems.filter(m => !m.resolved).length;
 
       if (!hit.length) {
-        box.innerHTML = '<div class="empty">' + (q || _evtmFilter !== 'all' ? '没有匹配的记忆房间。' : '还没有记忆房间。<br>聊天达到设定轮数后副 API 会自动提炼，或点击上方新增。') + '</div>';
+        box.innerHTML = '<div class="empty">' + (q || _evtmFilter !== 'all' ? '没有匹配的记忆房间。' : '还没有记忆房间。<br>聊天达到设定轮数后副 API 会自动深度提炼生成。') + '</div>';
         return;
       }
 
@@ -4125,6 +4125,22 @@
       });
       fbox.appendChild(dBtn);
 
+      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : (function(){ try { return _cfgs || []; } catch(e) { return []; } })();
+      const ais = [['all', '全部角色'], ...cfgs.map(c => [c.id, c.nickname || c.name || c.id])];
+      const curAi = (ais.find(x => x[0] === _evtmAiFilter) || ais[0])[1];
+      const aiBtn = document.createElement('button');
+      aiBtn.className = 'mem-cat-btn';
+      aiBtn.innerHTML = '<span>' + curAi + '</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+      aiBtn.addEventListener('click', () => {
+        if (typeof window.actionSheet === 'function') {
+          window.actionSheet(ais.map(([k, t]) => ({
+            label: t,
+            fn: () => { _evtmAiFilter = k; renderFilterChips(); drawEvtMemList(); }
+          })));
+        }
+      });
+      fbox.appendChild(aiBtn);
+
       const sorts = [['created', '按时间'], ['importance', '按重要性']];
       const curSort = (sorts.find(x => x[0] === _evtmSort) || sorts[0])[1];
       const sBtn = document.createElement('button');
@@ -4154,16 +4170,324 @@
 
     // 按钮事件绑定
 
+    // 弹窗与确认框安全调用（完全兼容原生沙盒与全局环境）
+    function safeConfirm(msg, okLabel) {
+      return new Promise(resolve => {
+        try {
+          if (typeof confirmDlg === 'function') {
+            confirmDlg(msg, okLabel).then(resolve).catch(() => resolve(false));
+            return;
+          }
+          if (typeof window.confirmDlg === 'function') {
+            window.confirmDlg(msg, okLabel).then(resolve).catch(() => resolve(false));
+            return;
+          }
+        } catch(e) {}
+
+        const dlg = document.getElementById('dlg');
+        const scrim = document.getElementById('dlg-scrim');
+        const dlgMsg = document.getElementById('dlg-msg');
+        const dlgOk = document.getElementById('dlg-ok');
+        const dlgNo = document.getElementById('dlg-no');
+        if (dlg && scrim && dlgMsg && dlgOk && dlgNo) {
+          dlgMsg.textContent = msg;
+          dlgOk.textContent = okLabel || '确定';
+          dlg.classList.add('show');
+          scrim.classList.add('show');
+          let done = false;
+          const cleanup = (val) => {
+            if (done) return;
+            done = true;
+            dlg.classList.remove('show');
+            scrim.classList.remove('show');
+            dlgOk.removeEventListener('click', onOk);
+            dlgNo.removeEventListener('click', onNo);
+            scrim.removeEventListener('click', onNo);
+            resolve(val);
+          };
+          const onOk = () => cleanup(true);
+          const onNo = () => cleanup(false);
+          dlgOk.addEventListener('click', onOk, { once: true });
+          dlgNo.addEventListener('click', onNo, { once: true });
+          scrim.addEventListener('click', onNo, { once: true });
+          return;
+        }
+
+        try {
+          resolve(window.confirm(msg));
+        } catch(e) {
+          resolve(false);
+        }
+      });
+    }
+
+    function safeOpenSheet(id) {
+      try {
+        if (typeof openSheet === 'function') { openSheet(id); return; }
+        if (typeof window.openSheet === 'function') { window.openSheet(id); return; }
+      } catch(e) {}
+      const s = document.getElementById(id);
+      if (s) s.classList.add('open');
+      const sc = document.getElementById('sheet-scrim');
+      if (sc) sc.classList.add('show');
+    }
+
+    function safeCloseSheets() {
+      try {
+        if (typeof closeSheets === 'function') { closeSheets(); return; }
+        if (typeof window.closeSheets === 'function') { window.closeSheets(); return; }
+      } catch(e) {}
+      document.querySelectorAll('.sheet.open').forEach(s => s.classList.remove('open'));
+      const sc = document.getElementById('sheet-scrim');
+      if (sc) sc.classList.remove('show');
+    }
+
+    function safeToast(msg) {
+      if (typeof window.toast === 'function') window.toast(msg);
+      else {
+        try { if (typeof toast === 'function') toast(msg); } catch(e) {}
+      }
+    }
+
     let _detailEvtm = null;
     let _editEvtmId = null;
     let _evtmVisChips = [];
+
+    function ensureEvtmSheets() {
+      if (!document.getElementById('sheet-evtm-detail')) {
+        const detailSheet = document.createElement('div');
+        detailSheet.className = 'sheet';
+        detailSheet.id = 'sheet-evtm-detail';
+        detailSheet.innerHTML = `
+          <h3 id="evtmd-title">记忆房间</h3>
+          <div class="detail-sum" id="evtmd-sum"></div>
+          <div class="detail-block" id="evtmd-body"></div>
+          <div class="detail-meta" id="evtmd-meta"></div>
+          <div class="sheet-btns">
+            <button class="btn danger" id="evtmd-del">删除</button>
+            <button class="btn" id="evtmd-close" data-close="1">关闭</button>
+            <button class="btn primary" id="evtmd-edit">编辑</button>
+          </div>
+        `;
+        document.body.appendChild(detailSheet);
+
+        const btnClose = detailSheet.querySelector('#evtmd-close');
+        if (btnClose) {
+          btnClose.onclick = (e) => {
+            e.preventDefault();
+            safeCloseSheets();
+          };
+        }
+
+        const btnEdit = detailSheet.querySelector('#evtmd-edit');
+        if (btnEdit) {
+          btnEdit.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!_detailEvtm) return;
+            const m = _detailEvtm;
+            safeCloseSheets();
+            setTimeout(() => {
+              openEvtmEditor(m);
+            }, 60);
+          };
+        }
+
+        const btnDel = detailSheet.querySelector('#evtmd-del');
+        if (btnDel) {
+          btnDel.onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!_detailEvtm) return;
+            const targetId = _detailEvtm.id;
+            const ok = await safeConfirm('删除这条记忆房间？', '删除');
+            if (!ok) return;
+            _evtMems = _evtMems.filter(x => x.id !== targetId);
+            saveAndRedraw();
+            safeCloseSheets();
+            safeToast('已删除');
+          };
+        }
+      }
+
+      if (!document.getElementById('sheet-evtm')) {
+        const editSheet = document.createElement('div');
+        editSheet.className = 'sheet';
+        editSheet.id = 'sheet-evtm';
+        editSheet.innerHTML = `
+          <h3 id="evtme-title" style="font-size:1.3rem">记忆房间</h3>
+          <div class="f-group"><label>标题 *</label><input id="evtme-t" maxlength="80"></div>
+          <div class="f-group"><label>概述 <span class="lb-note">（一两句话，列表与注入优先显示）</span></label><textarea id="evtme-s" rows="2"></textarea></div>
+          <div class="f-group"><label>核心内容 / 对话脉络</label><textarea id="evtme-c" rows="5"></textarea></div>
+          <div class="f-row">
+            <div class="f-group"><label>领域</label><div class="sel"><select id="evtme-domain"><option>情感</option><option>日常</option><option>创作</option><option>思考</option></select></div></div>
+            <div class="f-group"><label>标签 <span class="lb-note">（逗号分隔）</span></label><input id="evtme-tags"></div>
+          </div>
+          <div class="f-group"><label>重要性 <span class="lb-note">（1–10）</span></label>
+            <div class="range-row"><input type="range" class="ib-range" id="evtme-imp" min="1" max="10" value="5"><span class="range-val" id="evtme-imp-val">5</span></div>
+          </div>
+          <div class="f-group"><label>置顶</label>
+            <div class="tog"><div class="tog-m"><div class="tog-t">置顶此记忆房间</div></div><div class="sw2" id="evtme-pin"></div></div>
+          </div>
+          <div class="f-group"><label>可见性</label>
+            <div class="sel">
+              <select id="evtme-vis">
+                <option value="all">所有 AI 可见</option>
+                <option value="only">仅以下 AI 可见</option>
+                <option value="except">对以下 AI 隐藏</option>
+                <option value="private">完全私密</option>
+              </select>
+            </div>
+            <div class="chips" id="evtme-vis-list" style="margin-top:8px;display:none"></div>
+          </div>
+          <div class="sheet-btns">
+            <button class="btn danger" id="evtme-del" style="display:none">删除</button>
+            <button class="btn" id="evtme-cancel" data-close="1">取消</button>
+            <button class="btn primary" id="evtme-save">保存</button>
+          </div>
+        `;
+        document.body.appendChild(editSheet);
+
+        const impSlider = editSheet.querySelector('#evtme-imp');
+        const impVal = editSheet.querySelector('#evtme-imp-val');
+        if (impSlider && impVal) {
+          impSlider.addEventListener('input', () => {
+            impVal.textContent = impSlider.value;
+            if (typeof window.rangeFill === 'function') window.rangeFill(impSlider);
+            else {
+              try { if (typeof rangeFill === 'function') rangeFill(impSlider); } catch(e) {}
+            }
+          });
+        }
+
+        const pinSw = editSheet.querySelector('#evtme-pin');
+        if (pinSw) {
+          pinSw.addEventListener('click', () => {
+            const on = !pinSw.classList.contains('on');
+            if (typeof window.sw2 === 'function') window.sw2(pinSw, on);
+            else {
+              try { if (typeof sw2 === 'function') sw2(pinSw, on); else pinSw.classList.toggle('on', on); } catch(e) { pinSw.classList.toggle('on', on); }
+            }
+          });
+        }
+
+        const visSel = editSheet.querySelector('#evtme-vis');
+        const visBox = editSheet.querySelector('#evtme-vis-list');
+        if (visSel && visBox) {
+          visSel.addEventListener('change', () => {
+            visBox.style.display = (visSel.value === 'only' || visSel.value === 'except') ? 'flex' : 'none';
+          });
+        }
+
+        const btnCancel = editSheet.querySelector('#evtme-cancel');
+        if (btnCancel) {
+          btnCancel.onclick = (e) => {
+            e.preventDefault();
+            safeCloseSheets();
+          };
+        }
+
+        const btnDel = editSheet.querySelector('#evtme-del');
+        if (btnDel) {
+          btnDel.onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!_editEvtmId) return;
+            const targetId = _editEvtmId;
+            const ok = await safeConfirm('删除这条记忆房间？', '删除');
+            if (!ok) return;
+            _evtMems = _evtMems.filter(x => x.id !== targetId);
+            saveAndRedraw();
+            safeCloseSheets();
+            safeToast('已删除');
+          };
+        }
+
+        const btnSave = editSheet.querySelector('#evtme-save');
+        if (btnSave) {
+          btnSave.onclick = async (e) => {
+            e.preventDefault();
+            const inT = document.getElementById('evtme-t');
+            const title = (inT ? inT.value : '').trim();
+            if (!title) {
+              safeToast('请填写标题');
+              return;
+            }
+
+            const inS = document.getElementById('evtme-s');
+            const inC = document.getElementById('evtme-c');
+            const inDom = document.getElementById('evtme-domain');
+            const inTags = document.getElementById('evtme-tags');
+            const inImp = document.getElementById('evtme-imp');
+            const pinToggle = document.getElementById('evtme-pin');
+            const inVis = document.getElementById('evtme-vis');
+
+            const summary = inS ? inS.value.trim() : '';
+            const content = inC ? inC.value.trim() : '';
+            const domain = inDom ? inDom.value : '日常';
+            const tags = inTags ? inTags.value.split(/[,，]/).map(x => x.trim()).filter(Boolean) : [];
+            const importance = inImp ? parseInt(inImp.value, 10) : 5;
+            const pinned = pinToggle ? pinToggle.classList.contains('on') : false;
+            const visibility = inVis ? inVis.value : 'all';
+
+            let target = _editEvtmId ? _evtMems.find(x => x.id === _editEvtmId) : null;
+            const isNew = !target;
+            if (isNew) {
+              target = {
+                id: 'evtm_' + Date.now(),
+                created: Date.now()
+              };
+              _evtMems.unshift(target);
+            }
+
+            target.title = title;
+            target.summary = summary;
+            target.content = content;
+            target.domain = domain;
+            target.tags = tags;
+            target.importance = importance;
+            target.pinned = pinned;
+            target.visibility = visibility;
+            if (visibility === 'only') {
+              target.visibleTo = _evtmVisChips.slice();
+              delete target.excludeFrom;
+            } else if (visibility === 'except') {
+              target.excludeFrom = _evtmVisChips.slice();
+              delete target.visibleTo;
+            } else {
+              delete target.visibleTo;
+              delete target.excludeFrom;
+            }
+            target.updated = Date.now();
+
+            // 保存时自动静默进行向量化更新
+            const textToEmbed = [title, summary, content].filter(Boolean).join('\n');
+            if (typeof window.callEmbeddingApi === 'function' && textToEmbed) {
+              window.callEmbeddingApi(textToEmbed).then(vec => {
+                if (vec && Array.isArray(vec)) {
+                  target.embedding = vec;
+                  target.hasEmbedding = true;
+                  saveAndRedraw();
+                }
+              }).catch(err => {
+                console.warn('[MemoryRoom] 向量更新跳过:', err);
+              });
+            }
+
+            saveAndRedraw();
+            safeCloseSheets();
+            safeToast(isNew ? '已创建记忆房间' : '已保存');
+          };
+        }
+      }
+    }
 
     function fillEvtmVisList(m) {
       const box = document.getElementById('evtme-vis-list');
       if (!box) return;
       box.innerHTML = '';
       _evtmVisChips = m ? (m.visibility === 'only' ? (m.visibleTo || []).slice() : m.visibility === 'except' ? (m.excludeFrom || []).slice() : []) : [];
-      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : [];
+      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : (function(){ try { return _cfgs || []; } catch(e) { return []; } })();
       cfgs.forEach(c => {
         const chip = document.createElement('div');
         chip.className = 'chip' + (_evtmVisChips.indexOf(c.id) !== -1 ? ' on' : '');
@@ -4179,8 +4503,15 @@
 
     async function openEvtmDetail(m) {
       _detailEvtm = m;
-      if (typeof window.loadCfgs === 'function') await window.loadCfgs();
-      document.getElementById('evtmd-title').textContent = m.title || '（无标题）';
+      ensureEvtmSheets();
+      try {
+        if (typeof loadCfgs === 'function') await loadCfgs();
+        else if (typeof window.loadCfgs === 'function') await window.loadCfgs();
+      } catch(e) {}
+      
+      const titleEl = document.getElementById('evtmd-title');
+      if (titleEl) titleEl.textContent = m.title || '（无标题）';
+
       const _sm = String(m.summary || '').replace(/\s+/g, ' ').trim();
       const _ct = String(m.content || '');
       const _dup = !!(_sm && _ct && _ct.replace(/\s+/g, ' ').trim().indexOf(_sm) === 0);
@@ -4192,9 +4523,12 @@
       
       const parts = [];
       if (_ct) parts.push(_ct);
-      document.getElementById('evtmd-body').textContent = parts.join('\n\n') || (_sm ? '' : '（无内容）');
+      const bodyEl = document.getElementById('evtmd-body');
+      if (bodyEl) {
+        bodyEl.textContent = parts.join('\n\n') || (_sm ? '' : '（无内容）');
+      }
       
-      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : [];
+      const cfgs = (typeof window._cfgs !== 'undefined') ? window._cfgs : (function(){ try { return _cfgs || []; } catch(e) { return []; } })();
       const getNames = (arr) => arr.map(id => {
          const c = cfgs.find(x => x.id === id);
          return c ? (c.nickname || id) : id;
@@ -4205,90 +4539,146 @@
       else if (m.visibility === 'only') visStr = '仅对：' + getNames(m.visibleTo || []);
       else if (m.visibility === 'except') visStr = '排除：' + getNames(m.excludeFrom || []);
 
-      document.getElementById('evtmd-meta').textContent = 
-        '领域：' + (m.domain || '—') + '　重要性：' + (m.importance != null ? m.importance : '—') +
-        '\n可见性：' + visStr +
-        '\n置顶：' + (m.pinned ? '是' : '否') +
-        (m.tags && m.tags.length ? '\n标签：' + m.tags.join('，') : '') +
-        (m.created ? '\n创建：' + new Date(m.created).toLocaleString('zh-CN') : '');
-      
-      if (typeof window.openSheet === 'function') {
-        window.openSheet('sheet-evtm-detail');
-      } else {
-        document.getElementById('sheet-evtm-detail').classList.add('open');
-        const scrim = document.getElementById('sheet-scrim');
-        if (scrim) scrim.classList.add('show');
+      const metaEl = document.getElementById('evtmd-meta');
+      if (metaEl) {
+        metaEl.textContent = 
+          '领域：' + (m.domain || '—') + '　重要性：' + (m.importance != null ? m.importance : '—') +
+          '\n可见性：' + visStr +
+          '\n置顶：' + (m.pinned ? '是' : '否') +
+          (m.hasEmbedding ? '\n向量状态：已就绪' : '\n向量状态：未向量化') +
+          (m.tags && m.tags.length ? '\n标签：' + m.tags.join('，') : '') +
+          (m.created ? '\n创建：' + new Date(m.created).toLocaleString('zh-CN') : '');
       }
+
+      // 确保详情抽屉上的按钮事件始终牢固绑定
+      const btnEdit = document.getElementById('evtmd-edit');
+      if (btnEdit) {
+        btnEdit.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const targetMem = _detailEvtm;
+          if (!targetMem) return;
+          safeCloseSheets();
+          setTimeout(() => {
+            openEvtmEditor(targetMem);
+          }, 60);
+        };
+      }
+
+      const btnDel = document.getElementById('evtmd-del');
+      if (btnDel) {
+        btnDel.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!_detailEvtm) return;
+          const targetId = _detailEvtm.id;
+          const ok = await safeConfirm('删除这条记忆房间？', '删除');
+          if (!ok) return;
+          _evtMems = _evtMems.filter(x => x.id !== targetId);
+          saveAndRedraw();
+          safeCloseSheets();
+          safeToast('已删除');
+        };
+      }
+
+      const btnClose = document.getElementById('evtmd-close');
+      if (btnClose) {
+        btnClose.onclick = (e) => {
+          e.preventDefault();
+          safeCloseSheets();
+        };
+      }
+      
+      safeOpenSheet('sheet-evtm-detail');
     }
 
     async function openEvtmEditor(m) {
       ensureEvtmSheets();
-      if (typeof window.loadCfgs === 'function') await window.loadCfgs();
+      try {
+        if (typeof loadCfgs === 'function') await loadCfgs();
+        else if (typeof window.loadCfgs === 'function') await window.loadCfgs();
+      } catch(e) {}
       _editEvtmId = m ? m.id : null;
-      document.getElementById('evtme-title').textContent = m ? '编辑记忆房间' : '新记忆房间';
-      document.getElementById('evtme-t').value = m ? (m.title || '') : '';
-      document.getElementById('evtme-c').value = m ? (m.content || '') : '';
-      document.getElementById('evtme-s').value = m ? (m.summary || '') : '';
-      document.getElementById('evtme-domain').value = m && ['情感','日常','创作','思考'].indexOf(m.domain) !== -1 ? m.domain : '日常';
-      document.getElementById('evtme-tags').value = m ? (m.tags || []).join('，') : '';
-      document.getElementById('evtme-imp').value = m && m.importance != null ? m.importance : 5;
-      document.getElementById('evtme-imp-val').textContent = m && m.importance != null ? m.importance : 5;
+
+      const titleEl = document.getElementById('evtme-title');
+      if (titleEl) titleEl.textContent = m ? '编辑记忆房间' : '新记忆房间';
+
+      const inT = document.getElementById('evtme-t');
+      if (inT) inT.value = m ? (m.title || '') : '';
+
+      const inC = document.getElementById('evtme-c');
+      if (inC) inC.value = m ? (m.content || '') : '';
+
+      const inS = document.getElementById('evtme-s');
+      if (inS) inS.value = m ? (m.summary || '') : '';
+
+      const inDom = document.getElementById('evtme-domain');
+      if (inDom) inDom.value = m && ['情感','日常','创作','思考'].indexOf(m.domain) !== -1 ? m.domain : '日常';
+
+      const inTags = document.getElementById('evtme-tags');
+      if (inTags) inTags.value = m ? (m.tags || []).join('，') : '';
+
+      const inImp = document.getElementById('evtme-imp');
+      const inImpVal = document.getElementById('evtme-imp-val');
+      const imp = m && m.importance != null ? m.importance : 5;
+      if (inImp) inImp.value = imp;
+      if (inImpVal) inImpVal.textContent = imp;
+      if (inImp) {
+        if (typeof window.rangeFill === 'function') window.rangeFill(inImp);
+        else {
+          try { if (typeof rangeFill === 'function') rangeFill(inImp); } catch(e) {}
+        }
+      }
       
       const pinSw = document.getElementById('evtme-pin');
       const pinned = m ? !!m.pinned : false;
-      if (typeof window.sw2 === 'function') {
-        window.sw2(pinSw, pinned);
-      } else {
-        if (pinned) pinSw.classList.add('on');
-        else pinSw.classList.remove('on');
+      if (pinSw) {
+        if (typeof window.sw2 === 'function') {
+          window.sw2(pinSw, pinned);
+        } else {
+          try {
+            if (typeof sw2 === 'function') sw2(pinSw, pinned);
+            else {
+              if (pinned) pinSw.classList.add('on');
+              else pinSw.classList.remove('on');
+            }
+          } catch(e) {
+            if (pinned) pinSw.classList.add('on');
+            else pinSw.classList.remove('on');
+          }
+        }
       }
 
       const vis = m && m.visibility ? m.visibility : 'all';
-      document.getElementById('evtme-vis').value = vis;
-      document.getElementById('evtme-vis-list').style.display = (vis === 'only' || vis === 'except') ? 'flex' : 'none';
+      const inVis = document.getElementById('evtme-vis');
+      if (inVis) inVis.value = vis;
+      const visList = document.getElementById('evtme-vis-list');
+      if (visList) visList.style.display = (vis === 'only' || vis === 'except') ? 'flex' : 'none';
       fillEvtmVisList(m);
 
-      if (typeof window.openSheet === 'function') {
-        window.openSheet('sheet-evtm');
-      } else {
-        document.getElementById('sheet-evtm').classList.add('open');
-        const scrim = document.getElementById('sheet-scrim');
-        if (scrim) scrim.classList.add('show');
+      const delBtn = document.getElementById('evtme-del');
+      if (delBtn) {
+        delBtn.style.display = m ? 'inline-block' : 'none';
+        delBtn.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!_editEvtmId) return;
+          const targetId = _editEvtmId;
+          const ok = await safeConfirm('删除这条记忆房间？', '删除');
+          if (!ok) return;
+          _evtMems = _evtMems.filter(x => x.id !== targetId);
+          saveAndRedraw();
+          safeCloseSheets();
+          safeToast('已删除');
+        };
       }
+
+      safeOpenSheet('sheet-evtm');
     }
 
 
 
 
-
-    // Completely replace Add btn listener with event delegation on parent or cloneNode to remove old prompt() listeners
-    const addBtns = document.querySelectorAll('#evtm-add');
-    addBtns.forEach(btn => {
-      const newBtn = btn.cloneNode(true);
-      if (btn.parentNode) {
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('click', () => {
-          openEvtmEditor(null);
-        });
-      }
-    });
-    const vecBtn = document.getElementById('evtm-vectorize');
-    if (vecBtn) {
-      vecBtn.addEventListener('click', () => {
-        const embCfg = window.getEmbeddingApiConfig ? window.getEmbeddingApiConfig() : null;
-        if (!embCfg || !embCfg.key) {
-          if (typeof window.toast === 'function') window.toast('请先在「API → 多模态」配置并保存 Embedding API');
-          return;
-        }
-        // 模拟/快速标记已就绪
-        let count = 0;
-        _evtMems.forEach(m => {
-          if (!m.hasEmbedding) { m.hasEmbedding = true; count++; }
-        });
-        saveAndRedraw();
-        if (typeof window.toast === 'function') window.toast(`已完成 ${count} 条记忆房间的向量校验`);
-      });
-    }
 
     const searchInput = document.getElementById('evtm-search');
     if (searchInput) {
@@ -4334,6 +4724,9 @@
       });
     }
 
+    // 确保记忆房间的详情与编辑抽屉在 DOM 中已就绪
+    ensureEvtmSheets();
+
     // 若当前就是 evt 分区直接渲染
     if ((typeof currentPage !== "undefined" ? currentPage : "") === 'memory' && (typeof _sec !== "undefined" ? _sec : {}) && (typeof _sec !== "undefined" ? _sec : {})['memory'] === 'evt') {
       window.renderEventMemLib();
@@ -4352,4 +4745,371 @@
   setTimeout(bootAllPatches, 1000);
   setTimeout(bootAllPatches, 3000);
   document.addEventListener('DOMContentLoaded', bootAllPatches);
+
+
+  // ── 记忆房间：副 API 提炼与 Embedding 向量化引擎 ──
+  async function callSubApiForSummary(promptText) {
+    const cfg = window.getSubApiConfig ? window.getSubApiConfig() : null;
+    if (!cfg || !cfg.key) {
+      throw new Error('请先在「API → 多模态」中配置并保存副 API 密钥');
+    }
+    const endpoint = (cfg.endpoint || 'https://api.siliconflow.cn/v1/chat/completions').trim();
+    const model = (cfg.model || 'Qwen/Qwen2.5-7B-Instruct').trim();
+    
+    const sysPrompt = `你是一个精准的记忆与认知整理专家。请根据提供的用户与AI近期对话内容，提炼出一段值得沉淀为长期记忆的卡片。
+请严格输出合法的 JSON 对象，格式如下（不包含 markdown 反引号包裹）：
+{
+  "title": "简短醒目的标题(15字内)",
+  "summary": "一两句话提炼概述(50字内)",
+  "content": "核心事实与对话详情脉络(先事实后感受，真实无杜撰，150字内)",
+  "domain": "情感 或 日常 或 创作 或 思考",
+  "tags": ["标签1", "标签2"],
+  "importance": 7
+}
+注意：domain 必须为 "情感"、"日常"、"创作"、"思考" 之一；importance 为 1-10 的整数；tags 数组包含2-4个短标签。`;
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + cfg.key.trim()
+    };
+    
+    const body = {
+      model: model,
+      messages: [
+        { role: 'system', content: sysPrompt },
+        { role: 'user', content: promptText }
+      ],
+      temperature: 0.3
+    };
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) {
+      const errTxt = await resp.text();
+      throw new Error('副 API 请求失败(' + resp.status + '): ' + errTxt.slice(0, 80));
+    }
+
+    const data = await resp.json();
+    const resContent = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    
+    // 尝试提取 JSON
+    let cleanJson = resContent.trim();
+    cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleanJson = jsonMatch[0];
+    
+    try {
+      const parsed = JSON.parse(cleanJson);
+      return {
+        title: String(parsed.title || '对话记忆').slice(0, 30),
+        summary: String(parsed.summary || '').slice(0, 100),
+        content: String(parsed.content || '').slice(0, 300),
+        domain: ['情感', '日常', '创作', '思考'].includes(parsed.domain) ? parsed.domain : '日常',
+        tags: Array.isArray(parsed.tags) ? parsed.tags.map(t => String(t).slice(0, 8)) : ['对话记录'],
+        importance: Math.max(1, Math.min(10, parseInt(parsed.importance, 10) || 6))
+      };
+    } catch(e) {
+      // 容错解析
+      return {
+        title: '对话记忆 ' + new Date().toLocaleDateString(),
+        summary: resContent.slice(0, 60),
+        content: resContent.slice(0, 260),
+        domain: '日常',
+        tags: ['自动沉淀'],
+        importance: 6
+      };
+    }
+  }
+
+  async function callEmbeddingApi(text) {
+    const cfg = window.getEmbeddingApiConfig ? window.getEmbeddingApiConfig() : null;
+    if (!cfg || !cfg.key) {
+      console.warn('[Embedding] 未配置 Embedding API，跳过向量计算');
+      return null;
+    }
+    const endpoint = (cfg.endpoint || 'https://api.siliconflow.cn/v1/embeddings').trim();
+    const model = (cfg.model || 'BAAI/bge-m3').trim();
+
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + cfg.key.trim()
+        },
+        body: JSON.stringify({
+          model: model,
+          input: text.slice(0, 1500)
+        })
+      });
+
+      if (!resp.ok) {
+        console.warn('[Embedding] 向量接口响应非200:', resp.status);
+        return null;
+      }
+      const data = await resp.json();
+      if (data.data && data.data[0] && Array.isArray(data.data[0].embedding)) {
+        return data.data[0].embedding;
+      }
+    } catch(e) {
+      console.warn('[Embedding] 向量计算发生异常:', e);
+    }
+    return null;
+  }
+
+  // 统一核心方法：从对话中沉淀并存入记忆房间
+  window.saveToEventMemoryRoom = async function(options) {
+    options = options || {};
+    const msgs = Array.isArray(options.messages) ? options.messages : (window._msgs || []);
+    if (!msgs || msgs.length < 2) {
+      if (typeof window.toast === 'function') window.toast('对话记录太少，无法提炼记忆房间');
+      return null;
+    }
+
+    const cfg = window._activeCfg || {};
+    const aiName = (typeof window.cfgName === 'function') ? window.cfgName(cfg) : (cfg.nickname || cfg.id || 'AI');
+    const userName = (typeof window._amUserName === 'function') ? window._amUserName() : '用户';
+    
+    // 截取最近指定数量或默认 25 条对话
+    const count = options.count || 25;
+    const sliceMsgs = msgs.slice(-count);
+
+    let lines = [];
+    sliceMsgs.forEach(m => {
+      const speaker = m.role === 'user' ? userName : (m.senderName || aiName);
+      let t = String(m.content || '').trim();
+      if (!t && m.voice) t = String(m.voice.transcript || '').trim() || '（语音）';
+      if (t) lines.push(speaker + '：' + t.slice(0, 200));
+    });
+
+    if (lines.length < 2) {
+      if (typeof window.toast === 'function') window.toast('可提炼的文本记录不足');
+      return null;
+    }
+
+    const transcript = lines.join('\n');
+    if (typeof window.toast === 'function') window.toast('正在使用副 API 提炼记忆房间…');
+
+    const summaryResult = await callSubApiForSummary(transcript);
+    
+    // 准备向量计算文本：标题 + 概述 + 核心事实 + 标签
+    const textToEmbed = [
+      summaryResult.title,
+      summaryResult.summary,
+      summaryResult.content,
+      summaryResult.tags.join(' ')
+    ].filter(Boolean).join(' ');
+
+    if (typeof window.toast === 'function') window.toast('正在进行 Embedding 语义向量化…');
+    const embeddingVec = await callEmbeddingApi(textToEmbed);
+
+    const memItem = {
+      id: 'evtm_' + Date.now(),
+      title: summaryResult.title,
+      summary: summaryResult.summary,
+      content: summaryResult.content,
+      domain: summaryResult.domain,
+      tags: summaryResult.tags,
+      importance: summaryResult.importance,
+      pinned: false,
+      visibility: 'all',
+      visibleTo: [],
+      excludeFrom: [],
+      hasEmbedding: !!(embeddingVec && embeddingVec.length > 0),
+      embedding: embeddingVec || null,
+      created: Date.now(),
+      sourceAiId: cfg.id || null,
+      sourceAiName: aiName
+    };
+
+    // 存入记忆房间
+    try {
+      const raw = localStorage.getItem('ib_custom_event_memories');
+      let list = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) list = [];
+      list.unshift(memItem);
+      localStorage.setItem('ib_custom_event_memories', JSON.stringify(list));
+      _lastAutoSavedMsgCount = (window._msgs || []).length;
+      
+      // 若当前正停留在记忆房间，立即重绘
+      if (typeof window.renderEventMemLib === 'function') {
+        window.renderEventMemLib();
+      }
+    } catch(err) {
+      console.error('[MemoryRoom] 写入记忆房间失败:', err);
+    }
+
+    if (typeof window.toast === 'function') {
+      window.toast('已沉淀至记忆房间：' + memItem.title + (memItem.hasEmbedding ? ' [向量就绪]' : ''));
+    }
+    return memItem;
+  };
+
+  // ── 挂载聊天菜单「进入房间」按钮 ──
+  function hookChatSideDrawer() {
+    const csOps = document.getElementById('cs-ops');
+    if (!csOps || document.getElementById('cs-evtm-room-btn')) return;
+
+    const btn = document.createElement('div');
+    btn.className = 'tp-item cs-item';
+    btn.id = 'cs-evtm-room-btn';
+    btn.innerHTML = '<i class="cs-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M14 10l3 2-3 2"/></svg></i><span>Memory Room <b class="cs-cn">进入房间</b></span>';
+    
+    btn.addEventListener('click', async () => {
+      const cs = document.getElementById('chat-side');
+      if (cs) cs.classList.remove('open');
+      
+      // 弹出轻量快捷操作确认
+      const act = typeof window.confirmDlg === 'function' 
+        ? await window.confirmDlg('提取近期对话并沉淀至「记忆房间」？', '开始提炼')
+        : confirm('提取近期对话并沉淀至「记忆房间」？');
+      if (!act) return;
+
+      try {
+        await window.saveToEventMemoryRoom({ count: 30 });
+      } catch(e) {
+        if (typeof window.toast === 'function') {
+          window.toast('记忆沉淀失败：' + (e.message || e));
+        }
+      }
+    });
+
+    // 插入在 Select 选择消息或 Save Memory 之后
+    if (csOps.children.length > 1) {
+      csOps.insertBefore(btn, csOps.children[2] || csOps.firstChild);
+    } else {
+      csOps.appendChild(btn);
+    }
+  }
+
+  // 立即尝试挂载一次，并通过劫持 openCvDrawer 与 DOM 事件确保侧边栏滑出时瞬时呈现
+  hookChatSideDrawer();
+  if (typeof window.openCvDrawer === 'function') {
+    const origOpenCvDrawer = window.openCvDrawer;
+    window.openCvDrawer = function(...args) {
+      hookChatSideDrawer();
+      return origOpenCvDrawer.apply(this, args);
+    };
+  } else {
+    // 监听 openCvDrawer 可能后续定义的时机
+    let _origDrawer = window.openCvDrawer;
+    Object.defineProperty(window, 'openCvDrawer', {
+      configurable: true,
+      enumerable: true,
+      get() { return _origDrawer; },
+      set(fn) {
+        _origDrawer = function(...args) {
+          hookChatSideDrawer();
+          return fn.apply(this, args);
+        };
+      }
+    });
+  }
+  // 同时监听右上方菜单按钮点击事件与侧边栏过渡，确保任何触发场景零延迟
+  document.addEventListener('click', (e) => {
+    if (e.target && (e.target.closest('#cv-menu-btn') || e.target.closest('#chat-side') || e.target.closest('#btn-chat-side'))) {
+      hookChatSideDrawer();
+    }
+  }, true);
+
+  // ── 全局设置增加「自动进入房间」开关与阈值 ──
+  function hookGlobalAutoMemRoomSettings() {
+    const secLabels = document.querySelectorAll('.sec-label');
+    let memSecLabel = null;
+    secLabels.forEach(el => {
+      if (el.textContent.trim() === '记忆系统') memSecLabel = el;
+    });
+    if (!memSecLabel) return;
+
+    const memCard = memSecLabel.nextElementSibling;
+    if (!memCard || !memCard.classList.contains('card') || document.getElementById('amr-auto-group')) return;
+
+    const amrGroup = document.createElement('div');
+    amrGroup.id = 'amr-auto-group';
+    amrGroup.style.cssText = 'margin-top:14px;border-top:1px solid var(--line);padding-top:14px;';
+    
+    // 读取本地配置
+    const isAutoOn = localStorage.getItem('ib_amr_auto_enabled') === 'true';
+    const autoCount = parseInt(localStorage.getItem('ib_amr_auto_threshold'), 10) || 20;
+
+    amrGroup.innerHTML = `
+      <div class="tog">
+        <div class="tog-m">
+          <div class="tog-t">自动进入记忆房间</div>
+          <div class="tog-s">与 AI 聊天达到设定轮数后，后台自动调用副 API 提炼并向量化存入记忆房间。</div>
+        </div>
+        <div class="sw2 ${isAutoOn ? 'on' : ''}" id="amr-auto-toggle"></div>
+      </div>
+      <div class="f-group" id="amr-threshold-wrap" style="margin-top:10px;${isAutoOn ? '' : 'display:none;'}">
+        <label>自动沉淀频率 <span class="lb-note">（对话每累积达到条数时触发）</span></label>
+        <div class="sel">
+          <select id="amr-auto-threshold-select">
+            <option value="10" ${autoCount === 10 ? 'selected' : ''}>每 10 条对话</option>
+            <option value="20" ${autoCount === 20 ? 'selected' : ''}>每 20 条对话（推荐）</option>
+            <option value="30" ${autoCount === 30 ? 'selected' : ''}>每 30 条对话</option>
+            <option value="50" ${autoCount === 50 ? 'selected' : ''}>每 50 条对话（大段归纳）</option>
+          </select>
+        </div>
+      </div>
+    `;
+
+    memCard.appendChild(amrGroup);
+
+    const tog = document.getElementById('amr-auto-toggle');
+    const wrap = document.getElementById('amr-threshold-wrap');
+    const sel = document.getElementById('amr-auto-threshold-select');
+
+    tog.addEventListener('click', () => {
+      const nowOn = !tog.classList.contains('on');
+      if (typeof window.sw2 === 'function') window.sw2(tog, nowOn);
+      else tog.classList.toggle('on', nowOn);
+      
+      localStorage.setItem('ib_amr_auto_enabled', nowOn ? 'true' : 'false');
+      if (wrap) wrap.style.display = nowOn ? '' : 'none';
+      if (typeof window.toast === 'function') window.toast(nowOn ? '已开启自动沉淀记忆房间' : '已关闭自动沉淀记忆房间');
+    });
+
+    sel.addEventListener('change', () => {
+      localStorage.setItem('ib_amr_auto_threshold', sel.value);
+      if (typeof window.toast === 'function') window.toast('自动沉淀阈值已设为 ' + sel.value + ' 条');
+    });
+  }
+
+  // ── 聊天消息计数器与自动触发监听 ──
+  let _lastAutoSavedMsgCount = 0;
+  function checkAutoMemoryRoomTrigger() {
+    const isAutoOn = localStorage.getItem('ib_amr_auto_enabled') === 'true';
+    if (!isAutoOn) return;
+
+    const msgs = window._msgs || [];
+    if (msgs.length < 5) return;
+
+    const threshold = parseInt(localStorage.getItem('ib_amr_auto_threshold'), 10) || 20;
+    
+    // 初始化基线
+    if (_lastAutoSavedMsgCount === 0) {
+      _lastAutoSavedMsgCount = msgs.length;
+      return;
+    }
+
+    if (msgs.length - _lastAutoSavedMsgCount >= threshold) {
+      _lastAutoSavedMsgCount = msgs.length;
+      console.log('[AutoMemoryRoom] 触发自动沉淀，对话增长数:', threshold);
+      window.saveToEventMemoryRoom({ count: threshold }).catch(e => {
+        console.warn('[AutoMemoryRoom] 自动沉淀跳过或失败:', e);
+      });
+    }
+  }
+
+  // 挂载轮询与事件监测
+  setInterval(() => {
+    hookChatSideDrawer();
+    hookGlobalAutoMemRoomSettings();
+    checkAutoMemoryRoomTrigger();
+  }, 1200);
+
 })();

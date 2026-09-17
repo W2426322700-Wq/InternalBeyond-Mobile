@@ -1053,18 +1053,13 @@
       </div>
     `;
 
-    // 自动平滑滚动
+    // 保持在顶部，不自动向下滚动
     setTimeout(function() {
       var calView = host.querySelector('.ib-tc-body');
       if (calView) {
-        var scrollTarget = isTodayPage ? (nowTopPx - 100) : 300;
-        if (todayList.length > 0) {
-          var firstMin = timeStrToOffsetMinutes(todayList[0].time || todayList[0].startTime);
-          scrollTarget = (firstMin / 60) * HOUR_HEIGHT + 180;
-        }
-        calView.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+        calView.scrollTop = 0;
       }
-    }, 100);
+    }, 50);
 
     // 绑定关闭应用
     host.querySelector('#tc-close-btn').addEventListener('click', function() {
