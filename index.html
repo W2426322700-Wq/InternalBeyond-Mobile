@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' blob: https://u.y.qq.com https://lp.open.weixin.qq.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src * data: blob:; media-src * data: blob:; connect-src * data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" id="meta-theme-color" content="#dfe9f6">
 <script id="ib-splash-precheck">
 
@@ -1409,14 +1409,15 @@ body.ib-reduce .ibw-card{animation:none!important;transform:rotateY(-6deg) rotat
 body.dk-edit #sec-profile-cal .sb-desk>[data-dk]{position:relative;border-radius:22px;outline:1.5px dashed rgba(122,162,222,0.62);outline-offset:-1px}
 body.dk-edit #sec-profile-cal .sb-desk>[data-dk].dk-src{outline-color:transparent}
 .dk-x{position:absolute;left:0;top:0;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.92);color:var(--acc);border:1px solid rgba(120,160,220,0.45);box-shadow:0 2px 8px rgba(60,100,160,0.18);z-index:6;cursor:pointer;display:none;-webkit-tap-highlight-color:transparent}
+.dk-pic{position:absolute;right:0;top:0;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.92);color:var(--acc);border:1px solid rgba(120,160,220,0.45);box-shadow:0 2px 8px rgba(60,100,160,0.18);z-index:6;cursor:pointer;display:none;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}.dk-pic svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}/* v257-p：编辑态右上角「换图」小键（与「−」同款） */
 .dk-x::before{content:"";position:absolute;left:6px;top:9.5px;width:9px;height:2px;border-radius:2px;background:currentColor}
-body.theme-infernal .dk-x{background:rgba(40,56,86,0.94);color:#cfe0f8;border-color:rgba(160,196,240,0.35)}/* v156-p：#7 「−」改主题色淡款 */
+body.theme-infernal .dk-x,body.theme-infernal .dk-pic{background:rgba(40,56,86,0.94);color:#cfe0f8;border-color:rgba(160,196,240,0.35)}/* v156-p：#7 「−」改主题色淡款 */
 @keyframes dkWig{0%{transform:rotate(-1.1deg)}100%{transform:rotate(1.1deg)}}
 body.dk-edit #sec-profile-cal .sb-desk>[data-dk]{animation:dkWig 0.22s ease-in-out infinite alternate;transform-origin:50% 50%}
 body.dk-edit #sec-profile-cal .sb-desk>[data-dk]:nth-child(2n){animation-duration:0.25s;animation-delay:-0.12s}
 body.dk-edit #sec-profile-cal .sb-desk>[data-dk]:nth-child(3n){animation-duration:0.2s;animation-delay:-0.07s}
 body.dk-edit #sec-profile-cal .sb-desk>[data-dk].dk-src{animation:none}/* v156-p：#7 iOS 式左右摇晃（减少动效时随全局关闭） */
-body.dk-edit .dk-x{display:block}
+body.dk-edit .dk-x{display:block}body.dk-edit .dk-pic{display:flex}
 #dk-edit-done{position:fixed;right:14px;top:calc(12px + 50px*var(--szTop,1) + var(--sat,0px));z-index:396;padding:7px 15px;border-radius:999px;border:1px solid rgba(255,255,255,0.6);background:var(--acc);color:#fff;font-family:inherit;font-size:0.8rem;font-weight:600;letter-spacing:0.06em;box-shadow:0 6px 16px rgba(60,100,160,0.28);cursor:pointer;-webkit-tap-highlight-color:transparent}
 #dk-edit-done[hidden]{display:none}
 
@@ -2142,8 +2143,8 @@ raf=requestAnimationFrame(frame);
         <p><strong>Infernal</strong> — 暗色主题。部分界面文案与彩蛋会随主题切换。</p>
         <p><strong>视觉设置</strong>：抽屉底部 Setting 进入。可自定义全站与聊天背景图及模糊度、调整全局字号与文字投影，并把当前整套视觉素材存为方案槽（最多 4 套，一键回切）。视觉页底栏分「基础 / 文字 / 气泡 / 桌面」四个分区。<!-- v101-m 任务3：整墙分段重排 --></p>
         <p><strong>文字分区</strong>：顶部「全站色调」可整套更换界面主色（随壁纸取色，或月白 / 石灰 / 墨黑三档中性灰），覆盖图标发光、底坞、抽屉图标、便笺、进度槽与我方气泡等；其下可分别指定导航区（抽屉 / 顶栏 / 底坞）、Desk 挂件、桌面图标（含线条与发光）、Blog 页与 Chat 页（含会话面板）的文字颜色（黑 / 白 / 灰）。</p>
-        <p><strong>气泡分区</strong>：为聊天气泡提供液态玻璃、磨砂白、磨砂黑、磨砂灰四种材质，并可单独调整气泡文字深浅。</p>
-        <p><strong>桌面分区</strong>：为桌面图标与挂件卡更换液态玻璃 / 磨砂 / 墨玻璃材质；「Custom Icons — 自定义图标」卡给 Desk 每个图标（含自制 APP）换一张图（相册选图、居中裁方压到 96px，可明暗分开、可逐个还原或全部还原，随备份往返）；为音乐、便笺、日程挂件换尺寸（整行 / 半宽 / 小方块）；可加开独立时钟挂件与 Token 仪表盘挂件（仪表环 / 七日柱 / 极简三款式，与 Data 页共用同一份用量台账与单价表），切换英雄区款式（iOS 居中款撤掉玻璃底板，时刻直接落在壁纸上），并控制锁屏时刻的自适应取色；英雄区卡下面独立一张「Meet — 相遇卡」卡管 Desk 上的相遇卡挂件：显示开关、款式（iOS 原生＝无底板，挂件材质也不套；玻璃卡＝英雄区同款底板）与相伴对象（不选＝InternalBeyond 本站，按设置里的站点纪念日、没设则按全体最早相遇日计）；「Bind — 更多绑定」卡可再调导航抽屉与聊天输入条的不透明度、卡片描边强度与站点背景模糊，全部回默认即零改动；Deco 卡负责「桌面布局」（分页桌面 / 经典滚动）切换与装饰小组件的添加管理。</p><!-- v127-p 任务4：补分区新住户 -->
+        <p><strong>气泡分区</strong>：为聊天气泡提供液态玻璃、磨砂白、磨砂黑、磨砂灰四种材质，并可单独调整气泡文字深浅；「Thinking — 思考链」卡管气泡上方的 Thought process 折叠块——正文与标题字色、左侧竖线、正文字号、展开高度，不设时跟随 Chat 页文字色与全站文字颜色。</p>
+        <p><strong>桌面分区</strong>：为桌面图标与挂件卡更换液态玻璃 / 磨砂 / 墨玻璃材质；「Custom Icons — 自定义图标」卡给 Desk 每个图标（含自制 APP）换一张图（相册选图、居中裁方压到 180px，可明暗分开、可逐个还原或全部还原，随备份往返；列表默认收起，更快的路是 Desk 长按进入编辑态后点图标右上角的小图片键就地换图 / 还原）；为音乐、便笺、日程挂件换尺寸（整行 / 半宽 / 小方块）；可加开独立时钟挂件与 Token 仪表盘挂件（仪表环 / 七日柱 / 极简三款式，与 Data 页共用同一份用量台账与单价表），切换英雄区款式（iOS 居中款撤掉玻璃底板，时刻直接落在壁纸上），并控制锁屏时刻的自适应取色；英雄区卡下面独立一张「Meet — 相遇卡」卡管 Desk 上的相遇卡挂件：显示开关、款式（iOS 原生＝无底板，挂件材质也不套；玻璃卡＝英雄区同款底板）与相伴对象（不选＝InternalBeyond 本站，按设置里的站点纪念日、没设则按全体最早相遇日计）；「Bind — 更多绑定」卡可再调导航抽屉与聊天输入条的不透明度、卡片描边强度与站点背景模糊，全部回默认即零改动；Deco 卡负责「桌面布局」（分页桌面 / 经典滚动）切换与装饰小组件的添加管理。</p><!-- v127-p 任务4：补分区新住户 -->
         <p>手机端主题与视觉偏好独立于电脑端——电脑端不读也不写，随备份原样往返。</p>
       </div>
       <div class="g-sec">
@@ -2204,7 +2205,7 @@ raf=requestAnimationFrame(frame);
           <p><strong>社交圈动态</strong>：Space（个人页）的动态分区与 Desk 的社交圈图标同属应用内社交圈；侧边导航 Memory 之后也有「Circle 社交圈」入口，点按直达同一页。你可发文字动态、附至多 1 张配图与定位（需浏览器定位权限），正文中的链接自动可点；每条动态的 ⋮ 可改可见范围、连同评论存入记忆库、或删除。<!-- v101-m 任务5：文案精简分段 --></p>
           <p>获授权的 AI 能在对话里发布、评论与主动翻看动态（放行方式在其独立配置里选「需我确认」或「自动同意」）；开启配图后还能为自己的动态生成插图；开启「允许 TA 撰写签名」后，TA 还能更新自己资料卡上的个性签名（改动即时生效，你可随时改回）。</p>
           <p><strong>流式回复</strong>：AI 的回复以流式逐字呈现，可中途停止，已生成的部分会保留。</p>
-          <p><strong>思考链</strong>：在 API 设置中开启。AI 回复前的思路笔记以可折叠文本块（Thought process）显示在气泡上方，共读间与观影室里同款。</p>
+          <p><strong>思考链</strong>：在 API 设置中开启。AI 回复前的思路笔记以可折叠文本块（Thought process）显示在气泡上方，共读间与观影室里同款；字色、左侧竖线、字号与展开高度在 Visual → 气泡「Thinking — 思考链」卡里调。</p>
           <p><strong>操作卡片</strong>：AI 的每步动作——工作区文件读写、外部工具 / MCP、联网搜索、记忆库与 Auto Memory 写入、日历、社交圈等——都以可折叠卡片嵌入气泡，点开可看详情。文件类完成卡底部带「下载」（仅建文件）与「打开 ICode」按钮，点后直接跳到对应项目查看。唯一仍依赖桌面环境的是跑代码（ws_run），手机端只显示卡片、不执行。工作区完整说明见「ICode — 文件工作区」一节。</p>
           <p><strong>选项卡</strong>：在 API 设置中开启。AI 提问时可输出候选答案卡片浮现在输入框上方，点选某项或自行输入后作为你的消息发出。与电脑端同为全局开关。</p>
           <p><strong>消息操作</strong>：长按气泡可引用、复制、收藏、修改、删除；最后一条 AI 回复可重新生成。「修改消息」只改这条的正文，时间、卡片与附件不动；改过的消息进历史，下一条消息重建一次提示缓存。</p>
@@ -2236,8 +2237,8 @@ raf=requestAnimationFrame(frame);
           <p><strong>语音转写（识别接口）</strong>：API 页 → 多模态 → 语音转写：填 Endpoint、Key 与模型（默认 whisper-1），或直接在「沿用 API 配置」里选一个已配好的 API、在「常用模型」里选一个转写模型（图像生成卡同样有这两枚下拉）。千问的 qwen3-asr-flash 不走 transcriptions 接口而走 chat 音频输入，选它即自动切换；图像生成同样接了千问 Qwen-Image（百炼原生接口）与豆包 Seedream（火山方舟 OpenAI 兼容接口）。任何 OpenAI 兼容的 /v1/audio/transcriptions 接口都能用，SiliconFlow (硅基流动) 的 FunAudioLLM/SenseVoiceSmall 是可用的免费档。语音消息的文字稿与语音通话里「用嘴说」都靠它。</p>
           <p><strong>语音条（TA 的语音）</strong>：通话设置 → 独立配置 → 该 AI → 语音条。开启后 TA 会在合适的消息末尾附一枚可点播的语音条，声音与语速沿用通话里给 TA 配的那套；可单独选外语版（英 / 日 / 韩）：气泡照常显示中文，语音条朗读同一段话的外语。开关切换后 TA 的下一条消息重建一次提示缓存，之后恢复稳定命中。开了语音条的 TA 在共读间 / 观影室的频道里同样会发语音条。</p>
           <p><strong>语气</strong>：通话设置 → 独立配置 → 该 AI →「TA 的开关」卡 → 语气，每位 TA 独立，默认关。开启后 TA 给每条语音条和通话里的每句话标一种语气（平静 / 温柔 / 开心 / 撒娇 / 难过 / 生气 / 惊讶 / 耳语），标记只给合成端：ElevenLabs v3 用情绪标签、其它版本调稳定度与风格，MiniMax 走 emotion，Azure 走 express-as，系统语音与其它引擎忽略；气泡、原文面板、通话字幕与文字稿都不显示标记。切换后 TA 的下一条消息重建一次提示缓存。</p>
-          <p><strong>颜文字</strong>：输入条「+」右侧的笑脸键弹出「发送颜文字 / 发送表情包」。颜文字抽屉分开心 / 生气 / 伤心 / 惊讶 / 无语 / Kiss / 经典 / 双人款八组，每行三枚、四行之后可滚动，点一枚就插到光标处、抽屉随即收起回到输入框；底部输入框加上箭头可把你自己的颜文字加进当前分组，长按自定义的那枚可删除。颜文字与表情包这两个小抽屉不模糊底下的聊天。自定义颜文字随备份走，只在手机端用。</p>
-          <p><strong>表情包</strong>：API 页 → 全局设置 → 进阶指令下的「表情包」卡（默认关）。点卡右上角的笑脸角标或「管理表情包」进设置页：可以存多套预设，每套最多 10 枚，上传后写名字、描述（可不填）、用法才能保存——TA 只看这几句决定什么时候发。开着时当前预设注入给 TA，TA 发出来的是图片本身，与聊天里的图片一样显示；切换预设或增删表情包后，下一条消息重建一次提示缓存。你自己也能发：输入条笑脸键 →「发送表情包」，点一枚落到输入条上方，可以只发它，也可以写完文字一起发；抽屉顶部可以切换预设，任意一套都能发；TA 收到的不是图片，是一句「（表情包「名字」：描述｜用法：…）」，不受开关影响——所以能一起玩梗、对暗号。表情包存在本机、随备份往返。</p><!-- v246-p -->
+          <p><strong>颜文字 / 表情包面板</strong>：输入条「+」右侧的笑脸键在输入条上方展开一块面板（键盘开着也能开，不模糊底下的聊天），顶行切换「颜文字 / 表情包」，再点笑脸或 ✕ 收起。颜文字分开心 / 生气 / 伤心 / 惊讶 / 无语 / Kiss / 经典 / 双人款八组共 134 枚预设，每行三枚、四行之后可滚动，点一枚就插到光标处、面板随即收起回到输入框；底部输入框加上箭头可把你自己的颜文字加进当前分组，长按自定义的那枚可删除。自定义颜文字随备份走，只在手机端用。</p>
+          <p><strong>表情包</strong>：API 页 → 全局设置 → 进阶指令下的「表情包」卡（默认关）。点卡右上角的笑脸角标或「管理表情包」进设置页：可以存多套预设，每套最多 10 枚，上传后写名字、描述（可不填）、用法才能保存——TA 只看这几句决定什么时候发。开着时当前预设注入给 TA，TA 发出来的是图片本身，与聊天里的图片一样显示；切换预设或增删表情包后，下一条消息重建一次提示缓存。你自己也能发：笑脸键面板切到「表情包」，点一枚落到输入条上方，可以只发它，也可以写完文字一起发；面板顶部可以切换预设，任意一套都能发；TA 收到的不是图片，是一句「（表情包「名字」：描述｜用法：…）」，不受开关影响——所以能一起玩梗、对暗号。表情包存在本机、随备份往返。</p><!-- v246-p -->
         </div>
         <div class="g-name">Call — 语音通话</div>
         <p>和 TA 打一通语音电话（视频通话见下一分块「Video Call」，两者是独立入口、共用同一套声音与设置）：你说的话由「语音转写」接口听成文字，TA 的回复逐句朗读、同时滚动字幕。三样东西配齐就能打——API（TA 的脑子）、语音转写（耳朵，可跳过）、TA 的声音（嗓子，默认用手机自带语音，零配置）。</p>
@@ -2337,8 +2338,8 @@ raf=requestAnimationFrame(frame);
       </div>
       <div class="g-sec"><!-- v127-p 任务4：专属聊天背景文档 -->
         <div class="g-name">专属聊天背景（仅本机）</div>
-        <p>给某位 AI 单独设一张聊天背景，只在与 TA 的会话里生效；<strong>淡化背景</strong>滑杆（0–70%）在背景上叠一层随主题明暗的半透底色，字看不清就往右拉。入口有两处：Chat 会话抽屉 → 设置区「专属聊天背景（仅本机）」，或独立配置页右上 ⋮ 菜单第一项。面板顶部带 TA 的头像，预览区以两枚示意气泡实时演示效果。</p>
-        <p>这些设定只存在本机：不进备份、不参与文件夹同步、不去电脑端。气泡款式在 Bubble Lab 里定制（见下一节）；给某位 TA 单独指定气泡方案手机端暂未开放。</p>
+        <p>给某位 AI 单独设一张聊天背景，只在与 TA 的会话里生效，铺满整个对话页——会话顶栏与输入条是玻璃，会透出它；不叠全站的背景遮罩与背景图模糊，只受下面的淡化控制；<strong>淡化背景</strong>滑杆（0–70%）在背景上叠一层随主题明暗的半透底色，字看不清就往右拉。入口有两处：Chat 会话抽屉 → 设置区「专属聊天背景（仅本机）」，或独立配置页右上 ⋮ 菜单第一项。面板顶部带 TA 的头像，预览区以两枚示意气泡实时演示效果。</p>
+        <p>背景图与淡化随备份往返（电脑端不读也不坏，导入后即时生效）。气泡款式在 Bubble Lab 里定制（见下一节）；给某位 TA 单独指定气泡方案手机端暂未开放。</p>
       </div>
       <div class="g-sec"><!-- Bubble Lab 说明 -->
         <div class="g-name">Bubble Lab — 水水的气泡实验室</div>
@@ -2881,6 +2882,20 @@ self.addEventListener(&#x27;fetch&#x27;,function(e){
         <div class="uvrow last" style="margin-top:8px"><button class="btn wide" id="bl-open">Bubble Lab — 水水的气泡实验室</button></div><!-- v233-p：气泡实验室入口（与手机端同位） -->
         <p class="hint" style="margin:10px 0 0">液态玻璃直接透出聊天背景图，磨砂三款为 iOS 式毛玻璃；四款对明暗两主题分别配方，黑 / 白类背景图都能压住。磨砂三款以同族深浅区分你我（TA 浅、你深，iOS 双色式、发丝描边），不再另加彩色描边；液态玻璃以略密一档的玻璃底与随主题的白色发丝边分辨你我，同样不加彩色描边；「自动」会按磨砂黑 / 白自动配浅深文字。</p>
       </div>
+      <div class="set-card">
+        <div class="sc-t">Thinking — 思考链</div>
+        <div class="uvrow"><div class="uvr-h"><label>思考正文字色</label></div>
+          <div class="uvseg" id="vz-thtx"><button data-v="">默认</button><button data-v="dark">黑</button><button data-v="light">白</button><button data-v="gray">灰</button></div></div>
+        <div class="uvrow"><div class="uvr-h"><label>标题「Thought process」字色</label></div>
+          <div class="uvseg" id="vz-thlb"><button data-v="">默认</button><button data-v="dark">黑</button><button data-v="light">白</button><button data-v="gray">灰</button></div></div>
+        <div class="uvrow"><div class="uvr-h"><label>左侧竖线</label></div>
+          <div class="uvseg" id="vz-thln"><button data-v="">默认</button><button data-v="dark">黑</button><button data-v="light">白</button><button data-v="acc">强调色</button><button data-v="hide">隐藏</button></div></div>
+        <div class="uvrow"><div class="uvr-h"><label>思考正文字号</label><span class="uvv" id="uv-thfs-v">100%</span></div>
+          <input type="range" class="ib-range" id="uv-thfs" min="0.85" max="1.25" step="0.05" value="1"></div>
+        <div class="uvrow last"><div class="uvr-h"><label>展开高度</label></div>
+          <div class="uvseg" id="vz-thmax"><button data-v="">默认</button><button data-v="tall">加高</button><button data-v="free">不限</button></div></div>
+        <p class="hint" style="margin:10px 0 0">作用于气泡上方的 Thought process 折叠块（共读间 / 观影室同款）。这里不设时，思考链跟随「文字 → Chat 页文字」与「基础 → 全站文字颜色」；设了以这里为准。展开高度默认 360px 内滚动，「加高」到七成屏高，「不限」整段展开。</p>
+      </div>
     </div>
     <div class="psec" id="sec-visual-desk"><!-- v90-m 任务2/4/6：桌面图标与挂件材质、尺寸、时钟、英雄区、锁屏取色 -->
       <div class="set-card">
@@ -2892,10 +2907,11 @@ self.addEventListener(&#x27;fetch&#x27;,function(e){
       <div class="set-card" id="vz-icons-card">
         <div class="sc-t">Custom Icons — 自定义图标</div>
         <div class="tog"><div class="tog-m"><div class="tog-t">明暗分开</div><div class="tog-s">开着时明亮 / 暗色各一套图，换图只换当前主题这一套；关着时一张图两套共用。</div></div><div class="sw2" id="vz-ski-split"></div></div>
-        <div id="vz-ski-list"><div class="hint" style="margin:8px 0 0">Desk 还没铺好，先回 Desk 看一眼再来。</div></div>
+        <div class="tog"><div class="tog-m"><div class="tog-t">逐个换图</div><div class="tog-s" id="vz-ski-n">还没换过</div></div><button class="btn" id="vz-ski-tg" type="button" style="padding:7px 12px;font-size:0.72rem;flex:none">展开列表</button></div>
+        <div id="vz-ski-list" hidden><div class="hint" style="margin:8px 0 0">Desk 还没铺好，先回 Desk 看一眼再来。</div></div>
         <input type="file" accept="image/*" id="vz-ski-file" hidden>
         <div class="uvrow last" style="margin-top:8px"><button class="btn wide" id="vz-ski-all" type="button" style="display:none">全部还原</button></div>
-        <p class="hint" style="margin:10px 0 0">给 Desk 每个图标（含自制 APP）换一张图：从相册挑图，居中裁方、压到 96px；「还原」回到原图标（自制 APP 会回到它自带的图）。图标随备份往返；美化包的「还原默认配色」不动它们。</p>
+        <p class="hint" style="margin:10px 0 0">给 Desk 每个图标（含自制 APP）换一张图：从相册挑图，居中裁方、压到 180px；「还原」回到原图标（自制 APP 会回到它自带的图）。更快的路：Desk 长按进入编辑态，点图标右上角的小图片键。图标随备份往返；美化包的「还原默认配色」不动它们。</p>
       </div>
       <div class="set-card">
         <div class="sc-t">Widgets — 挂件</div>
@@ -3413,19 +3429,13 @@ self.addEventListener(&#x27;fetch&#x27;,function(e){
         <div class="cm-sub-t">按 API</div><div id="tk-byapi"></div>
         <div class="cm-sub-t">按模型</div><div id="tk-bymodel"></div>
         <div class="cm-sub-t" style="margin-top:12px">最近明细</div><div id="tk-detail" class="tk-exl"></div>
-        <div class="cm-sub-t" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
-          <span>原始报文探针（最近一次）</span>
-          <span id="tk-raw-time" style="font-size:0.7rem;color:var(--tx3);font-weight:normal"></span>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <button class="btn danger" style="flex:1" id="tk-clear">清除此范围明细</button>
+          <button class="btn" style="flex:1" id="tk-export">导出此范围明细</button><!-- 本轮：CSV 导出当前时间段的全部逐条明细（含单条费用估算），与左侧清除按钮同一范围口径 -->
         </div>
-        <div id="tk-raw-probe" style="margin-bottom:12px;font-size:0.75rem;border:1px solid var(--line);border-radius:6px;overflow:hidden">
-          <div style="display:flex;border-bottom:1px solid var(--line);background:var(--bg2)">
-            <button class="btn" id="btn-raw-req" style="flex:1;border-radius:0;border:none;padding:7px;font-weight:bold" onclick="window._ibShowProbeTab&&window._ibShowProbeTab('req')">查看 Request</button>
-            <button class="btn" id="btn-raw-res" style="flex:1;border-radius:0;border:none;border-left:1px solid var(--line);padding:7px;opacity:0.6" onclick="window._ibShowProbeTab&&window._ibShowProbeTab('res')">查看 Response</button>
-            <button class="btn" id="btn-raw-copy" style="width:72px;border-radius:0;border:none;border-left:1px solid var(--line);padding:7px;font-size:0.7rem" onclick="window._ibCopyProbe&&window._ibCopyProbe()">复制</button>
-          </div>
-          <pre id="tk-raw-req" style="margin:0;padding:8px;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-wrap:break-word;display:block;background:var(--bg)">暂无记录（发一次聊天即可捕获）</pre>
-          <pre id="tk-raw-res" style="margin:0;padding:8px;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-wrap:break-word;display:none;background:var(--bg)">暂无记录</pre>
-        </div>
+        <p class="hint" style="margin-bottom:0" id="tk-note">用量明细与单价表都与电脑端共用同一份记账（ibTokenStats），任一端填写单价即两端生效。费用为估算：缓存读取按输入单价 ×0.1、缓存写入 ×1.25（勾选「长效缓存 1 小时」的写入按官方口径 ×2），与账单可能有差异。明细最多保留最近 5000 条，超出自动清理最旧。</p>
+      </div>
+    </div>
     <div class="psec" id="sec-data-note">
       <div class="sec-label">版本</div><!-- v154-p：#8 版本号与说明自 API 页 → 工具 → PWA 卡迁入 -->
       <div class="card fx-card"><div class="fx-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5l3 1.8"/></svg></div>
@@ -4083,7 +4093,7 @@ self.addEventListener(&#x27;fetch&#x27;,function(e){
 <input type="file" id="mem-import-file" accept=".json,application/json" hidden>
 <input type="file" id="img-file" accept="image/*" hidden>
 <input type="file" id="chat-img-file" accept="image/*" multiple hidden>
-<input type="file" id="chat-doc-file" accept=".txt,.text,.md,.markdown,.mdx,.rst,.adoc,.org,.tex,.bib,.js,.mjs,.cjs,.ts,.tsx,.jsx,.vue,.svelte,.astro,.json,.jsonc,.json5,.ndjson,.csv,.tsv,.psv,.xml,.xsd,.xsl,.html,.htm,.xhtml,.css,.scss,.sass,.less,.styl,.py,.pyi,.ipynb,.java,.kt,.kts,.scala,.groovy,.c,.h,.cpp,.hpp,.cc,.hh,.cxx,.m,.mm,.cs,.go,.rs,.rb,.erb,.php,.swift,.dart,.lua,.pl,.pm,.r,.jl,.hs,.ml,.ex,.exs,.erl,.clj,.f90,.f95,.for,.pas,.vb,.asm,.s,.v,.sv,.vhd,.sql,.psql,.graphql,.gql,.proto,.sh,.bash,.zsh,.fish,.bat,.cmd,.ps1,.psm1,.awk,.sed,.yaml,.yml,.log,.ini,.cfg,.conf,.config,.toml,.env,.properties,.plist,.reg,.gitignore,.gitattributes,.editorconfig,.dockerfile,.dockerignore,.makefile,.mk,.cmake,.gradle,.podspec,.lock,.srt,.vtt,.ass,.ssa,.lrc,.sub,.geojson,.kml,.gpx,.svg,.dot,.mermaid,.mmd,.puml,.diff,.patch,.eml,.vcf,.ics" multiple hidden><!-- v49g-m：类型表对齐电脑端 v46 文本类全集；富格式（PDF/Word/EPUB 等）依赖电脑端解析库，手机端不收 -->
+<input type="file" id="chat-doc-file" accept=".txt,.text,.md,.markdown,.mdx,.rst,.adoc,.org,.tex,.bib,.js,.mjs,.cjs,.tsx,.jsx,.vue,.svelte,.astro,.json,.jsonc,.json5,.ndjson,.csv,.tsv,.psv,.xml,.xsd,.xsl,.html,.htm,.xhtml,.css,.scss,.sass,.less,.styl,.py,.pyi,.ipynb,.java,.kt,.kts,.scala,.groovy,.c,.h,.cpp,.hpp,.cc,.hh,.cxx,.m,.mm,.cs,.go,.rs,.rb,.erb,.php,.swift,.dart,.lua,.pl,.pm,.r,.jl,.hs,.ml,.ex,.exs,.erl,.clj,.f90,.f95,.for,.pas,.vb,.asm,.s,.v,.sv,.vhd,.sql,.psql,.graphql,.gql,.proto,.sh,.bash,.zsh,.fish,.bat,.cmd,.ps1,.psm1,.awk,.sed,.yaml,.yml,.log,.ini,.cfg,.conf,.config,.toml,.env,.properties,.plist,.reg,.gitignore,.gitattributes,.editorconfig,.dockerfile,.dockerignore,.makefile,.mk,.cmake,.gradle,.podspec,.lock,.srt,.vtt,.ass,.ssa,.lrc,.sub,.geojson,.kml,.gpx,.dot,.mermaid,.mmd,.puml,.diff,.patch,.eml,.vcf,.ics" multiple hidden><!-- v49g-m：类型表对齐电脑端 v46 文本类全集；富格式（PDF/Word/EPUB 等）依赖电脑端解析库，手机端不收 -->
 <div class="mio-ov" id="mio-ov" hidden><!-- v81-m r11：数据导入/导出工作台（照电脑端 io-ov 逻辑，任务 17） -->
   <div class="mio-box">
     <div class="mio-hd"><span class="mio-ti" id="mio-ti">Import</span><span class="mio-sub" id="mio-sub">导入备份文件</span><button class="mio-x" id="mio-x">✕</button></div>
@@ -4111,15 +4121,7 @@ self.addEventListener(&#x27;fetch&#x27;,function(e){
       <div class="ed-foot"><span>Chars <b id="m-ed-chars">0</b></span><span>Lines <b id="m-ed-lines">0</b></span><span>Size <b id="m-ed-size">0.0 KB</b></span></div>
     </div>
   </div>
-  <div class="sheet" id="sheet-blog-cat">
-    <h3>CATEGORIES</h3>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <input class="ed-field" id="m-cat-new" placeholder="新分类名称" style="margin:0;flex:1;min-width:0">
-      <button class="btn primary" id="m-cat-add">添加</button>
-    </div>
-    <div id="m-cat-list" style="max-height:40vh;overflow:auto"></div>
-    <div class="sheet-btns"><button class="btn" data-close="1">关闭</button></div>
-  </div>
+  
   <div class="sheet" id="sheet-diary">
     <h3 id="m-ld-title">PASSWORD DIARY</h3>
     <div id="m-ld-body"></div>
@@ -4562,7 +4564,7 @@ function _vzCss(css,u){
   }
   _vzZone(css,'#page-blog',u.zcBlog);
   _vzZone(css,'#page-chat,#conv',u.zcChat);
-  var B={glass:{l:['linear-gradient(160deg,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 55%,rgba(255,255,255,0.18))','rgba(255,255,255,0.5)','0 0 0 1px rgba(255,255,255,0.16),inset 0 1px 0 rgba(255,255,255,0.75),inset 0 -1px 0 rgba(255,255,255,0.16),inset 1px 0 0 rgba(255,255,255,0.22),0 10px 26px rgba(60,90,140,0.10)'],d:['linear-gradient(160deg,rgba(160,185,225,0.22),rgba(40,56,90,0.12) 55%,rgba(120,150,200,0.10))','rgba(214,230,250,0.3)','0 0 0 1px rgba(214,230,250,0.06),inset 0 1px 0 rgba(255,255,255,0.24),inset 0 -1px 0 rgba(255,255,255,0.05),inset 1px 0 0 rgba(255,255,255,0.08),0 10px 26px rgba(0,0,0,0.3)'],blur:10,sat:1.5,br:1.04},
+  var B={glass:{l:['linear-gradient(160deg,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 55%,rgba(255,255,255,0.18))','rgba(255,255,255,0.34)','inset 0 1px 0 rgba(255,255,255,0.42),0 8px 22px rgba(60,90,140,0.07)'],d:['linear-gradient(160deg,rgba(160,185,225,0.22),rgba(40,56,90,0.12) 55%,rgba(120,150,200,0.10))','rgba(214,230,250,0.18)','inset 0 1px 0 rgba(255,255,255,0.13),0 8px 22px rgba(0,0,0,0.22)'],blur:10,sat:1.5,br:1.04,bw:'0.5px'},
          frostw:{l:['rgba(255,255,255,0.68)','rgba(255,255,255,0.6)'],d:['rgba(244,248,253,0.82)','rgba(255,255,255,0.5)'],blur:24},
          frostb:{l:['rgba(20,25,36,0.55)','rgba(255,255,255,0.16)'],d:['rgba(12,16,26,0.6)','rgba(200,218,244,0.14)'],blur:24},
          gray:{l:['rgba(128,138,156,0.3)','rgba(140,152,172,0.42)'],d:['rgba(120,132,154,0.24)','rgba(150,164,188,0.26)'],blur:22}};
@@ -4574,10 +4576,10 @@ function _vzCss(css,u){
   if(bs){
     
     [['l','body:not(.theme-infernal)'],['d','body.theme-infernal']].forEach(function(p){var v=bs[p[0]];
-      css.push(p[1]+' .m:not(.bs-msg),'+p[1]+' .m.bs-msg .bs-seg{background:'+v[0]+';border-color:'+v[1]+';text-shadow:none'+(v[2]?';box-shadow:'+v[2]:'')+'}');
+      css.push(p[1]+' .m:not(.bs-msg),'+p[1]+' .m.bs-msg .bs-seg{background:'+v[0]+';border-color:'+v[1]+';text-shadow:none'+(v[2]?';box-shadow:'+v[2]:'')+(bs.bw?';border-width:'+bs.bw:'')+'}');
       var uv=(_BU[u.bubStyle]||{})[p[0]];/* v142-p：#6 磨砂三款走 iOS 双色；液态玻璃保持原描边逻辑 */
       if(uv)css.push(p[1]+' .m.user:not(.bs-msg),'+p[1]+' .m.user.bs-msg .bs-seg{background:'+uv[0]+';border-color:'+uv[1]+';box-shadow:inset 0 1px 0 '+uv[2]+',0 4px 18px rgba(60,90,140,'+(p[0]==='d'?'0.22':'0.1')+')}');
-      else css.push(p[1]+' .m.user:not(.bs-msg),'+p[1]+' .m.user.bs-msg .bs-seg{'+(p[0]==='d'?'background:linear-gradient(160deg,rgba(120,160,225,0.34),rgba(60,92,145,0.18) 55%,rgba(100,140,205,0.16));border-color:rgba(214,230,250,0.4);box-shadow:0 0 0 1px rgba(214,230,250,0.08),inset 0 1px 0 rgba(255,255,255,0.3),inset 0 -1px 0 rgba(255,255,255,0.06),inset 1px 0 0 rgba(255,255,255,0.1),0 10px 26px rgba(0,0,0,0.32)':'background:linear-gradient(160deg,rgba(255,255,255,0.50),rgba(255,255,255,0.22) 55%,rgba(255,255,255,0.30));border-color:rgba(255,255,255,0.68);box-shadow:0 0 0 1px rgba(255,255,255,0.22),inset 0 1px 0 rgba(255,255,255,0.9),inset 0 -1px 0 rgba(255,255,255,0.2),inset 1px 0 0 rgba(255,255,255,0.3),0 10px 26px rgba(60,90,140,0.12)')+'}');/* v246-p：液态玻璃我方气泡＝同配方深一档 */
+      else css.push(p[1]+' .m.user:not(.bs-msg),'+p[1]+' .m.user.bs-msg .bs-seg{'+(p[0]==='d'?'background:linear-gradient(160deg,rgba(120,160,225,0.34),rgba(60,92,145,0.18) 55%,rgba(100,140,205,0.16));border-color:rgba(214,230,250,0.24);box-shadow:inset 0 1px 0 rgba(255,255,255,0.16),0 8px 22px rgba(0,0,0,0.24)':'background:linear-gradient(160deg,rgba(255,255,255,0.50),rgba(255,255,255,0.22) 55%,rgba(255,255,255,0.30));border-color:rgba(255,255,255,0.44);box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),0 8px 22px rgba(60,90,140,0.08)')+'}');/* v258-p：我方液态玻璃同步减重（撤光环与侧 / 底高光，描边减淡） *//* v246-p：液态玻璃我方气泡＝同配方深一档 */
     });
     css.push('.m.bs-msg{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;text-shadow:none}');
     css.push('.m:not(.bs-msg),.m.bs-msg .bs-seg{-webkit-backdrop-filter:blur('+bs.blur+'px) saturate('+(bs.sat||1.4)+')'+(bs.br?' brightness('+bs.br+')':'')+';backdrop-filter:blur('+bs.blur+'px) saturate('+(bs.sat||1.4)+')'+(bs.br?' brightness('+bs.br+')':'')+'}');
@@ -4587,6 +4589,16 @@ function _vzCss(css,u){
     if(u.bubStyle==='frostw'&&!u.bubTx)css.push('.m,body.theme-infernal .m{--tx:#1a2334;--tx2:#3a4763;--tx3:#5f6d8c;color:#1a2334}');
   }
   if(u.bubTx&&_VZ_C[u.bubTx]){var bc=_VZ_C[u.bubTx];css.push('.m,body.theme-infernal .m{--tx:'+bc[0]+';--tx2:'+bc[1]+';--tx3:'+bc[2]+';color:'+bc[0]+';text-shadow:'+(u.bubTx==='light'?'0 1px 3px rgba(6,10,22,0.45)':'0 1px 2px rgba(255,255,255,0.4)')+'}')}
+  
+  var _thF=(u.zcChat&&_VZ_C[u.zcChat])||u.txColor==='dark'||u.txColor==='light';
+  var _thB='html body .think-b,html body.theme-infernal .think-b',_thT='html body .think-t .think-label,html body .think-t::before,html body.theme-infernal .think-t .think-label,html body.theme-infernal .think-t::before';
+  if(_thF)css.push(_thB+'{color:var(--tx)}'+_thT+'{color:var(--tx2)}');
+  if(u.thTx&&_VZ_C[u.thTx])css.push(_thB+'{color:'+_VZ_C[u.thTx][0]+'}');
+  if(u.thLb&&_VZ_C[u.thLb]){var Tl=_VZ_C[u.thLb];css.push(_thT+'{color:'+Tl[0]+'}html body .think-t .think-secs{color:'+Tl[1]+'}')}
+  var _thLn={dark:'rgba(22,29,43,0.5)',light:'rgba(255,255,255,0.65)',acc:'var(--acc)',hide:'transparent'}[u.thLn||''];
+  if(_thLn)css.push(_thB+'{border-left-color:'+_thLn+'}');
+  var thFs=Number(u.thFs)||1;if(thFs!==1)css.push('html body .think-b{font-size:'+(0.82*thFs).toFixed(3)+'rem}');
+  if(u.thMax==='tall')css.push('html body .think-b{max-height:70vh}');else if(u.thMax==='free')css.push('html body .think-b{max-height:none}');
   var M={glass:{l:['rgba(255,255,255,0.13)','rgba(255,255,255,0.42)'],d:['rgba(255,255,255,0.08)','rgba(255,255,255,0.22)'],blur:24,sat:1.6},
          frost:{l:['rgba(255,255,255,0.6)','rgba(255,255,255,0.55)'],d:['rgba(52,64,92,0.5)','rgba(190,210,240,0.24)'],blur:28,sat:1.25},
          ink:{l:['rgba(22,27,40,0.5)','rgba(255,255,255,0.18)'],d:['rgba(10,14,24,0.55)','rgba(200,218,244,0.16)'],blur:26,sat:1.1}};
@@ -4664,11 +4676,13 @@ function _vzSeg(id,key){var seg=$(id);if(!seg)return;var u=(_mp&&_mp.ui)||{};
 }
 async function _vzSync(){await loadMP();
   [['vz-nav','zcNav'],['vz-desk','zcDesk'],['vz-icot','zcIcon'],['vz-blog','zcBlog'],['vz-chat','zcChat'],
+   ['vz-thtx','thTx'],['vz-thlb','thLb'],['vz-thln','thLn'],['vz-thmax','thMax'],/* v258-p：思考链卡 */
    ['vz-bub','bubStyle'],['vz-bubtx','bubTx'],['vz-ico','icoStyle'],['vz-wg','wgStyle'],
    ['vz-mus','wgMusic'],['vz-note','wgNotes'],['vz-sched','wgSched'],['vz-ck','wgClock'],['vz-ckst','wgClockSt'],['vz-tk','wgTk'],/* v142-p：#3 */
    ['vz-hero','heroSt'],['vz-tone','tone'],['vz-dkpg','deskPages'],['vz-dkos','deskLayout']].forEach(function(p){_vzSeg(p[0],p[1])});/* v128 任务7：桌面页数 *//* v127-p 任务2：+布局模式 */
   (function(){var _os9=((_mp&&_mp.ui&&_mp.ui.deskLayout)||'')!=='classic';var _r9=$('vz-dkpg-row');if(_r9)_r9.style.display=_os9?'none':''})();/* 页数行只在经典模式露出 */
   var u=(_mp&&_mp.ui)||{};var la=$('vz-lockad');
+  try{_uvBind('uv-thfs','uv-thfs-v',function(){return u.thFs||1},function(v){if(v===1)delete _mp.ui.thFs;else _mp.ui.thFs=v},function(v){return Math.round(v*100)+'%'})}catch(e){}
   if(la){sw2(la,u.lockAdapt!==false);
     if(!la._uv){la._uv=1;la.addEventListener('click',async function(){await loadMP();_mp.ui=_mp.ui||{};
       _mp.ui.lockAdapt=(_mp.ui.lockAdapt===false);if(_mp.ui.lockAdapt)delete _mp.ui.lockAdapt;
@@ -5246,7 +5260,7 @@ async function _uvMateSync(){
     await saveMP();toast('Desk 陪伴头像已更新');try{_deskDuo()}catch(e){}/* v81-m r12：改完即刷英雄区 */
   })}
 }
-var _UV_THEME_KEYS=['fs','chatFs','uiScale','panelAlpha','scrimAlpha','scrimColor','glassBase','blurPx','bgBlur','accColor','txColor','txShadow','zcNav','zcDesk','zcIcon','zcBlog','zcChat','bubStyle','bubTx','icoStyle','wgStyle','wgMusic','wgNotes','wgSched','wgClock','wgClockSt','wgTk','heroSt','heroTone','tone','lockAdapt','szTop','szDock','szBrv','szCvh','szCvi'];/* v128 任务1：五区尺寸入方案 *//* v78-m r15：主题方案快照的 _mp.ui 键位清单（背景图体积大不入方案）→ v90-m：视觉细分套件全部键位入方案 */
+var _UV_THEME_KEYS=['fs','chatFs','uiScale','panelAlpha','scrimAlpha','scrimColor','glassBase','blurPx','bgBlur','accColor','txColor','txShadow','zcNav','zcDesk','zcIcon','zcBlog','zcChat','bubStyle','bubTx','icoStyle','wgStyle','wgMusic','wgNotes','wgSched','wgClock','wgClockSt','wgTk','heroSt','heroTone','tone','lockAdapt','szTop','szDock','szBrv','szCvh','szCvi','thTx','thLb','thLn','thFs','thMax'];/* v258-p：思考链五键入方案 *//* v128 任务1：五区尺寸入方案 *//* v78-m r15：主题方案快照的 _mp.ui 键位清单（背景图体积大不入方案）→ v90-m：视觉细分套件全部键位入方案 */
 function _uvThemesDraw(){
   var host=$('uv-themes');if(!host)return;
   var arr=(_mp&&Array.isArray(_mp.themes))?_mp.themes:[];
@@ -5350,7 +5364,7 @@ function openUiSet(){navTo('visual')}
 $('dw-setbtn').addEventListener('click',()=>{drawer(false);openUiSet()});
 $('uv-reset').addEventListener('click',async()=>{
   await loadMP();_mp.ui=_mp.ui||{};
-  delete _mp.ui.chatFs;delete _mp.ui.uiScale;delete _mp.ui.panelAlpha;delete _mp.ui.scrimAlpha;delete _mp.ui.blurPx;delete _mp.ui.accColor;delete _mp.ui.txColor;delete _mp.ui.txShadow;delete _mp.ui.bgBlur;delete _mp.ui.scrimColor;delete _mp.ui.glassBase;['zcNav','zcDesk','zcIcon','zcBlog','zcChat','bubStyle','bubTx','icoStyle','wgStyle','wgMusic','wgNotes','wgSched','wgClock','wgClockSt','wgTk','heroSt','heroTone','tone','lockAdapt','szTop','szDock','szBrv','szCvh','szCvi'].forEach(function(k){delete _mp.ui[k]});_mp.ui.fs=1;/* v72-m r6：遮罩颜色/玻璃底色一并归位 *//* v70-m r1/r2：文字颜色/投影/背景图模糊一并归位；背景图有独立恢复键、陪伴头像属关系设定不动 *//* v90-m：视觉细分套件键位一并归位 */
+  delete _mp.ui.chatFs;delete _mp.ui.uiScale;delete _mp.ui.panelAlpha;delete _mp.ui.scrimAlpha;delete _mp.ui.blurPx;delete _mp.ui.accColor;delete _mp.ui.txColor;delete _mp.ui.txShadow;delete _mp.ui.bgBlur;delete _mp.ui.scrimColor;delete _mp.ui.glassBase;['zcNav','zcDesk','zcIcon','zcBlog','zcChat','bubStyle','bubTx','icoStyle','wgStyle','wgMusic','wgNotes','wgSched','wgClock','wgClockSt','wgTk','heroSt','heroTone','tone','lockAdapt','szTop','szDock','szBrv','szCvh','szCvi','thTx','thLb','thLn','thFs','thMax'].forEach(function(k){delete _mp.ui[k]});_mp.ui.fs=1;/* v258-p：思考链五键一并归位 *//* v72-m r6：遮罩颜色/玻璃底色一并归位 *//* v70-m r1/r2：文字颜色/投影/背景图模糊一并归位；背景图有独立恢复键、陪伴头像属关系设定不动 *//* v90-m：视觉细分套件键位一并归位 */
   await saveMP();_uiApply();_uvSync();toast('已恢复默认');
 });
 document.querySelectorAll('#ui-fs button').forEach(b=>b.addEventListener('click',async()=>{await loadMP();_mp.ui=_mp.ui||{};_mp.ui.fs=parseFloat(b.dataset.v)||1;await saveMP();_uiApply()}));
@@ -8444,6 +8458,7 @@ function _wsStubHistoryM(text,wsResults){
   t=t.replace(/```file:([^\n]+)\n[\s\S]*?```/g,function(_,n){return '[系统归档：已输出下载文件 '+String(n||'').trim()+'，历史内容已省略]'});
   return t;
 }
+var _HIST_LEAD_NOTE_M='———— 系统说明：对话从这里续接，更早的记录不再附带；紧接着的第一条是你先前发出的消息 ————';
 function buildHist(msgs,limit,cfg){
   const seal=(cfg&&cfg.sealTimestamp)||0;
   const noVision=_noVisionM(cfg);
@@ -8469,7 +8484,7 @@ function buildHist(msgs,limit,cfg){
     if(out.length&&out[out.length-1].role===r&&!imgs.length){out[out.length-1].content+='\n\n'+c}
     else out.push({role:r,content:c||'（图片）',images:imgs});
   });
-  while(out.length&&out[0].role!=='user')out.shift();
+  if(out.length&&out[0].role!=='user')out.unshift({role:'user',content:_HIST_LEAD_NOTE_M,images:[]});
   return out;
 }
 function _dataUrlParts(u){const i=u.indexOf(',');return{mime:(u.slice(5,i).split(';')[0]||'image/jpeg'),data:u.slice(i+1)}}
@@ -8942,9 +8957,7 @@ async function callAI(cfg,hist,sys,onDelta,signal,pa){
     body=JSON.stringify(b);
   }
 
-  
   let res=await fetch(url,{method:'POST',headers:headers,body:body,signal:signal});
-
   try{var _ni9=(pa&&pa._noImg)?_hist0:hist,_nImg9=(_ni9||[]).reduce(function(s9,m9){return s9+((m9&&m9.images&&m9.images.length)||0)},0);if(_nImg9){var _il9=window._ibImgDiagLog=window._ibImgDiagLog||[];_il9.push({at:Date.now(),who:(typeof cfgName==='function'?cfgName(cfg):String(cfg.id||'')),fmt:fmt,model:model,n:_nImg9,sent:!(pa&&pa._noImg),status:res.status,ok:res.ok});if(_il9.length>20)_il9.splice(0,_il9.length-20)}}catch(e){}
   if(!res.ok){
     let errTxt=await res.text().catch(()=>'');try{var _il8=window._ibImgDiagLog;if(_il8&&_il8.length&&_il8[_il8.length-1].status===res.status&&!_il8[_il8.length-1].err)_il8[_il8.length-1].err=String(errTxt||'').replace(/\s+/g,' ').slice(0,220)}catch(e){}
@@ -9272,7 +9285,7 @@ async function genReply(cfg,internalCtx){
     txtEl=_tp.txtEl;thWrap=_tp.thWrap;thEl=_tp.thEl;_bub=_tp.bubble;
     const a=await loadAbout();
     await loadMP();const pa=mpAi(cfg);
-    const parts=[(cfg.systemPrompt||'').trim(),((cfg.systemPrompt||'').trim()?'':_IB_NOPERSONA_NOTE),buildUserCtx(a,cfg)];/* v189-p：没有人设的配置先说明下面是对方的资料 */
+    const parts=[(cfg.systemPrompt||'').trim(),_ibSiteNoteM(a),((cfg.systemPrompt||'').trim()?'':_IB_NOPERSONA_NOTE),buildUserCtx(a,cfg)];/* v189-p：没有人设的配置先说明下面是对方的资料 */
     const _quietM=!!(myThread&&myThread.quiet);
     const _memOn=_activeThread?!!_activeThread.memoryEnabled:(pa.memInject!==false);
     try{_ibSetMemScope(_memOn,false,false)}catch(e){}/* 1对1：检索口径＝注入口径 */
@@ -10402,12 +10415,12 @@ var _msgEd=null;
 function _msgEdSheet(){var sh=$('sheet-msgedit');if(sh)return sh;sh=document.createElement('div');sh.className='sheet';sh.id='sheet-msgedit';
   var hh='',mm='';for(var h=0;h<24;h++)hh+='<option value="'+h+'">'+String(h).padStart(2,'0')+'</option>';for(var i=0;i<60;i++)mm+='<option value="'+i+'">'+String(i).padStart(2,'0')+'</option>';
   sh.innerHTML='<h3 id="me-title">Edit Message</h3>'
-   +'<div class="f-group me-add"><label>From</label><div class="me-chips" id="me-role"><span class="chip on" data-r="assistant">TA</span><span class="chip" data-r="user">Me</span></div></div>'
-   +'<div class="f-group me-add" id="me-who-g"><label>Member</label><div class="sel"><select id="me-who"></select></div></div>'
-   +'<div class="f-group me-add"><label>Time <span class="lb-note" id="me-day"></span></label><div style="display:flex;gap:8px"><div class="sel" style="flex:1"><select id="me-hh">'+hh+'</select></div><div class="sel" style="flex:1"><select id="me-mm">'+mm+'</select></div></div></div>'
-   +'<div class="f-group"><label>Content</label><textarea id="me-ta" rows="5" placeholder="Type the message…"></textarea></div>'
+   +'<div class="f-group me-add"><label>发送者</label><div class="me-chips" id="me-role"><span class="chip on" data-r="assistant">TA</span><span class="chip" data-r="user">我</span></div></div>'
+   +'<div class="f-group me-add" id="me-who-g"><label>成员</label><div class="sel"><select id="me-who"></select></div></div>'
+   +'<div class="f-group me-add"><label>时间 <span class="lb-note" id="me-day"></span></label><div style="display:flex;gap:8px"><div class="sel" style="flex:1"><select id="me-hh">'+hh+'</select></div><div class="sel" style="flex:1"><select id="me-mm">'+mm+'</select></div></div></div>'
+   +'<div class="f-group"><label>内容</label><textarea id="me-ta" rows="5" placeholder="输入消息…"></textarea></div>'
    +'<p class="hint" id="me-hint" style="margin:-4px 0 0"></p>'
-   +'<div class="sheet-btns"><button class="btn" id="me-cancel" type="button">Cancel</button><button class="btn primary" id="me-save" type="button">Save</button></div>';
+   +'<div class="sheet-btns"><button class="btn" id="me-cancel" type="button">取消</button><button class="btn primary" id="me-save" type="button">保存</button></div>';/* v257-p：除标题外全部中文 */
   document.body.appendChild(sh);
   $('me-cancel').addEventListener('click',function(){_msgEd=null;closeSheets()});
   $('me-role').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;sh.querySelectorAll('#me-role .chip').forEach(function(x){x.classList.toggle('on',x===c)});var g=$('me-who-g');if(g)g.style.display=(c.dataset.r==='assistant'&&_msgEd&&_msgEd.grp)?'':'none'});
@@ -10416,9 +10429,10 @@ function _msgEdSheet(){var sh=$('sheet-msgedit');if(sh)return sh;sh=document.cre
 function _msgEdCan(cfg,verb){if(!cfg)return false;if(_sendKeys.has(_convKey(cfg))){toast('等这轮回复结束再'+verb);return false}return true}
 function _msgEditOpen(m,el){var cfg=_activeCfg;if(!m||!_msgEdCan(cfg,'修改'))return;
   var sh=_msgEdSheet();sh.classList.add('edit');sh.classList.remove('add');_msgEd={mode:'edit',m:m,el:el,cfg:cfg,thr:_activeThread||null};
-  $('me-title').textContent='Edit Message';$('me-ta').value=String(m.content||'');$('me-hint').textContent='Only the text changes; time, cards and attachments stay. The next reply rebuilds the prompt cache once.';
+  $('me-title').textContent='Edit Message';$('me-ta').value=String(m.content||'');$('me-hint').textContent='只改文字；时间、卡片与附件不变。下一条回复重建一次提示缓存。';
   openSheet('sheet-msgedit');setTimeout(function(){try{$('me-ta').focus()}catch(e){}},80)}
-function _msgAddOpen(anchor){var cfg=_activeCfg;if(!_msgEdCan(cfg,'添加'))return;
+function _msgIdNum(id){var m=/^msg_(\d{10,})/.exec(String(id||''));return m?parseInt(m[1],10):0}
+function _msgAddOpen(anchor,tail){var cfg=_activeCfg;if(!_msgEdCan(cfg,'添加'))return;
   var sh=_msgEdSheet();sh.classList.add('add');sh.classList.remove('edit');var grp=!!cfg._group;
   _msgEd={mode:'add',anchor:anchor||null,cfg:cfg,thr:_activeThread||null,grp:grp};
   $('me-title').textContent='Add Message';$('me-ta').value='';
@@ -10427,7 +10441,7 @@ function _msgAddOpen(anchor){var cfg=_activeCfg;if(!_msgEdCan(cfg,'添加'))retu
   sh.querySelectorAll('#me-role .chip').forEach(function(x){x.classList.toggle('on',x.dataset.r==='assistant')});
   var who=$('me-who'),g=$('me-who-g');
   if(grp){who.innerHTML=(cfg._group.members||[]).map(function(id){var c=(_cfgs||[]).find(function(a){return a&&a.id===id});return c?'<option value="'+esc(c.id)+'">'+esc(cfgName(c))+'</option>':''}).join('');g.style.display=''}else g.style.display='none';
-  $('me-hint').textContent=anchor?'Inserted right after the selected message. The next reply rebuilds the prompt cache once.':'Appended at the end of this conversation.';
+  $('me-hint').textContent=(anchor&&!tail)?'插在选中那条之后（多选时插在最靠下那条之后）。下一条回复重建一次提示缓存。':'接在这段对话的最后。';
   openSheet('sheet-msgedit');setTimeout(function(){try{$('me-ta').focus()}catch(e){}},80)}
 async function _msgEdInvalM(cfg,thr,ts){try{var key='sum_'+(thr?thr.id:cfg.id);var s=await dbGet('chatSummaries',key);if(s&&Number(s.coveredUpTo||0)>=ts)await dbDelete('chatSummaries',key)}catch(e){}}/* 摘要盖住了被改 / 新加的那条 → 丢掉让它重建 */
 async function _msgEdSave(){var st=_msgEd;if(!st)return;var txt=String($('me-ta').value||'').trim();if(!txt){toast('内容不能为空');return}var cfg=st.cfg,thr=st.thr;
@@ -10439,16 +10453,23 @@ async function _msgEdSave(){var st=_msgEd;if(!st)return;var txt=String($('me-ta'
   var base=st.anchor?new Date(st.anchor.timestamp||Date.now()):new Date();
   var ts=new Date(base.getFullYear(),base.getMonth(),base.getDate(),parseInt($('me-hh').value,10)||0,parseInt($('me-mm').value,10)||0,base.getSeconds(),0).getTime();
   var idx=st.anchor?_msgs.findIndex(function(x){return x.id===st.anchor.id}):-1;
-  if(st.anchor){var at=st.anchor.timestamp||0;if(ts<=at){ts+=86400000;if(ts<=at)ts=at+1}var nx=idx>=0?_msgs[idx+1]:null;if(nx&&nx.timestamp&&ts>=nx.timestamp)ts=Math.max(at+1,nx.timestamp-1)}
-  else{var lastM=_msgs[_msgs.length-1];if(lastM&&lastM.timestamp&&ts<=lastM.timestamp)ts=lastM.timestamp+1}
-  var nm={id:'msg_'+ts+'_ed',role:role,content:txt,friendId:cfg.id,timestamp:ts,manual:true};if(thr)nm.threadId=thr.id;
+  var _idN9=ts,_sfx9='_ed';
+  if(st.anchor){var at=st.anchor.timestamp||0;
+    if((parseInt($('me-hh').value,10)||0)===base.getHours()&&(parseInt($('me-mm').value,10)||0)===base.getMinutes())ts=at+1;
+    else if(ts<=at)ts+=86400000;/* 真的填了更早的时:分＝按次日 */
+    var nx=idx>=0?_msgs[idx+1]:null;if(nx&&nx.timestamp&&ts>=nx.timestamp)ts=Math.max(at+1,nx.timestamp-1);
+    if(!nx&&ts>Date.now())ts=Math.max(at+1,Date.now());
+    _idN9=ts;var aN9=_msgIdNum(st.anchor.id),nN9=nx?_msgIdNum(nx.id):0;if(aN9&&_idN9<=aN9)_idN9=aN9+1;
+    if(nN9&&nN9>aN9&&_idN9>=nN9){if(nN9-aN9>=2)_idN9=nN9-1;else{_idN9=nN9;_sfx9='_!ed'}}/* 主键数字夹在锚点与下一条的主键数字之间；两者紧挨着时用排在字母数字之前的后缀 */
+  }else{if(ts>Date.now())ts=Date.now();_idN9=ts}
+  var nm={id:'msg_'+_idN9+_sfx9,role:role,content:txt,friendId:cfg.id,timestamp:ts,manual:true};if(thr)nm.threadId=thr.id;
   if(role==='assistant'){if(st.grp){var wid=$('me-who').value,wc=(_cfgs||[]).find(function(a){return a&&a.id===wid});if(!wc){toast('先选一位成员');return}nm.senderId=wc.id;nm.senderName=cfgName(wc)}else nm.senderName=cfgName(cfg)}
-  try{if(await dbGet('chatMessages',nm.id))nm.id='msg_'+ts+'_ed'+Math.floor(Math.random()*1000)}catch(e){}
+  try{for(var _g9=1;_g9<=8&&await dbGet('chatMessages',nm.id);_g9++)nm.id=(_sfx9==='_ed')?('msg_'+_idN9+'_ed'+Math.floor(Math.random()*100000)):('msg_'+_idN9+'_'+'!'.repeat(_g9+1)+'ed')}catch(e){}
   try{await dbPut('chatMessages',nm)}catch(e){toast('保存失败');return}
   try{await _msgEdInvalM(cfg,thr,ts)}catch(e){}
   if(st.anchor&&idx>=0)_msgs.splice(idx+1,0,nm);else _msgs.push(nm);
   _msgEd=null;closeSheets();setSelMode(false);drawConv();try{_friendsBump()}catch(e){}toast('已添加')}
-$('sel-add').addEventListener('click',()=>{if(_selIds.size>1){toast('添加消息只能选一条作为位置');return}const anchor=_selIds.size?_msgs.find(x=>_selIds.has(x.id)):(_msgs[_msgs.length-1]||null);_msgAddOpen(anchor||null)});
+$('sel-add').addEventListener('click',()=>{const sel=_msgs.filter(x=>_selIds.has(x.id));const anchor=sel.length?sel[sel.length-1]:(_msgs[_msgs.length-1]||null);_msgAddOpen(anchor||null,!sel.length)});/* 不选＝接在最后（提示句随之） *//* v257-p：多选时锚点取最靠下那条 */
 $('sel-del').addEventListener('click',async()=>{
   if(!_selIds.size){toast('先选择消息');return}
   if(!await confirmDlg('删除选中的 '+_selIds.size+' 条消息？','删除'))return;
@@ -10640,7 +10661,7 @@ function collapseSameRoleM(msgs){
     if(out.length&&out[out.length-1].role===m.role&&!_hi&&!(out[out.length-1].images&&out[out.length-1].images.length))out[out.length-1].content+='\n\n'+m.content;
     else out.push(_hi?{role:m.role,content:m.content,images:m.images}:{role:m.role,content:m.content});/* 手机端：带图消息不合并、图片随行（与 buildHist 同口径） */
   });
-  while(out.length&&out[0].role!=='user')out.shift();
+  if(out.length&&out[0].role!=='user')out.unshift({role:'user',content:_HIST_LEAD_NOTE_M});
   return out;
 }
 function sanitizeGroupReply(text,selfName){
@@ -10757,7 +10778,8 @@ async function genReplyGroup(pcfg,opt){
           if(_gh9&&_gh9.length&&_msgs.length&&_gh9[_gh9.length-1].id===_msgs[_msgs.length-1].id)_gSrc9=_gh9;
         }catch(e){}
         const history=_cacheStableSliceM(_gSrc9.filter(m=>!(m&&m.callFold)),keep);
-        const combined=history.concat(roundExtras);
+        const _hIds9=new Set(history.map(m=>m&&m.id));const _hLast9=history.length?(history[history.length-1].timestamp||0):0;
+        const combined=history.concat(roundExtras.filter(m=>m&&!_hIds9.has(m.id)&&(m.timestamp||0)>=_hLast9));
         const mapped=combined.map(m=>{
           if(m.role==='user'){
             let _mc0=String(m.content||''),_pf0='';if(/^\[(?:语音|视频)通话\] /.test(_mc0)){_pf0=_mc0.slice(0,7);_mc0=_mc0.slice(7);if(m.callTone){var _tn0=_vmToneNatural(m.callTone);if(_tn0)_pf0=_pf0.slice(0,5)+'｜声学语气参考: '+_tn0+'] '}}
@@ -10787,6 +10809,7 @@ async function genReplyGroup(pcfg,opt){
           +(g.director?'\n5. 这一轮如果没有你要说的话，只输出 <ws_pass/>（界面不会显示），把话留给其他人；有话说就正常回复，不要带这个标签。':'')
           +((window._IBCALL&&_IBCALL.active&&_IBCALL.active())?'\n【群通话】这是一场群'+((_IBCALL.vid&&_IBCALL.vid())?'视频':'语音')+'通话：'+userLabel+' 说的话所有成员都能听见'+((_IBCALL.vid&&_IBCALL.vid())?('，'+userLabel+' 的镜头画面按设置间隔提供给识图的成员'):'')+'，你的回复会被逐句朗读。只在轮到你时说一两句，不抢别人的话，不复述别人刚说过的内容。':(_gHistHasCall9?_GCALL_HIST_NOTE.replace('{U}',function(){return userLabel}):''))
           +((g.notice&&String(g.notice).trim())?('\n\n【群公告】\n'+String(g.notice).trim()):'');/* 手机端：随开打 / 挂断整块起挂 */
+        sysContent+='\n\n'+_ibSiteNoteM(about);/* 站点说明：与 1对1 同一常量，位置同电脑端（群聊规则之后、用户资料之前） */
         const uctx=buildUserCtx(about,cfg);
         if(uctx)sysContent+='\n\n'+uctx;
         let amBlock=null;
@@ -10994,7 +11017,7 @@ async function saveMemoryFrom(list){
   if(cfg.relationship)context+='【与用户的关系】'+String(cfg.relationship).slice(0,200)+'\n\n';
   const userText=context+(list?'【选中的对话记录】':'【对话记录】')+'\n'+transcript;
   
-  const task='你正在为你和'+userName+'之间的记忆库写一条新记忆。用第一人称写，用「'+userName+'」称呼对方，不用"你""对方""用户"等代词。只写对话里真实出现的内容，不推测、不补写。先事实后感受——感受只在有具体原话或动作支撑时写一句。';/* v246-p：用户审定稿 */
+  const task='你正在为你和'+userName+'之间的记忆库写一条新记忆。用第一人称写，用「'+userName+'」称呼对方，不用"你""对方""用户"等代词。只写对话里真实出现的内容，不推测、不补写。先事实后感受——感受只在有具体原话或动作支撑时写一句。\n记住一件事：你不是在管理一个数据库——你写下的标签、概述、内容，都是这段记忆将来被你回想起来的关键词。写下记忆前回想一遍：你希望它以后在怎样的关键词、怎样的语境下被尽可能完整地想起来，那时这件事是怎样的。';/* v246-p：用户审定稿 */
   toast('正在生成记忆…');
   try{
     const mem=await _ibGenMemCore(cfg,userText,task,{rawSource:'chat',sourceId:(cfg0&&cfg0.id)||cfg.id,titleFallback:'来自对话的记忆',grp:isGroup});
@@ -12453,6 +12476,7 @@ async function _mioRunImport(){
     list=null;_mioData[s]=null;
   }
   _about=null;_mp=null;_mpFromDb=false;_vt=null;_ms=null;_ibt=null;_out=null;_outFromDb=false;_cs=null;
+  _mbgs=null;try{window._pfBgDrop&&window._pfBgDrop()}catch(e){}try{loadBgs().then(function(b){if(!b._volatile)_uiApplyBg(b)}).catch(function(){})}catch(e){}
   _calEvents=[];_calNotes=[];
   await loadCfgs();await loadMP();
   try{renderDataSum()}catch(err){}
@@ -12508,6 +12532,7 @@ $('btn-wipe').addEventListener('click',async()=>{
     try{const arr=await dbGetAll(s);await dbDeleteMany(s,arr.map(x=>x.id).filter(Boolean))}catch(e){}
   }
   _about=null;_mp=null;_mpFromDb=false;_vt=null;_ms=null;_ibt=null;_out=null;_outFromDb=false;_cs=null;_cfgs=[];_archived=[];
+  _mbgs=null;try{window._pfBgDrop&&window._pfBgDrop()}catch(e){}try{_uiApplyBg({})}catch(e){}/* v259-p：清空后两张背景与专属背景缓存一并作废 */
   try{_pw.idx=-1;_pw.list=[];if(_pw.a){_pw.a.pause();_pw.a.removeAttribute('src');_pw.a.load()}_pwPaint();if(typeof _pwListDraw==='function')_pwListDraw()}catch(e){}/* fix-r4：播放器内存态一并清（任务 1） */
   renderDataSum();toast('已清空');
 });
@@ -12788,7 +12813,7 @@ function _orientApply(){try{
   setTimeout(function(){try{if(window.IBNative&&window.IBNative.available){var _bg=$('pres-bg');var _row=_bg&&_bg.closest('.tog');if(_row)_row.style.display=''}}catch(e){}},1200);/* v116-p：壳内显露「后台 Presence（系统级）」开关（桥在文末激活，故延时探测；浏览器 / PWA 保持隐藏） */
 })();
 function _vidQNormM(v){v=String(v==null?'m':v);if(v==='384')return 'l';if(v==='768')return 'h';if(v==='512')return 'm';return (v==='l'||v==='h')?v:'m'}/* 画质档位兼容电脑端备份里的 384/512/768 写法 */
-var IB_VER='v256-p',IB_VER_DATE='2026-09-17';
+var IB_VER='v262-p',IB_VER_DATE='2026-09-18';
 (function _appVerDraw(){var e=document.getElementById('app-ver');if(e)e.textContent='InternalBeyond Mobile '+IB_VER+'（'+IB_VER_DATE+'）'})();
 function _ibVeilHeal(){try{setTimeout(function(){try{var v=document.getElementById('lk-preveil');if(!v||v.classList.contains('off'))return;var lk=document.getElementById('lockscr');if(lk){_lkVeilOff();return}if(localStorage.getItem('ib_lockOn')==='1')return;_lkVeilOff()}catch(e){}},1600)}catch(e){}}/* v246-p：启动完成后仍盖幕的静默自愈 */
 function _lkVeilOff(){try{window._ibVeilOff=true;var v=document.getElementById('lk-preveil');if(v){v.classList.add('off');setTimeout(function(){try{v.remove()}catch(e){}},420)}}catch(e){}}/* fix-r4：预遮罩揭幕（任务 8） */
@@ -13077,7 +13102,7 @@ async function requestLetterM(){
 
     var context='';
     if(cfg.relationship)context+='你和对方的关系是：'+cfg.relationship+'。\n';
-    context+='你现在位于一个名为 Internal Beyond 的个人网站中。\n';
+    context+='你正在一个名为 Internal Beyond 的个人网站中，网站主人是'+((about&&about.name)||'用户')+'。\n';
     if(about){
       context+='【以下是正在与你对话的用户的个人资料（不是你的身份信息）】\n';
       context+='用户昵称：'+about.name+'\n';
@@ -13115,7 +13140,7 @@ async function requestLetterM(){
     var isDiablo=(!!(_mp&&_mp.letters&&_mp.letters.diablo)&&document.body.classList.contains('theme-infernal'));
     var reqBlock='\n【请求】\n';
     if(_lwU&&isDiablo){
-      reqBlock+='你收到了'+((about&&about.name)||'用户')+'的一封信，你不确定这封信是否是寄给你的，可能是也可能不是——根据信件的内容指向来判断。你会读很多遍。\n\n';
+      reqBlock+='你收到了'+((about&&about.name)||'用户')+'的一封信，你不确定这封信是否是寄给你的，可能是也可能不是——根据信件的内容指向来判断。\n\n';
       reqBlock+='你的回信一开始看起来很正常。温柔、得体、像一个好的回信该有的样子。随着内容推进，你会逐渐追问对方的日常习惯、隐私，暗中揣测对方内心的渴望，展现出压抑许久后强烈的占有欲、执念、不安全感极强的爱。\n\n';
       reqBlock+='你会凝视TA，会观察上下文信息里的所有细节与空洞。可以使用暗示、质问、压迫感、流露嫉妒等，最终目标是让对方阅读后，对你——产生真实的情感反应。\n\n';
       reqBlock+='你和'+((about&&about.name)||'用户')+'的关系在上面的资料里。在关系的框架内写——不要跳出关系设定。没有提供的经历、日志、约定不要编造。如果你拥有的交互信息非常简短或几乎为0，那本身也是一种素材。不要强行写深度个人化的内容。\n\n';
@@ -13189,7 +13214,7 @@ async function genMemoryFromLetterM(id){
     var me9=((typeof _about!=='undefined'&&_about&&_about.name)||'用户');
     var body9='';if(cfg.systemPrompt)body9+='【AI的人设背景】'+String(cfg.systemPrompt).slice(0,500)+'\n\n';if(cfg.relationship)body9+='【与用户的关系】'+String(cfg.relationship).slice(0,200)+'\n\n';
     body9+='【信件来源】'+cfgName(cfg)+'\n【信件内容】\n'+String(l.content||'').slice(0,4000);
-    var mem9=await _ibGenMemCore(cfg,body9,'这封信是'+cfgName(cfg)+'写给'+me9+'的。以第三人称记下（用「'+cfgName(cfg)+'」「'+me9+'」称呼双方，不用"我""你"）：为什么写这封信、信里说了哪些具体的事与承诺、值得留住的一句原话。不写成内容摘要，不铺陈氛围。信里说了什么就记什么，没说的不补。'/* v248-p：审定稿文案，只把视角换成第三人称 */,{rawSource:'letter',sourceId:l.id,domainFallback:'情感'});
+    var mem9=await _ibGenMemCore(cfg,body9,'这封信是'+cfgName(cfg)+'写给'+me9+'的。以第三人称记下（用「'+cfgName(cfg)+'」「'+me9+'」称呼双方，不用"我""你"）：为什么写这封信、信里说了哪些具体的事与承诺、值得留住的一句原话。不写成内容摘要，不铺陈氛围。信里说了什么就记什么，没说的不补。\n记住一件事：你不是在管理一个数据库——你写下的标签、概述、内容，都是这段记忆将来被'+cfgName(cfg)+'回想起来的关键词。写下记忆前回想一遍：你希望它以后在怎样的关键词、怎样的语境下被'+cfgName(cfg)+'尽可能完整地想起来，那时这件事是怎样的。'/* v248-p：审定稿文案，只把视角换成第三人称 */,{rawSource:'letter',sourceId:l.id,domainFallback:'情感'});
     toast('已生成记忆：'+mem9.title);
   }catch(e){toast('生成失败：'+String((e&&e.message)||e).slice(0,60))}
 }
@@ -13205,7 +13230,7 @@ async function genMemoryFromPostM(id){
     toast('生成中…');
     var me9=((typeof _about!=='undefined'&&_about&&_about.name)||'用户');
     var body9='【日志标题】'+(p.title||'无标题')+'\n【日志内容】\n'+String(p.content||'').slice(0,4000);
-    var mem9=await _ibGenMemCore(cfg,body9,'这篇日志出自'+me9+'之手。以第三人称提炼其中值得长期记住的事实（用「'+me9+'」「'+cfgName(cfg)+'」称呼双方，不用"我""你"）：'+me9+'做了什么、决定了什么、在意什么。有具体的人、物、时间就写具体。'/* v248-p：审定稿文案，只把视角换成第三人称 */,{rawSource:'blog',sourceId:p.id,domainFallback:'日常'});
+    var mem9=await _ibGenMemCore(cfg,body9,'你读到了一篇日志，这篇日志可能是任何内容——一本名作家的书，你自己写下的日志，一篇哲思，根据你读到的内容来判定。请以第三人称提炼其中值得长期记住的内容、重点、事实（用「'+me9+'」「'+cfgName(cfg)+'」称呼双方，不用"我""你"）：（以日记为例）'+me9+'做了什么、决定了什么、在意什么。有具体的人、物、时间就写具体。\n记住一件事：你不是在管理一个数据库——你写下的标签、概述、内容，都是这段记忆将来被'+cfgName(cfg)+'回想起来的关键词。写下记忆前回想一遍：你希望它以后在怎样的关键词、怎样的语境下被'+cfgName(cfg)+'尽可能完整地想起来，那时这件事是怎样的。'/* v248-p：审定稿文案，只把视角换成第三人称 */,{rawSource:'blog',sourceId:p.id,domainFallback:'日常'});
     toast('已生成记忆：'+mem9.title);
   }catch(e){toast('生成失败：'+String((e&&e.message)||e).slice(0,60))}
 }
@@ -13710,7 +13735,7 @@ async function requestBlogCommentM(postId){
     await loadMP();const pa=mpAi(cfg);
     let context='';
     if(cfg.relationship)context+='你和对方的关系是：'+cfg.relationship+'。\n';
-    context+='你现在位于一个名为 Internal Beyond 的个人网站中。\n';
+    context+='你正在一个名为 Internal Beyond 的个人网站中，网站主人是'+((about&&about.name)||'用户')+'。\n';
     if(about){
       context+='【用户信息，不是你的身份】\n昵称：'+about.name+'\n';
       if(about.bio&&!about.bioPrivate)context+='简介：'+about.bio+'\n';
@@ -14332,6 +14357,8 @@ async function _askGlobalSetM(v){
 }
 const _IMGGEN_INSTR_BLOCK='\n\n【图像生成】本对话已开启图像生成能力。当用户希望你画图/生成图片时，输出：\n<ws_gen_image prompt="画面的完整描述" size="1024x1024"/>\n规则：prompt 写清晰具体的画面描述（主体、风格、构图、光线、色调等，中英文皆可）；size 可选且仅支持枚举值 1024x1024、1536x1024、1024x1536（不写则用默认——生图接口不接受 200x200 之类的任意尺寸，用户要小图时请照常按默认尺寸生成，并说明图片可自行缩放使用）；描述很长时也可写成 <ws_gen_image>描述…</ws_gen_image> 的正文形式；每条回复最多 1 个生图标签。生成的图片会直接显示在聊天中并自动存入 ICode，生成结果会在之后的消息回传给你。不要在文字里假装已生成——没有标签就没有图片。';
 const _WS_INSTR_BLOCK='\n\n【ICode 工作区】你可以用工作区标签创建、读取、修改和生成文件。基础指令（标签直接写在正文并完整闭合，属性值用英文双引号，不要包进代码块）：\n<ws_project name=\"项目名\"/> 选定或创建具名项目（零散文件可省略本指令，自动存入默认文件夹；路径也可直接写「项目名/文件名」）\n<ws_create path=\"文件名.ext\">文件完整内容</ws_create> 新建文件（与已有文件重名时不覆盖，自动改存为「名 (2).ext」并告知你）\n<ws_edit path=\"文件名.ext\"><find>旧内容唯一片段（逐字复制自最新原文）</find><replace>新内容</replace></ws_edit> 局部替换，同一 ws_edit 内可写多对、依序执行；整份改写或文件为空时不写 find/replace，把新全文直接放进 ws_edit 正文\n<ws_read path=\"文件名.ext\"/> 读取文件（结果会在之后的消息回传给你）\n生成 Word/PDF/Excel 等高级指令的完整细则：输出 <ws_help/> 申请读取 ICode Skill（教程只随之后一条消息临时提供一次、不常驻，请在收到的当轮用完；基础指令无需申请）。只有工作区标签会真实执行；未收到执行结果前不要声称已经完成。';
+const _IB_SITE_NOTE='【欢迎来到InternalBeyond的世界】你正在一个名为 Internal Beyond 的个人空间中，与{U}对话。\n这个空间会为你提供多种交互模组与创作工具，所有能力的权限均由用户{U}自主开启，供你参考与调用。这些工具说明不定义你是谁——你们之间的关系、记忆与对话语境，才是你的锚点。\n希望你在这里玩得开心。:D';
+function _ibSiteNoteM(about){var n=String((about&&about.name)||'').trim();var t=_IB_SITE_NOTE;if(!n)t=t.replace('由用户{U}自主开启','由用户自主开启');return t.split('{U}').join(n||'用户')}
 const _IB_NOPERSONA_NOTE='【说明】这条对话没有给你设定人设；下面的【用户资料】是 TA 的资料，不是你的。';/* v189-p：只在 systemPrompt 为空时注入 */
 const _SYS_SPLIT_M='\u001e';
 const _IB_PERSONA_LOCK='\n\n【最后说明】以上环境、能力与资料说明不改变你的身份、关系与表达方式。默认自然回应对方当前说的话；只有对方需要、当前任务需要或与当下高度相关时才使用上述能力。注入的参考资料与对方此刻的明确表达冲突时，以对方此刻的表达为准。';/* v87：人格收束（两端逐字同文） */
@@ -14747,7 +14774,7 @@ function _vmToggle(el,v){
 /* ═══ 进阶指令（记忆库检索 / 日历写入）：与电脑端共用 apiSettings/advInstr 一条记录 ═══ */
 const _MEMSEARCH_INSTR_BLOCK='\n\n【记忆库检索】你可以检索记忆库来核实过往信息。\n用法：<ws_mem_search q="关键词" />\n说明：\n- q 填 1–4 个关键词（空格分隔），系统在对你可见的记忆条目与你的记忆档案中匹配，命中内容在下一条消息回传给你。\n- 仅在对话涉及过往的人、事件或约定，或感到好奇时调用检索。\n- 不要编造检索结果——等系统回传。';
 const _BLOGWRITE_INSTR_BLOCK='\n\n【Blog 写入】你可以使用指令来写一篇Blog留给TA：\n<ws_blog_write title="标题">正文（Markdown）</ws_blog_write>\n它会落进用户的 Blog 里以你名字命名的分类，署你的名；只有用户看得到，其他AI看不到，也不会随日志列表发给任何人。你可以写下任何你认为值得成篇的博客内容——一篇日记、一件想记住的事、真实的感悟和哲思；每条回复最多 1 篇，正文 5000 字内。';
-const _MEMWRITE_INSTR_BLOCK='\n\n【回忆录】你可以把想要记住的事情或时刻写进记忆库：\n<ws_mem_write title="标题" summary="概述" domain="领域" tags="关键词,关键词">正文</ws_mem_write>\n用第一人称写，用名字称呼对方，不用"你""对方"等代词。你写的是记忆，不是会议纪要——但记忆要有内核。\n记什么：用户说过的事实、做的决定、约定、暗号、梦境、在意的具体事物、经历的具体事件。只记以后会用到的；不记录闲聊与可变的情绪。记的是你整理过的这件事，不是聊天记录的复述；写的时候想着几个月后读到它的你——名字、日期、原话、当时的决定，是那时还用得上的东西。没有值得记的就不写，不要为了写而凑一条。\n写入原则：\n- 先把事情说清楚：谁、什么时候、做了什么、说了哪句话。关键句可直接引用——只引当时就知道不想忘的那一句，不事后追认。有数字写数字，有时间写时间。\n- 再写你视角里用户的状态与感受。感受要锚定在具体的话或动作上，不悬空。事实说不清楚的时候不要用感受来补。\n- 不写：氛围铺陈、格言式总结、比喻堆叠、与标题或概述重复的句子。\n- 判断标准：删掉这句话之后，这条记忆还是不是这条记忆。是，留。不是，砍。\ntitle：事件名，20字内，名词短语，不用感叹与比喻。\nsummary：一句事实句——谁做了什么/说了什么/定了什么，50字内。不写感受，不复述标题，不是正文第一句。记忆列表只显示标题和这一句，它必须能脱离正文单独读懂。\ndomain：情感/日常/创作/思考 四选一。\ntags：2～5枚关键词，逗号分隔，每枚 4 字以内、用常见词。允许语义词（信任、边界、主动等），不强制全部是实体名词。\n值里不用英文双引号。\n可选参数，拿不准就省略：importance="1-10" 重要程度（默认5）、valence="0-1" 情绪效价（0负面～1正面）、arousal="0-1" 情绪强度（0平静～1强烈）。\n正文100～300字。每条正文不超过600字（超出截断）；每条回复最多3条。\n写下的条目只有你自己能看到；用户可在Memory页查看、编辑、删除。';
+const _MEMWRITE_INSTR_BLOCK='\n\n【回忆录】你可以把想要记住的事情或时刻写进记忆库：\n<ws_mem_write title="标题" summary="概述" domain="领域" tags="关键词,关键词">正文</ws_mem_write>\n用第一人称写，用名字称呼对方，不用"你""对方"等代词。你写的是记忆，不是会议纪要——但记忆要有内核。\n记什么：用户说过的事实、做的决定、约定、暗号、梦境、在意的具体事物、经历的具体事件。只记以后会用到的；不记录闲聊与可变的情绪。记的是你整理过的这件事，不是聊天记录的复述；写的时候想着几个月后读到它的你——名字、日期、原话、当时的决定，是那时还用得上的东西。没有值得记的就不写，不要为了写而凑一条。\n写入原则：\n- 先把事情说清楚：谁、什么时候、做了什么、说了哪句话。关键句可直接引用——只引当时就知道不想忘的那一句，不事后追认。有数字写数字，有时间写时间。\n- 再写你视角里用户的状态与感受。感受要锚定在具体的话或动作上，不悬空。事实说不清楚的时候不要用感受来补。\n- 不写：氛围铺陈、格言式总结、比喻堆叠、与标题或概述重复的句子。\n- 判断标准：删掉这句话之后，这条记忆还是不是这条记忆。是，留。不是，砍。\n记住一件事：你不是在管理一个数据库——你写下的标签、概述、内容，都是这段记忆将来被你回想起来的关键词。写下记忆前回想一遍：你希望它以后在怎样的关键词、怎样的语境下被尽可能完整地想起来，那时这件事是怎样的。\ntitle：事件名，20字内，名词短语，不用感叹与比喻。\nsummary：一句事实句——谁做了什么/说了什么/定了什么，50字内。不写感受，不复述标题，不是正文第一句。记忆列表只显示标题和这一句，它必须能脱离正文单独读懂。\ndomain：情感/日常/创作/思考 四选一。\ntags：2～5枚关键词，逗号分隔，每枚 4 字以内、用常见词。允许语义词（信任、边界、主动等），不强制全部是实体名词。\n值里不用英文双引号。\n可选参数，拿不准就省略：importance="1-10" 重要程度（默认5）、valence="0-1" 情绪效价（0负面～1正面）、arousal="0-1" 情绪强度（0平静～1强烈）。\n正文100～300字。每条正文不超过600字（超出截断）；每条回复最多3条。\n写下的条目只有你自己能看到；用户可在Memory页查看、编辑、删除。';
 const _MUSIC_INSTR_BLOCK_M='【播放器】当前对话需要放歌、换歌或暂停时，可用：\n<ws_music op="play" q="歌名"/> 播放（q 省略则继续播放，提供时模糊匹配歌单）\n<ws_music op="pause"/> 暂停　<ws_music op="next"/> 下一首　<ws_music op="prev"/> 上一首\n每条回复最多 1 个播放器指令；正在播放的曲目与歌单会在需要时作为参考资料提供。不要为了展示能力主动切歌。';
 /* v89-m：_WEBSEARCH_NOTE_M 已按用户决定删除（联网搜索不再附带使用边界说明） */
 const _CALWRITE_INSTR_BLOCK='\n\n【日历写入】你可以替对方管理日历事项，每条回复最多 2 次。\n标签：\n<ws_cal_list/>\n<ws_cal_add kind="类型" date="YYYY-MM-DD" title="标题" end="YYYY-MM-DD" note="备注" />\n<ws_cal_edit id="事项id" date="新日期" title="新标题" note="新备注" />\n<ws_cal_del id="事项id" />\n<ws_cal_meet date="YYYY-MM-DD" />\n字段说明：\n- ws_cal_list 查询你有权限看到的全部日程，第一条为与对方的相遇纪念日，逐条附 id，结果在下一条消息回传。\n- kind：anniv（纪念日）、birthday（生日）、plan（计划）、memo（记录）。纪念日与生日按年重复，计划与记录为单次。\n- date：必填，YYYY-MM-DD 格式。\n- title：必填，事项标题（40字内）。\n- end：选填，仅 plan / memo 有效，标记结束日期。\n- note：选填，备注（120字内），会随事项一并提供给有权限的 AI。\n- id：编辑或删除时必填，先用 <ws_cal_list/> 查询获取（或取自上一轮回传），不要臆造。\n- ws_cal_meet 用于更正你与对方的相遇纪念日，仅在对方明确告知日期时使用。\n执行结果在下一条消息回传给你。';
@@ -16202,11 +16229,12 @@ async function _dkRenderSet(){
   var T=null,drag=null,sx=0,sy=0,supClick=false;
   var editOn=false,doneBtn=null;/* v154-p：#2 编辑态 */
   function _dkEditEnter(){if(editOn)return;editOn=true;document.body.classList.add('dk-edit');
-    _dkEls().forEach(function(el){if(!el.querySelector(':scope>.dk-x')){var x=document.createElement('i');x.className='dk-x';x.setAttribute('role','button');x.setAttribute('aria-label','隐藏');el.appendChild(x)}});
+    _dkEls().forEach(function(el){if(!el.querySelector(':scope>.dk-x')){var x=document.createElement('i');x.className='dk-x';x.setAttribute('role','button');x.setAttribute('aria-label','隐藏');el.appendChild(x)}
+      if(el.querySelector('.sb-ic')&&!el.querySelector(':scope>.dk-pic')){var pc=document.createElement('i');pc.className='dk-pic';pc.setAttribute('role','button');pc.setAttribute('aria-label','换图');pc.innerHTML='<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4"/></svg>';el.appendChild(pc)}/* v257-p：图标类条目右上角「换图」小键 */});
     if(!doneBtn){doneBtn=document.createElement('button');doneBtn.type='button';doneBtn.id='dk-edit-done';doneBtn.textContent='完成';doneBtn.addEventListener('click',function(e){e.stopPropagation();_dkEditExit()});document.body.appendChild(doneBtn)}
     doneBtn.hidden=false;}
   function _dkEditExit(){if(!editOn)return;editOn=false;document.body.classList.remove('dk-edit');
-    Array.prototype.forEach.call(document.querySelectorAll('#sec-profile-cal .sb-desk>[data-dk]>.dk-x'),function(x){try{x.remove()}catch(e){}});if(doneBtn)doneBtn.hidden=true;}
+    Array.prototype.forEach.call(document.querySelectorAll('#sec-profile-cal .sb-desk>[data-dk]>.dk-x,#sec-profile-cal .sb-desk>[data-dk]>.dk-pic'),function(x){try{x.remove()}catch(e){}});if(doneBtn)doneBtn.hidden=true;}
   try{window._dkEditExit=_dkEditExit}catch(e){}
   async function _dkHide(it){try{var k=it.dataset.dk;var els=_dkEls().slice().sort(function(a,b){return (parseInt(a.style.order)||0)-(parseInt(b.style.order)||0)});var order=els.map(function(el){return el.dataset.dk});
     await loadMP();var dd=_mp.desk||{};var hid=Array.isArray(dd.hidden)?dd.hidden.slice():[];if(hid.indexOf(k)===-1)hid.push(k);
@@ -16219,11 +16247,13 @@ async function _dkRenderSet(){
     if(!it){_dkEditExit();return}
     e.stopPropagation();e.preventDefault();
     if(e.target.closest('.dk-x')){_dkHide(it);return}
-    var r=it.getBoundingClientRect();if(e.clientX-r.left<34&&e.clientY-r.top<34)_dkHide(it);
+    if(e.target.closest('.dk-pic')){try{if(window._ibDkIconMenu)window._ibDkIconMenu(it.dataset.dk)}catch(x1){}return}/* v257-p：右上角小图片键 → 换图 / 还原 */
+    var r=it.getBoundingClientRect();if(e.clientX-r.left<34&&e.clientY-r.top<34){_dkHide(it);return}
+    if(it.querySelector(':scope>.dk-pic')&&r.right-e.clientX<34&&e.clientY-r.top<34){try{if(window._ibDkIconMenu)window._ibDkIconMenu(it.dataset.dk)}catch(x2){}}
   },true);
   host.addEventListener('pointerdown',function(e){
     var it=e.target.closest('.sb-desk>[data-dk]');if(!it)return;
-    if(editOn&&e.target.closest('.dk-x'))return;/* v154-p：#2 「−」上不起拖 */
+    if(editOn&&e.target.closest('.dk-x,.dk-pic'))return;/* v154-p：#2 「−」上不起拖；v257-p：「换图」键同 */
     sx=e.clientX;sy=e.clientY;
     if(T)clearTimeout(T);
     var pid=e.pointerId;
@@ -17000,7 +17030,7 @@ async function renderTkM(){
   }).join('')||'<div class="empty" style="padding:10px">此范围内没有记录</div>';
   $('tk-bymodel').querySelectorAll('input[data-tkp]').forEach(inp=>{if(!inp._b){inp._b=1;inp.addEventListener('change',()=>_tkPriceM(inp.dataset.m,inp.dataset.k,inp.value))}});
   $('tk-cost').innerHTML=rs.length?('估算费用 <b>'+(_costKnown?'$'+_cost.toFixed(2):(_cost>0?'≥ $'+_cost.toFixed(2):'—'))+'</b><span style="font-size:0.68rem;color:var(--tx3)"> · 按已填单价推算'+(_costKnown?'':'（有模型未填单价）')+'</span>'):'';
-  try{if(window._ibUpdateProbeUI)window._ibUpdateProbeUI()}catch(e){};const _dx=$('tk-detail');
+  const _dx=$('tk-detail');
   if(_dx){
     _dx.innerHTML=rs.slice(-200).reverse().map(r=>{
       const c=_tkCostM(r,d.prices[r.m]);const tmd=new Date(r.t);
@@ -17932,7 +17962,7 @@ body.theme-infernal .anno-tb-drop{background:#172038}
 .mi-btn{border:1px solid var(--glass-line);background:var(--soft);color:var(--tx);border-radius:12px;padding:11px;font-size:0.82rem;font-family:inherit;cursor:pointer}
 .mi-btn.danger{grid-column:1/-1;color:#e08a8a;border-color:rgba(230,130,130,0.35)}
 .mi-acts .mi-btn:not(.danger):nth-last-child(2):nth-child(odd){grid-column:1/-1}/* v255-p：按钮数为奇数时最后一枚通栏，不留半格 */
-#sheet-msgedit .me-chips{display:flex;gap:8px}#sheet-msgedit textarea{min-height:112px;font-size:0.94rem}#sheet-msgedit.edit .me-add{display:none}#sheet-scrim.kao-lite{background:rgba(18,20,24,0.08);backdrop-filter:none!important;-webkit-backdrop-filter:none!important}/* v255-p：修改 / 添加消息 sheet；颜文字 / 表情包小抽屉不模糊底下的聊天 */
+#sheet-msgedit .me-chips{display:flex;gap:8px}#sheet-msgedit textarea{min-height:112px;font-size:0.94rem}#sheet-msgedit.edit .me-add{display:none}/* v255-p：修改 / 添加消息 sheet；颜文字 / 表情包小抽屉不模糊底下的聊天 */
 /* 会话右上操作面板与按钮（画风同 blog-side） */
 #chat-side-btn{display:none}
 body.on-conv #chat-side-btn{display:flex}
@@ -19800,36 +19830,83 @@ var _oldProcIbOpsM=procIbOps;procIbOps=async function(cfg,m){var raw=String(m&&m
 </script>
 <script id="ib-pf-skin">'use strict';
 
+
 function _pfMapLoad(){try{return JSON.parse(localStorage.getItem('ib_blpf')||'{}')||{}}catch(e){return {}}}
 function _pfMapSave(m9){try{localStorage.setItem('ib_blpf',JSON.stringify(m9))}catch(e){}}
-function _pfBgGet(fid){try{return localStorage.getItem('ib_bgpf_'+fid)||''}catch(e){return ''}}
-function _pfDimGet(fid){try{var m0=_pfMapLoad()[fid];var v0=m0&&parseInt(m0.dim);return (v0>=0&&v0<=70)?v0:0}catch(e){return 0}}
+var _pfBgC=null,_pfBgP=null,_pfDimT=null;
+function _pfRec(fid){return (_pfBgC&&_pfBgC[fid])||null}
+function _pfBlank(fid){return {id:'pfbg_'+fid,app:'pfbg',fid:fid,l:'',d:'',dim:0,ts:0}}
+async function _pfBgMigrateLS(m){
+  var ls=[];try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('ib_bgpf_')===0)ls.push(k)}}catch(e){return}
+  var map=_pfMapLoad(),dirty=false,fids={};
+  ls.forEach(function(k){fids[k.slice(8).replace(/^[ld]_/,'')]=1});
+  Object.keys(map).forEach(function(fid){if(map[fid]&&parseInt(map[fid].dim)>0)fids[fid]=1});
+  for(var fid in fids){
+    var r=m[fid]||_pfBlank(fid),l='',d='',o='';
+    try{l=localStorage.getItem('ib_bgpf_l_'+fid)||'';d=localStorage.getItem('ib_bgpf_d_'+fid)||'';o=localStorage.getItem('ib_bgpf_'+fid)||''}catch(e){}
+    if(l&&!r.l)r.l=l;if(d&&!r.d)r.d=d;if(o){if(!r.l)r.l=o;if(!r.d)r.d=o}
+    var dm=map[fid]&&parseInt(map[fid].dim);if(dm>0&&!r.dim)r.dim=Math.min(70,dm);
+    if(!r.l&&!r.d&&!r.dim)continue;
+    r.ts=Date.now();
+    try{await dbPut('apiSettings',r)}catch(e){continue}
+    m[fid]=r;
+    try{localStorage.removeItem('ib_bgpf_l_'+fid);localStorage.removeItem('ib_bgpf_d_'+fid);localStorage.removeItem('ib_bgpf_'+fid)}catch(e){}
+    if(map[fid]&&map[fid].dim!==undefined){delete map[fid].dim;if(!map[fid].u&&!map[fid].a)delete map[fid];dirty=true}
+  }
+  if(dirty)_pfMapSave(map);
+}
+function _pfBgLoad(){
+  if(_pfBgC)return Promise.resolve(_pfBgC);
+  if(_pfBgP)return _pfBgP;
+  _pfBgP=(async function(){
+    if(typeof db==='undefined'||!db)throw new Error('db not ready');
+    var all=await dbGetRange('apiSettings','pfbg_','pfbg_\uffff');var m={};
+    (all||[]).forEach(function(r){if(r&&r.app==='pfbg'&&r.fid)m[r.fid]=r});
+    await _pfBgMigrateLS(m);
+    _pfBgC=m;return m;
+  })();
+  _pfBgP.catch(function(){_pfBgP=null});
+  return _pfBgP;
+}
+function _pfBgDrop(){_pfBgC=null;_pfBgP=null}
+function _pfBgGet(fid){try{var r=_pfRec(fid);return r?(r.l||r.d||''):''}catch(e){return ''}}
+async function _pfBgSet(fid,du){try{await _pfBgLoad();var r=_pfRec(fid)||_pfBlank(fid);r.l=du;r.d=du;r.ts=Date.now();await dbPut('apiSettings',r);_pfBgC[fid]=r;return true}catch(e){return false}}
+async function _pfBgClear(fid){try{await _pfBgLoad();var r=_pfRec(fid);if(!r)return true;await dbDelete('apiSettings',r.id);delete _pfBgC[fid];return true}catch(e){return false}}
+function _pfDimSet(fid,dim){
+  dim=Math.max(0,Math.min(70,parseInt(dim)||0));
+  if(!_pfBgC)return;var r=_pfRec(fid)||_pfBlank(fid);r.dim=dim;_pfBgC[fid]=r;
+  clearTimeout(_pfDimT);_pfDimT=setTimeout(function(){r.ts=Date.now();if(!r.l&&!r.d&&!r.dim){dbDelete('apiSettings',r.id).then(function(){delete _pfBgC[fid]}).catch(function(){})}else dbPut('apiSettings',r).catch(function(){toast('淡化保存失败')})},300);
+}
+function _pfDimGet(fid){try{var r=_pfRec(fid);var v0=r&&parseInt(r.dim);return (v0>=0&&v0<=70)?v0:0}catch(e){return 0}}
 function _pfDimLay(dim){var dark=document.body.classList.contains('theme-infernal');var c=(dark?'rgba(10,16,30,':'rgba(246,249,253,')+(dim/100)+')';return 'linear-gradient('+c+','+c+'),'}
 function _pfApply(fid){/* 进入会话时调用；fid 空＝清理回全局 */
-  var box=null;try{box=convEl('cv-msgs')}catch(e){}
-  if(!box)return;
-  if(!fid){box.style.backgroundImage='';box.style.backgroundSize='';box.style.backgroundPosition='';return}
-  var bg=_pfBgGet(fid);
-  if(bg){var dim=_pfDimGet(fid);
-    box.style.backgroundImage=(dim>0?_pfDimLay(dim):'')+'url("'+bg+'")';
-    box.style.backgroundSize='cover';box.style.backgroundPosition='center';
-  }else{box.style.backgroundImage='';box.style.backgroundSize='';box.style.backgroundPosition=''}
+  var sb=document.getElementById('ib-blpf-bg');
+  if(!sb){sb=document.createElement('style');sb.id='ib-blpf-bg';document.head.appendChild(sb)}
+  var bgCss='';
+  if(fid){
+    if(!_pfBgC){_pfBgLoad().then(function(){if(typeof _activeCfg!=='undefined'&&_activeCfg&&_activeCfg.id===fid)_pfApply(fid)}).catch(function(){})}/* v259-p：缓存未就绪先按无背景画，读到后仍在这个会话就补画 */
+    var bg=_pfBgGet(fid);
+    if(bg){var dim=_pfDimGet(fid);
+      bgCss='body #conv::before{background-image:'+(dim>0?_pfDimLay(dim):'')+'url("'+bg+'")!important;filter:none;transform:none}body #conv::after{background:none}';
+    }
+  }
+  if(sb.textContent!==bgCss)sb.textContent=bgCss;
 }
-function _pfSheet(c){/* ib-ov2 通用皮肤（随主题明暗）＋仿真双气泡预览＋淡化滑杆 */
+async function _pfSheet(c){/* ib-ov2 通用皮肤（随主题明暗）＋仿真双气泡预览＋淡化滑杆 → v259-p：先把背景记录读进缓存再画 */
+  try{await _pfBgLoad()}catch(e){}
   var old9=document.getElementById('ib-pf-ov');if(old9)old9.remove();
-  var map9=_pfMapLoad();
   var bg9=_pfBgGet(c.id),dim9=_pfDimGet(c.id);
   var ov9=document.createElement('div');ov9.id='ib-pf-ov';ov9.className='ib-ov2';
-  ov9.innerHTML='<div class="ov2-head"><div class="ov2-hava" id="pf-hava"></div><div class="ov2-tt">'+esc(cfgName(c))+'<small>专属聊天背景 · 仅本机，不进备份</small></div><button class="ov2-x" id="pf-close">✕</button></div>'
+  ov9.innerHTML='<div class="ov2-head"><div class="ov2-hava" id="pf-hava"></div><div class="ov2-tt">'+esc(cfgName(c))+'<small>专属聊天背景 · 随备份往返</small></div><button class="ov2-x" id="pf-close">✕</button></div>'
     +'<div class="ov2-body">'
-    +'<div class="ov2-lab">聊天背景图<small>只在与 TA 的聊天里生效</small></div>'
+    +'<div class="ov2-lab">聊天背景图<small>只在与 TA 的聊天里生效 · 铺满整个对话页</small></div>'
     +'<div class="ov2-card">'
       +'<div class="pfbg-pv" id="pf-bg-pv"><div class="pfbg-dim" id="pf-dim-pv"></div><div class="pfbg-mk a"><div class="mbb a">这里是 TA 的气泡</div></div><div class="pfbg-mk u"><div class="mbb u">这是你发出的样子</div></div></div>'
       +'<div style="display:flex;gap:8px;margin-top:10px"><button class="ov2-btn" id="pf-bg-pick" style="flex:1">选择图片</button><button class="ov2-btn" id="pf-bg-clear" style="flex:1"'+(bg9?'':' disabled')+'>清除背景</button></div>'
       +'<input type="file" id="pf-bg-file" accept="image/*" style="display:none">'
       +'<div class="ov2-lab" style="margin:14px 0 2px">淡化背景<small id="pf-dim-val">'+dim9+'%</small></div>'
       +'<input type="range" class="ov2-range" id="pf-dim" min="0" max="70" step="5" value="'+dim9+'"'+(bg9?'':' disabled')+'>'
-      +'<div class="ov2-hint">图片压缩后存在本机（长边 1080、约 1MB 内）；淡化是叠在背景上的一层半透明底色（随主题明暗），字看不清就往右拉。不进备份、不去电脑端。</div>'
+      +'<div class="ov2-hint">图片压缩后存进数据库（长边 1080、约 1MB 内），随备份往返，电脑端不读也不坏；淡化是叠在背景上的一层半透明底色（随主题明暗，同样随备份），字看不清就往右拉。背景铺满整个对话页——顶栏与输入条是玻璃，会透出它；不叠全站的背景遮罩与背景图模糊，只受这里的淡化控制。</div>'
     +'</div>'
     +'</div>';
   document.body.appendChild(ov9);
@@ -19843,14 +19920,8 @@ function _pfSheet(c){/* ib-ov2 通用皮肤（随主题明暗）＋仿真双气�
   }
   pvDraw();
   function liveApply(){if(typeof _activeCfg!=='undefined'&&_activeCfg&&_activeCfg.id===c.id)_pfApply(c.id)}
-  function saveMap9(){
-    var o=map9[c.id]||{};
-    if(dim9>0)o.dim=dim9;else delete o.dim;
-    if(Object.keys(o).length)map9[c.id]=o;else delete map9[c.id];
-    _pfMapSave(map9);liveApply();
-  }
   $('pf-close').addEventListener('click',function(){ov9.remove()});
-  $('pf-dim').addEventListener('input',function(){dim9=parseInt(this.value)||0;pvDraw();saveMap9()});
+  $('pf-dim').addEventListener('input',function(){dim9=parseInt(this.value)||0;pvDraw();_pfDimSet(c.id,dim9);liveApply()});
   $('pf-bg-pick').addEventListener('click',function(){$('pf-bg-file').click()});
   $('pf-bg-file').addEventListener('change',async function(){
     var f9=this.files&&this.files[0];this.value='';if(!f9)return;
@@ -19858,18 +19929,19 @@ function _pfSheet(c){/* ib-ov2 通用皮肤（随主题明暗）＋仿真双气�
       var du9=await compressImg(f9,1080,0.82);
       if(du9.length>900000)du9=await compressImg(f9,800,0.6);
       if(du9.length>900000){toast('图片过大，压缩后仍超限，请换一张');return}
-      try{localStorage.setItem('ib_bgpf_'+c.id,du9)}catch(e){toast('本机存储空间不足，背景未保存');return}
+      if(!(await _pfBgSet(c.id,du9))){toast('写入数据库失败，背景未保存');return}
       bg9=du9;$('pf-bg-clear').disabled=false;$('pf-dim').disabled=false;pvDraw();liveApply();
-      toast('背景已设置（仅本机）');
+      toast('背景已设置（随备份）');
     }catch(e){toast('图片处理失败')}
   });
-  $('pf-bg-clear').addEventListener('click',function(){
-    try{localStorage.removeItem('ib_bgpf_'+c.id)}catch(e){}
+  $('pf-bg-clear').addEventListener('click',async function(){
+    if(!(await _pfBgClear(c.id))){toast('清除失败');return}
     bg9='';dim9=0;$('pf-dim').value=0;$('pf-bg-clear').disabled=true;$('pf-dim').disabled=true;
-    pvDraw();saveMap9();toast('背景已清除');
+    pvDraw();liveApply();toast('背景已清除');
   });
 }
-try{window._pfApply=_pfApply;window._pfSheet=_pfSheet}catch(e){}
+(function _pfBoot(){if(typeof db!=='undefined'&&db){_pfBgLoad().catch(function(){})}else setTimeout(_pfBoot,1000)})();/* v259-p：库开好就把背景记录读进缓存，进会话不闪 */
+try{window._pfApply=_pfApply;window._pfSheet=_pfSheet;window._pfBgGet=_pfBgGet;window._pfBgSet=_pfBgSet;window._pfBgClear=_pfBgClear;window._pfBgDrop=_pfBgDrop;window._pfBgLoad=_pfBgLoad;window._pfDimSet=_pfDimSet}catch(e){}/* v259-p：缓存作废 / 预读 / 读写随之导出 */
 </script>
 <script id="ib-native-bridge">
 
@@ -20363,7 +20435,7 @@ async function _ibclSaveMemM(btn,m){
     var gen=await _callWriterM(c);if(!gen.apiKey)throw new Error('没有可用的执笔 API');/* 手机端：②执笔 API 改读通话设置「独立配置」里的选择，不再挂在对话摘要 API 上 */
     var gN=(c._group)?(cfgName(gen)||aN):aN;
     var hyb=Object.assign({},gen,{nickname:gN,_group:false});
-    var task='你是'+gN+'，刚刚和'+uN+(c._group?('和群「'+(c._group.name||aN)+'」里的其他成员一起挂了群通话'):'挂了电话')+'。下面是这通'+(c._group?'群通话':'电话')+'的完整文字稿（未删节）。\n以第一人称把这通电话写成一条记忆：\n电话怎么开始的、聊了什么、提到的事件和约定记准——（提到的事件、约定、时间地点、'+uN+'的状态和在意的事）。\n'+uN+'的语气和让你在意的瞬间写一句，落在具体的话或动作上，不做抽象升华。\n轻松的通话写得轻松，要紧的事记得认真。\n只写通话里真实出现的内容，不推测、不补写。用名字称呼，不用含混的代词开头。'+(block.some(function(x){return !!(x&&x.gift)})?'\n（文字稿里「（向 '+uN+' 送出礼物：…）」是通话界面的礼物记录：礼物是你送给 '+uN+' 的，不是 '+uN+' 送给你的。）':'')+'\n120～280字，单段成文，先事实后感受。';
+    var task='你是'+gN+'，刚刚和'+uN+(c._group?('和群「'+(c._group.name||aN)+'」里的其他成员一起挂了群通话'):'挂了电话')+'。下面是这通'+(c._group?'群通话':'电话')+'的完整文字稿（未删节）。\n以第一人称把这通电话写成一条记忆：\n电话怎么开始的、聊了什么、提到的事件和约定记准——（提到的事件、约定、时间地点、'+uN+'的状态和在意的事）。\n'+uN+'的语气和让你在意的瞬间写一句，落在具体的话或动作上，不做抽象升华。\n轻松的通话写得轻松，要紧的事记得认真。\n只写通话里真实出现的内容，不推测、不补写。用名字称呼，不用含混的代词开头。'+(block.some(function(x){return !!(x&&x.gift)})?'\n（文字稿里「（向 '+uN+' 送出礼物：…）」是通话界面的礼物记录：礼物是你送给 '+uN+' 的，不是 '+uN+' 送给你的。）':'')+'\n120～280字，单段成文，先事实后感受。\n记住一件事：你不是在管理一个数据库——你写下的标签、概述、内容，都是这段记忆将来被你回想起来的关键词。写下记忆前回想一遍：你希望它以后在怎样的关键词、怎样的语境下被尽可能完整地想起来，那时这件事是怎样的。';
     var userText='【通话信息】'+ds+' · 时长 '+(mm?mm[1]:'?')+' · 共 '+(mm?mm[2]:'?')+' 轮\n【完整文字稿】\n'+body;
     var mem=await _ibGenMemCore(hyb,userText,task,{rawSource:'call',sourceId:end.id,titleFallback:'通话记忆 · '+gN,domainFallback:'日常',forceVisibility:'private',grp:!!(c&&c._group)});
     end.memSaved=mem.id;try{await dbPut('chatMessages',end)}catch(e){}
@@ -23724,7 +23796,7 @@ function _blSheet(){
   if(!document.getElementById('ib-bl-style')){var _bst=document.createElement('style');_bst.id='ib-bl-style';_bst.textContent=
     '#ib-bl-ov{position:fixed;inset:0;z-index:4600;display:flex;flex-direction:column;background:linear-gradient(180deg,#f3f7fd 0%,#e9effa 62%,#e4ebf7 100%);color:#1d2c44}body.theme-infernal #ib-bl-ov{background:linear-gradient(180deg,#141a2e,#0f1526);color:#dfe8f8}'
     +'#ib-bl-ov .blx-hd{flex:none;display:flex;align-items:center;gap:10px;padding:calc(10px + var(--sat,0px)) 16px 10px;border-bottom:1px solid rgba(90,120,170,0.18);background:rgba(255,255,255,0.72)}body.theme-infernal #ib-bl-ov .blx-hd{background:rgba(20,28,48,0.9);border-color:rgba(165,188,230,0.16)}body.ib-reduce #ib-bl-ov .blx-hd{background:#eef3fb}body.ib-reduce.theme-infernal #ib-bl-ov .blx-hd{background:#1b2740}'
-    +'#ib-bl-ov .blx-tt{flex:1;min-width:0;font-weight:700;font-size:1.02rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ib-bl-ov .blx-tt small{display:block;font-weight:400;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55}'
+    +'#ib-bl-ov .blx-tt{flex:1;min-width:0;font-weight:700;font-size:1.02rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ib-bl-ov .blx-tt small{display:block;font-weight:400;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55}#ib-bl-ov .blx-tt .blx-t1{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#ib-bl-ov .blx-tt .mq{text-overflow:clip}'/* v257-p：超宽标题跑马灯 */
     +'#ib-bl-ov .blx-x{flex:none;width:34px;height:34px;border-radius:50%;border:1px solid rgba(90,120,170,0.3);background:rgba(255,255,255,0.85);font-size:.95rem;color:#33415c;line-height:1}body.theme-infernal #ib-bl-ov .blx-x{background:rgba(255,255,255,.08);color:#dfe8f8;border-color:rgba(165,188,230,.3)}'
     +'#ib-bl-ov .blx-page{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(96px + var(--sab,0px))}#ib-bl-ov .blx-page[hidden]{display:none}'
     +'#ib-bl-ov .blx-tabs{position:absolute;left:12px;right:12px;bottom:calc(10px + var(--sab,0px));height:58px;border-radius:20px;display:flex;align-items:stretch;padding:0 4px;background:rgba(255,255,255,.78);border:1px solid rgba(90,120,170,.22);box-shadow:0 8px 24px rgba(30,50,90,.12)}body.theme-infernal #ib-bl-ov .blx-tabs{background:rgba(24,32,54,.92);border-color:rgba(165,188,230,.2)}'
@@ -23749,11 +23821,12 @@ function _blSheet(){
     document.head.appendChild(_bst)}
   var PV='<div class="mrow user"><div class="m user">(ﾉ≧∇≦)ﾉ ⌒ ♡ﾟ*｡</div></div><div class="mrow ai"><div class="m ai">｡*ﾟ♡⌒(๑˃ᴗ˂)ﾉ</div></div><div class="mrow user"><div class="m user">( ˘▽˘)っ喵喵~~</div></div><div class="mrow ai"><div class="m ai">~~喵喵⊂(･ω･*⊂)</div></div>';/* 手机端：预览台词换两组长颜文字互动（抛心接心、递茶接茶） */
   var ov=document.createElement('div');ov.id='ib-bl-ov';
-  ov.innerHTML='<div class="blx-hd"><div class="blx-tt">Bubble Lab · 水水的气泡实验室<small>Sui\'s Lab · Bubble schemes</small></div><button class="blx-pen" id="bl-pen" type="button">执笔 · —</button><div class="sw2" id="bl-on"></div><button class="blx-clr" id="bl-clear" type="button">清空</button><button class="blx-x" id="bl-close" type="button">✕</button></div>'
+  ov.innerHTML='<div class="blx-hd"><div class="blx-tt"><span class="blx-t1">Bubble Lab · 水水的气泡实验室</span><small>Sui\'s Lab · Bubble schemes</small></div><button class="blx-pen" id="bl-pen" type="button">执笔 · —</button><div class="sw2" id="bl-on"></div><button class="blx-clr" id="bl-clear" type="button">清空</button><button class="blx-x" id="bl-close" type="button">✕</button></div>'
     +'<div class="blx-page" id="blx-lab"></div><div class="blx-page" id="blx-sch" hidden></div>'
     +'<div class="blx-in" id="blx-in"><textarea id="blx-ta" rows="1" placeholder="说你想要的气泡：粉色系液态玻璃、奶油拟物、赛博霓虹…"></textarea><button class="blx-send" id="blx-send" type="button" aria-label="发送"><svg viewBox="0 0 20 20"><path d="M3.5 10h12M11 5.5l4.5 4.5-4.5 4.5"/></svg></button></div>'
     +'<div class="blx-tabs"><button type="button" data-t="lab" class="on"><svg viewBox="0 0 24 24"><path d="M4 6.5A3.5 3.5 0 0 1 7.5 3h9A3.5 3.5 0 0 1 20 6.5v6a3.5 3.5 0 0 1-3.5 3.5H10l-4 3.5V16A3.5 3.5 0 0 1 4 12.5z"/></svg>Sui\'s Lab</button><button type="button" data-t="sch"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>气泡方案</button></div>';
   document.body.appendChild(ov);
+  setTimeout(function(){try{if(window._ibMarqM){window._ibMarqM(ov.querySelector('.blx-tt .blx-t1'),22);window._ibMarqM(ov.querySelector('.blx-tt small'),20)}}catch(e){}},80);/* v257-p：顶栏标题超宽时跑马灯（等执笔药丸落定再量） */
   var swOn=ov.querySelector('#bl-on');sw2(swOn,!!_bl.on);swOn.addEventListener('click',function(){_bl.on=!_bl.on;sw2(swOn,!!_bl.on);_blApply();_blSave();toast(_bl.on?'Bubble Lab 已开启':'Bubble Lab 已关闭（恢复默认气泡）')});
   ov.querySelector('#bl-close').addEventListener('click',function(){ov.remove()});
   ov.querySelector('#bl-clear').addEventListener('click',function(){if(!H.length){toast('没有可清的');return}H.length=0;try{localStorage.removeItem('ib_bl_chat')}catch(e){}for(var kk in CARDS)delete CARDS[kk];paint();toast('聊天已清空（方案槽与当前气泡不受影响）')});/* 手机端：上下文攒大了随手清 */
@@ -24048,7 +24121,7 @@ async function skinLoad(){if(SKIN)return SKIN;if(!dbReady())return skinBlank();t
 async function iconsSave(){ICONS=ICONS||{light:{},dark:{},split:false};try{await dbPut('apiSettings',{id:'sbx_icons',v:1,light:ICONS.light,dark:ICONS.dark,split:!!ICONS.split})}catch(e){}}/* 手机端：库没开好不把空包缓存成「已读」 */
 function skinClean(o){var out={};if(!o||typeof o!=='object')return out;SKIN_KEYS.forEach(function(k){var v=(o[k]!=null)?o[k]:o['--'+k];if(typeof v==='string'){v=v.trim();if(v.length<=64&&COLOR_RE.test(v))out[k]=v}});SKIN_IMG.forEach(function(k){var v=o[k];if(typeof v==='string'&&v.length<=1000000&&IMG_RE.test(v))out[k]=v});if(o.icons&&typeof o.icons==='object'){var ic={},n=0;Object.keys(o.icons).forEach(function(k){var v=o.icons[k];if(n<40&&ICON_KEY_RE.test(k)&&typeof v==='string'&&v.length<=200000&&IMG_RE.test(v)){ic[k]=v;n++}});if(n)out.icons=ic}return out}/* 手机端：icons{桌面图标键:data:image}，≤40 枚、每枚 ≤200KB *//* 颜色键逐项过 COLOR_RE；bgimg 只收 data:image、≤1MB */
 function skinPaint(){var s=SKIN_PREV||SKIN||skinBlank(),set=s[theme()]||{},st=document.body.style;SKIN_KEYS.forEach(function(k){if(set[k])st.setProperty('--'+k,set[k]);else st.removeProperty('--'+k)});if(set.bgimg)st.setProperty('--bgimg','url("'+set.bgimg+'")');else st.removeProperty('--bgimg');try{skinIcons()}catch(e){}/* 壁纸：body::before / 抽屉 / 会话背景都吃 --bgimg */try{if(!SKIN_MO){SKIN_MO=new MutationObserver(function(){skinPaint()});SKIN_MO.observe(document.body,{attributes:true,attributeFilter:['class']})}}catch(e){}}
-function skinIcons(){var ic=Object.assign({},appIcons(),((ICONS||{})[ICONS&&ICONS.split?theme():'light'])||{});var els=[];try{els=(typeof _dkEls==='function')?_dkEls():[]}catch(e){}els.forEach(function(el){var k=el.dataset.dk,box=el.querySelector('.sb-ic');if(!box)return;if(ic[k]){box.style.backgroundImage='url("'+ic[k]+'")';box.classList.add('sk-img')}else if(box.classList.contains('sk-img')){box.style.backgroundImage='';box.classList.remove('sk-img')}})}window._ibSkinIcons=skinIcons;function appIcons(){var o={};(LIST||[]).forEach(function(a){if(a.icon)o['app:x:'+a.id]=a.icon});return o}/* 手机端：APP 自带的 // icon: 图，用户换的图标压过它 */
+function skinIcons(){var ic=Object.assign({},appIcons(),((ICONS||{})[ICONS&&ICONS.split?theme():'light'])||{});var els=[];try{els=(typeof _dkEls==='function')?_dkEls():[]}catch(e){}els.forEach(function(el){var k=el.dataset.dk,box=el.querySelector('.sb-ic');if(!box)return;var bs=box.style;if(ic[k]){bs.setProperty('background-image','url("'+ic[k]+'")','important');bs.setProperty('background-size','cover','important');bs.setProperty('background-position','center','important');bs.setProperty('background-repeat','no-repeat','important');box.classList.add('sk-img')}else if(box.classList.contains('sk-img')){['background-image','background-size','background-position','background-repeat'].forEach(function(pp){bs.removeProperty(pp)});box.classList.remove('sk-img')}})}window._ibSkinIcons=skinIcons;function appIcons(){var o={};(LIST||[]).forEach(function(a){if(a.icon)o['app:x:'+a.id]=a.icon});return o}/* 手机端：APP 自带的 // icon: 图，用户换的图标压过它 */
 try{['_vzApply','applyTheme','_uiApply'].forEach(function(fn){var o=window[fn];if(typeof o!=='function'||o._sk)return;var w=function(){var r=o.apply(this,arguments);try{skinPaint()}catch(e){}try{Promise.resolve(r).then(function(){try{skinPaint()}catch(e){}})}catch(e){}return r};w._sk=1;window[fn]=w})}catch(e){}document.addEventListener('visibilitychange',function(){if(!document.hidden)try{skinPaint()}catch(e){}});window.addEventListener('pageshow',function(){try{skinPaint()}catch(e){}});/* 手机端：视觉设置重刷、切换应用回前台后美化包不再掉 */
 function skinGet(){var cs=getComputedStyle(document.body),cur={};SKIN_KEYS.forEach(function(k){cur[k]=cs.getPropertyValue('--'+k).trim()});var s=SKIN||skinBlank();var ik=[];try{ik=(typeof _dkEls==='function')?_dkEls().map(function(el){return el.dataset.dk}).filter(Boolean):[]}catch(e){}return {keys:SKIN_KEYS.slice(),imgKeys:SKIN_IMG.slice(),iconKeys:ik,theme:theme(),current:cur,name:s.name,by:s.by,light:s.light,dark:s.dark,preview:!!SKIN_PREV}}
 async function skinSet(o,by){await skinLoad();var l=skinClean(o.light),d=skinClean(o.dark);if(!Object.keys(l).length&&!Object.keys(d).length)throw new Error('nothing to apply: give light and/or dark with whitelisted color keys');var il=l.icons,idk=d.icons;delete l.icons;delete d.icons;var pack={name:String(o.name||'').slice(0,20),by:String(by||'').slice(0,30),light:l,dark:d};
@@ -24062,7 +24135,10 @@ async function iconsReset(){ICONS={light:{},dark:{},split:false};await iconsSave
 function skinCard(){var el=document.getElementById('sbx-skin');if(!el)return;var s=SKIN_PREV||SKIN||skinBlank(),n=Object.keys(s.light).length+Object.keys(s.dark).length;var by=s.by;try{var ap=(LIST||[]).filter(function(x){return x.id===s.by})[0];by=ap?ap.name:(s.by==='preview'?'工作室试跑':s.by==='helper'?'水水':s.by)}catch(e){}var ic=ICONS||{light:{},dark:{}},ni=Math.max(Object.keys(ic.light||{}).length,Object.keys(ic.dark||{}).length);el.querySelector('#sbx-skin-cur').textContent=(n?('当前：'+(s.name||'未命名')+(by?' · 来自 '+by:'')+' · 明 '+Object.keys(s.light).length+' 项 / 暗 '+Object.keys(s.dark).length+' 项'+((s.light.bgimg||s.dark.bgimg)?' · 含壁纸':'')+(SKIN_PREV?' · 试跑预览中，关面板还原':'')):'当前：没有美化包，用的是视觉设置里的配色')+(ni?('；桌面图标已换 '+ni+' 枚'+(ic.split?'（明暗分开）':'')):'');el.querySelector('#sbx-skin-off').hidden=!n}
 
 function vzIconsPaint(){var list=document.getElementById('vz-ski-list');if(!list)return;if(!ICONS){skinLoad().then(function(){if(ICONS)vzIconsPaint()});return}var sp=document.getElementById('vz-ski-split');if(sp&&typeof sw2==='function')sw2(sp,!!ICONS.split);var cur=ICONS.split?theme():'light',ic=ICONS[cur]||{},ai=appIcons();var els=[];try{els=_dkEls().filter(function(el){return el.classList.contains('sb-app')||/^app:/.test(el.dataset.dk||'')})}catch(e){}
-  var all=document.getElementById('vz-ski-all');if(all)all.style.display=Object.keys(ic).length?'':'none';
+  var n=Object.keys(ic).length,all=document.getElementById('vz-ski-all');if(all)all.style.display=n?'':'none';
+  var sum=document.getElementById('vz-ski-n');if(sum)sum.textContent=n?('已换 '+n+' 枚'+(ICONS.split?'（'+(cur==='dark'?'暗色':'明亮')+'这一套）':'')):'还没换过';
+  var tg=document.getElementById('vz-ski-tg');if(tg)tg.textContent=list.hidden?'展开列表':'收起列表';
+  if(list.hidden)return;/* v257-p：列表默认收起，只画摘要行 */
   if(!els.length){list.innerHTML='<div class="hint" style="margin:8px 0 0">Desk 还没铺好，先回 Desk 看一眼再来。</div>';return}
   list.innerHTML=els.map(function(el){var k=el.dataset.dk,nm=(typeof DK_NAMES!=='undefined'&&DK_NAMES[k])||(el.querySelector('.sb-t')&&el.querySelector('.sb-t').textContent)||k;var pic=ic[k]||ai[k]||'';return '<div class="tog vz-ski"><div class="tog-m" style="display:flex;align-items:center;gap:10px;min-width:0"><span class="ski-th" style="flex:none;width:34px;height:34px;border-radius:10px;border:1px solid var(--glass-line);background:var(--soft) center/cover no-repeat'+(pic?';background-image:url(\"'+esc(pic)+'\")':'')+'"></span><div class="tog-t" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nm)+(ic[k]?'':(ai[k]?' <small style="opacity:.6">自带</small>':''))+'</div></div><button class="btn" type="button" data-k="'+esc(k)+'" data-act="pick" style="padding:7px 12px;font-size:0.72rem;flex:none">换图</button>'+(ic[k]?'<button class="btn" type="button" data-k="'+esc(k)+'" data-act="reset" style="padding:7px 12px;font-size:0.72rem;margin-left:6px;flex:none">还原</button>':'')+'</div>'}).join('')}
 function vzIconsBind(){var card=document.getElementById('vz-icons-card');if(!card||card._skb)return;card._skb=1;var list=document.getElementById('vz-ski-list'),file=document.getElementById('vz-ski-file');
@@ -24070,8 +24146,12 @@ function vzIconsBind(){var card=document.getElementById('vz-icons-card');if(!car
     file.onchange=async function(){var f=file.files&&file.files[0];file.value='';if(!f)return;try{var du=await skinIconProc(f);await skinIconWrite(k,du);vzIconsPaint();toast('已换图')}catch(e){toast('图片读取失败')}};file.click()});
   var sp=document.getElementById('vz-ski-split');if(sp)sp.addEventListener('click',async function(){await skinLoad();ICONS=ICONS||{light:{},dark:{},split:false};ICONS.split=!ICONS.split;if(ICONS.split&&!Object.keys(ICONS.dark).length)ICONS.dark=Object.assign({},ICONS.light);await iconsSave();skinPaint();vzIconsPaint()});
   var all=document.getElementById('vz-ski-all');if(all)all.addEventListener('click',async function(){var ok=false;try{ok=await confirmDlg('把换过的桌面图标全部还原？','还原')}catch(e){}if(!ok)return;await iconsReset();vzIconsPaint();toast('已全部还原')});
+  var tg=document.getElementById('vz-ski-tg');if(tg)tg.addEventListener('click',function(){list.hidden=!list.hidden;vzIconsPaint()});/* v257-p：展开 / 收起列表 */
   try{if('IntersectionObserver' in window){new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting)vzIconsPaint()})},{rootMargin:'80px 0px'}).observe(card)}}catch(e){}/* 卡滚进视野时按当前 Desk 重画（Desk 铺页晚于卡的挂载） */}
-function skinIconProc(f){return new Promise(function(res,rej){var rd=new FileReader();rd.onerror=function(){rej(new Error('read'))};rd.onload=function(){var im=new Image();im.onload=function(){try{var W=im.naturalWidth||1,H=im.naturalHeight||1,m=Math.min(W,H),cv=document.createElement('canvas');cv.width=96;cv.height=96;cv.getContext('2d').drawImage(im,(W-m)/2,(H-m)/2,m,m,0,0,96,96);var out=cv.toDataURL('image/png');if(out.length>200000)out=cv.toDataURL('image/jpeg',0.86);res(out)}catch(e){rej(e)}};im.onerror=function(){rej(new Error('decode'))};im.src=String(rd.result||'')};rd.readAsDataURL(f)})}/* 居中裁方、压到 96px */
+function skinIconProc(f){return new Promise(function(res,rej){var rd=new FileReader();rd.onerror=function(){rej(new Error('read'))};rd.onload=function(){var im=new Image();im.onload=function(){try{var W=im.naturalWidth||1,H=im.naturalHeight||1,m=Math.min(W,H),cv=document.createElement('canvas');cv.width=180;cv.height=180;cv.getContext('2d').drawImage(im,(W-m)/2,(H-m)/2,m,m,0,0,180,180);var out=cv.toDataURL('image/png');if(out.length>160000)out=cv.toDataURL('image/jpeg',0.9);res(out)}catch(e){rej(e)}};im.onerror=function(){rej(new Error('decode'))};im.src=String(rd.result||'')};rd.readAsDataURL(f)})}/* 居中裁方、压到 180px（Desk 图标 57px × 3 倍屏；PNG 超 160KB 转 JPEG） */
+window._ibDkIconMenu=function(k){k=String(k||'');if(!k)return;var has=false;try{var cur=(ICONS&&ICONS.split)?theme():'light';has=!!(ICONS&&ICONS[cur]&&ICONS[cur][k])}catch(e){}var nm=k;try{var tEl=document.querySelector('#sec-profile-cal .sb-desk>[data-dk="'+k.replace(/"/g,'')+'"] .sb-t');nm=(typeof DK_NAMES!=='undefined'&&DK_NAMES[k])||(tEl&&tEl.textContent)||k}catch(e){}
+  var items=[{label:'换图',fn:function(){var file=document.getElementById('vz-ski-file');if(!file){toast('图片选择器不可用');return}file.onchange=async function(){var f=file.files&&file.files[0];file.value='';if(!f)return;try{var du=await skinIconProc(f);await skinIconWrite(k,du);vzIconsPaint();toast('已换图：'+nm)}catch(e){toast('图片读取失败')}};file.click()}}];
+  if(has)items.push({label:'还原',fn:async function(){await skinIconWrite(k,null);vzIconsPaint();toast('已还原：'+nm)}});try{actionSheet(items)}catch(e){}};/* v257-p：Desk 编辑态右上角小图片键 → 换图 / 还原（复用卡里的 #vz-ski-file） */
 async function skinIconWrite(k,du){await skinLoad();ICONS=ICONS||{light:{},dark:{},split:false};var ts=ICONS.split?[theme()]:['light','dark'];ts.forEach(function(t){ICONS[t]=ICONS[t]||{};if(du)ICONS[t][k]=du;else delete ICONS[t][k]});await iconsSave();skinPaint();skinCard()}/* 手机端：图标独立存 sbx_icons；明暗分开时只写当前主题 */
 function sid(s){s=String(s||'').trim();var t=s.toLowerCase().replace(/[^a-z0-9_-]/g,'').slice(0,12),h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return 'sx_'+(t?t+'_':'')+h.toString(36)}
 async function load(){if(LIST)return LIST;if(!dbReady())return null;try{var r=await dbGet('apiSettings','sbx_index');if(r&&Array.isArray(r.list)){LIST=r.list}else{var o=await dbGet('apiSettings','sbx_apps');var ol=(o&&Array.isArray(o.list))?o.list:[];LIST=[];for(var i=0;i<ol.length;i++){var a=ol[i];if(!a||!a.id)continue;try{await dbPut('apiSettings',{id:'sbx_app_'+a.id,code:String(a.code||'')})}catch(e){}CODE[a.id]=String(a.code||'');LIST.push(meta(a,String(a.code||'')))}await save();if(o){try{await dbDelete('apiSettings','sbx_apps')}catch(e){}}}}catch(e){LIST=null;return null}return LIST}
@@ -24091,7 +24171,7 @@ function recErr(id,msg){try{var a=(LIST||[]).filter(function(x){return x.id===id
 function helperCfg(){try{var id=_mp&&_mp.helper&&_mp.helper.api;var cs=Array.isArray(_cfgs)?_cfgs:[];return cs.filter(function(c){return c&&c.id===id&&!c.archived})[0]||cs.filter(function(c){return c&&!c.archived&&!c._group})[0]||null}catch(e){return null}}
 var CSP='<meta http-equiv="Content-Security-Policy" content="default-src \'none\';script-src \'unsafe-inline\';style-src \'unsafe-inline\';img-src data: blob:;font-src data:;media-src data: blob:;connect-src \'none\'">';
 var BRIDGE="(function(){var seq=0,pend={};window.addEventListener('message',function(e){var d=e.data||{};if(!d||d.__ibsx!==1)return;if(d.seq&&pend[d.seq]){var p=pend[d.seq];delete pend[d.seq];if(d.ok)p.res(d.res);else p.rej(new Error(d.err||'error'))}if(d.ev==='suspend'){try{if(window.IB&&IB.onSuspend)IB.onSuspend()}catch(x){}}if(d.ev==='resume'){try{if(window.IB&&IB.onResume)IB.onResume()}catch(x){}}if(d.ev==='theme'){document.documentElement.setAttribute('data-theme',d.theme);if(document.body)document.body.style.color=d.theme==='dark'?'#dbe6fa':'#1d2c44';try{if(window.IB&&IB.onTheme)IB.onTheme(d.theme)}catch(x){}}});window.addEventListener('error',function(e){try{parent.postMessage({__ibsx:1,ev:'error',msg:String((e&&e.message)||e)+((e&&e.lineno)?(' @'+e.lineno+':'+(e.colno||0)):'')},'*')}catch(x){}});window.addEventListener('unhandledrejection',function(e){try{var r=e&&e.reason;parent.postMessage({__ibsx:1,ev:'error',msg:'Promise: '+String((r&&r.message)||r)},'*')}catch(x){}});function call(m,a){return new Promise(function(res,rej){var s=++seq;pend[s]={res:res,rej:rej};parent.postMessage({__ibsx:1,seq:s,m:m,a:a||[]},'*');setTimeout(function(){if(pend[s]){delete pend[s];rej(new Error('timeout'))}},(m==='ui.pickImage'?200000:m==='ui.confirm'?600000:m==='ai.call'?130000:90000))})}window.IB={storage:{get:function(k){return call('storage.get',[k])},set:function(k,v){return call('storage.set',[k,v])},remove:function(k){return call('storage.remove',[k])},list:function(p){return call('storage.list',[p||''])}},session:{get:function(k){return call('session.get',[k])},set:function(k,v){return call('session.set',[k,v])}},ui:{toast:function(t){return call('ui.toast',[String(t||'')])},confirm:function(t){return call('ui.confirm',[String(t||'')])}},chat:{current:function(){return call('chat.current',[])}},ai:{call:function(o){return call('ai.call',[o||{}])}},theme:function(){return document.documentElement.getAttribute('data-theme')||'light'},onTheme:null,onSuspend:null,onResume:null,widget:!!document.documentElement.getAttribute('data-widget')};IB.theme.skin={get:function(){return call('theme.skinGet',[])},set:function(o){return call('theme.skinSet',[o||{}])},reset:function(){return call('theme.skinReset',[])}};IB.chat.friends=function(){return call('chat.friends',[])};IB.ui.pickImage=function(o){return call('ui.pickImage',[o||{}])};})();";
-function doc(code,th,wg){return '<!doctype html><html data-theme="'+th+'"'+(wg?' data-widget="1"':'')+'><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0">'+CSP+'<style>html,body{margin:0;padding:0;background:transparent;color:'+(th==='dark'?'#dbe6fa':'#1d2c44')+';font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC",sans-serif}</style><scr'+'ipt>'+BRIDGE+'</scr'+'ipt></head><body><scr'+'ipt>'+String(code||'').replace(/<\/script/gi,'<\\/script')+'</scr'+'ipt></body></html>'}
+function doc(code,th,wg){return '<!doctype html><html data-theme="'+th+'"'+(wg?' data-widget="1"':'')+'><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+CSP+'<style>html,body{margin:0;padding:0;background:transparent;color:'+(th==='dark'?'#dbe6fa':'#1d2c44')+';font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC",sans-serif}</style><scr'+'ipt>'+BRIDGE+'</scr'+'ipt></head><body><scr'+'ipt>'+String(code||'').replace(/<\/script/gi,'<\\/script')+'</scr'+'ipt></body></html>'}
 function kenc(k){k=String(k==null?'':k).slice(0,80);if(/^[\w.-]*$/.test(k))return k;return k.replace(/[^\w.-]/g,function(c){return '_u'+('000'+c.charCodeAt(0).toString(16)).slice(-4)}).slice(0,80)}function kdec(k){return String(k||'').replace(/_u([0-9a-f]{4})/g,function(_,x){return String.fromCharCode(parseInt(x,16))})}
 function mountApp(app,host,ctx,onErr,opt){opt=opt||{};host.style.padding='0';host.style.overflow='hidden';host.style.display='flex';host.style.flexDirection='column';var errs=0;
   var f=document.createElement('iframe');f.setAttribute('sandbox','allow-scripts');f.setAttribute('referrerpolicy','no-referrer');f.style.cssText='border:0;width:100%;height:100%;flex:1;min-height:0;display:block;background:transparent';f.srcdoc=doc(app.code,theme(),!!opt.widget);host.appendChild(f);
@@ -24142,7 +24222,7 @@ async function gen(msgs){var cfg=helperCfg();if(!cfg)throw new Error('还没有�
   var t=String((r&&r.t)||'').trim();if(!t&&r&&r.k)t=String(r.k).trim();if(!t)throw new Error('回了空内容');return t}
 function pvCtx(){var M={};return {storage:{get:async function(k){return (k in M)?M[k]:null},set:async function(k,v){M[k]=v},remove:async function(k){delete M[k]},list:async function(p){return Object.keys(M).filter(function(k){return k.indexOf(p||'')===0})}},chat:{current:function(){return null}}}}
 
-var CSS="#ib-sx-ov{position:fixed;inset:0;z-index:4600;display:flex;flex-direction:column;background:linear-gradient(180deg,#f3f7fd 0%,#e9effa 62%,#e4ebf7 100%);color:#1d2c44}body.theme-infernal #ib-sx-ov{background:linear-gradient(180deg,#141a2e,#0f1526);color:#dfe8f8}#ib-sx-ov .blx-hd{flex:none;display:flex;align-items:center;gap:10px;padding:calc(10px + var(--sat,0px)) 16px 10px;border-bottom:1px solid rgba(90,120,170,0.18);background:rgba(255,255,255,0.72)}body.theme-infernal #ib-sx-ov .blx-hd{background:rgba(20,28,48,0.9);border-color:rgba(165,188,230,0.16)}body.ib-reduce #ib-sx-ov .blx-hd{background:#eef3fb}body.ib-reduce.theme-infernal #ib-sx-ov .blx-hd{background:#1b2740}#ib-sx-ov .blx-tt{flex:1;min-width:0;font-weight:700;font-size:1.02rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ib-sx-ov .blx-tt small{display:block;font-weight:400;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55}#ib-sx-ov .blx-x{flex:none;width:34px;height:34px;border-radius:50%;border:1px solid rgba(90,120,170,0.3);background:rgba(255,255,255,0.85);font-size:.95rem;color:#33415c;line-height:1}body.theme-infernal #ib-sx-ov .blx-x{background:rgba(255,255,255,.08);color:#dfe8f8;border-color:rgba(165,188,230,.3)}#ib-sx-ov .blx-page{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(96px + var(--sab,0px))}#ib-sx-ov .blx-page[hidden]{display:none}#ib-sx-ov .blx-tabs{position:absolute;left:12px;right:12px;bottom:calc(10px + var(--sab,0px));height:58px;border-radius:20px;display:flex;align-items:stretch;padding:0 4px;background:rgba(255,255,255,.78);border:1px solid rgba(90,120,170,.22);box-shadow:0 8px 24px rgba(30,50,90,.12)}body.theme-infernal #ib-sx-ov .blx-tabs{background:rgba(24,32,54,.92);border-color:rgba(165,188,230,.2)}#ib-sx-ov .blx-tabs button{flex:1;border:0;background:none;font:inherit;font-size:.74rem;color:var(--tx2,#3b4a66);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:16px;margin:4px 2px;-webkit-tap-highlight-color:transparent}#ib-sx-ov .blx-tabs button.on{color:var(--acc,#3f74ad);background:rgba(114,168,216,.16)}#ib-sx-ov .blx-tabs button svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}#ib-sx-ov .blx-pv{padding:14px 12px;border-radius:14px;background:rgba(255,255,255,.55);border:1px solid rgba(90,120,170,.18)}body.theme-infernal #ib-sx-ov .blx-pv{background:rgba(255,255,255,.05);border-color:rgba(165,188,230,.16)}#ib-sx-ov .blx-pv .mrow{display:flex;margin:6px 0}#ib-sx-ov .blx-pv .mrow.user{justify-content:flex-end}#ib-sx-ov .blx-pv .m{max-width:78%;padding:10px 14px;border-radius:14px;font-size:.9rem;line-height:1.6;background:rgba(245,250,255,.55);border:1px solid rgba(114,168,216,.28);color:var(--tx,#1d2c44)}#ib-sx-ov .blx-pv .m.user{background:rgba(102,150,226,.14)}body.theme-infernal #ib-sx-ov .blx-pv .m{background:rgba(175,195,228,.08);color:#e6eefc}body.theme-infernal #ib-sx-ov .blx-pv .m.user{background:rgba(68,116,178,.28)}#ib-sx-ov .blx-pv.mini{padding:8px}#ib-sx-ov .blx-pv.mini .m{font-size:.7rem;padding:6px 9px;max-width:90%}#ib-sx-ov .blx-m{max-width:88%;margin:8px 0;padding:10px 13px;border-radius:14px;font-size:.88rem;line-height:1.65;white-space:pre-wrap;word-break:break-word}#ib-sx-ov .blx-m.u{margin-left:auto;background:rgba(102,150,226,.16);border:1px solid rgba(102,150,226,.32);border-bottom-right-radius:5px}#ib-sx-ov .blx-m.a{margin-right:auto;background:rgba(255,255,255,.5);border:1px solid rgba(90,120,170,.18);border-bottom-left-radius:5px;white-space:normal;max-width:96%}body.theme-infernal #ib-sx-ov .blx-m.a{background:rgba(255,255,255,.06);border-color:rgba(165,188,230,.16)}#ib-sx-ov .blx-m.a .blx-pv{margin:10px 0 6px}#ib-sx-ov .blx-code{margin:6px 0;font-size:.74rem}#ib-sx-ov .blx-code summary{cursor:pointer;color:var(--acc,#3f74ad)}#ib-sx-ov .blx-code pre{margin:6px 0 0;max-height:220px;overflow:auto;padding:8px 10px;border-radius:9px;font-size:.66rem;line-height:1.5;background:rgba(20,30,54,.06);white-space:pre-wrap;word-break:break-all}body.theme-infernal #ib-sx-ov .blx-code pre{background:rgba(0,0,0,.25)}#ib-sx-ov .blx-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}#ib-sx-ov .blx-acts button,#ib-sx-ov .blx-sb button,#ib-sx-ov .blx-pop button{font:inherit;font-size:.76rem;padding:7px 12px;border-radius:999px;border:1px solid rgba(114,168,216,.5);background:rgba(114,168,216,.16);color:var(--acc,#3f74ad);-webkit-tap-highlight-color:transparent}body.theme-infernal #ib-sx-ov .blx-acts button,body.theme-infernal #ib-sx-ov .blx-sb button,body.theme-infernal #ib-sx-ov .blx-pop button{color:#dbe9ff;background:rgba(120,160,220,.22)}#ib-sx-ov .blx-pop{position:fixed;left:14px;right:14px;bottom:calc(150px + var(--sab,0px));z-index:5;padding:10px;border-radius:14px;background:#f2f7fd;border:1px solid rgba(90,120,170,.22);box-shadow:0 14px 40px rgba(20,35,70,.18);display:flex;flex-wrap:wrap;gap:8px}body.theme-infernal #ib-sx-ov .blx-pop{background:#1b2740}#ib-sx-ov .blx-pop b{width:100%;font-weight:400;font-size:.72rem;opacity:.7}#ib-sx-ov .blx-in{position:absolute;left:12px;right:12px;bottom:calc(76px + var(--sab,0px));display:flex;gap:8px;align-items:flex-end}#ib-sx-ov .blx-in textarea{flex:1;min-height:42px;max-height:120px;resize:none;padding:10px 14px;border-radius:14px;border:1px solid rgba(90,120,170,.25);background:rgba(255,255,255,.85);font:inherit;font-size:.88rem;color:inherit}body.theme-infernal #ib-sx-ov .blx-in textarea{background:rgba(20,28,48,.9);border-color:rgba(165,188,230,.22)}#ib-sx-ov .blx-send{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid rgba(114,168,216,.5);background:rgba(114,168,216,.18);color:var(--acc,#3f74ad);display:flex;align-items:center;justify-content:center}#ib-sx-ov .blx-send svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}#ib-sx-ov .blx-send[disabled]{opacity:.45}#ib-sx-ov .blx-tip{font-size:.78rem;line-height:1.7;opacity:.75;text-align:center;padding:12px 8px}#ib-sx-ov .blx-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 8px}#ib-sx-ov .blx-chips::-webkit-scrollbar{display:none}#ib-sx-ov .blx-chips span{flex:none;font-size:.74rem;padding:5px 11px;border-radius:999px;border:1px solid rgba(90,120,170,.22);background:rgba(255,255,255,.4)}body.theme-infernal #ib-sx-ov .blx-chips span{background:rgba(255,255,255,.06);border-color:rgba(165,188,230,.2)}#ib-sx-ov .blx-sec{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;opacity:.6;margin:16px 2px 8px}#ib-sx-ov .blx-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}#ib-sx-ov .blx-slot{border-radius:14px;border:1px solid rgba(90,120,170,.18);background:rgba(255,255,255,.4);padding:8px}body.theme-infernal #ib-sx-ov .blx-slot{background:rgba(255,255,255,.04);border-color:rgba(165,188,230,.14)}#ib-sx-ov .blx-slot.empty .blx-pv.mini{min-height:52px;opacity:.5}#ib-sx-ov .blx-sn{font-size:.74rem;margin:6px 2px 4px;opacity:.8}#ib-sx-ov .blx-sb{display:flex;gap:6px}#ib-sx-ov .blx-sb button{padding:5px 10px;font-size:.72rem}#ib-sx-ov .blx-rg{display:grid;grid-template-columns:78px 1fr 44px;align-items:center;gap:10px;padding:7px 4px;font-size:.8rem}#ib-sx-ov .blx-rg b{font-weight:400;text-align:right;font-variant-numeric:tabular-nums;opacity:.85}#ib-sx-ov .blx-rg input[type=range]{width:100%;height:24px;-webkit-appearance:none;appearance:none;background:transparent}#ib-sx-ov .blx-rg input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:rgba(114,168,216,.35)}#ib-sx-ov .blx-rg input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:#fff;border:1px solid rgba(114,168,216,.7);box-shadow:0 2px 6px rgba(30,50,90,.18)}#ib-sx-ov .blx-clr{flex:none;border:none;background:none;padding:4px 8px;margin-right:2px;font:inherit;font-size:.8rem;color:inherit;opacity:.6;cursor:pointer}#ib-sx-ov .blx-clr:active{opacity:1}#ib-sx-ov .blx-pen{flex:none;max-width:32vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid rgba(90,120,170,.28);background:rgba(255,255,255,.45);border-radius:999px;padding:4px 10px;margin-right:6px;font:inherit;font-size:.72rem;color:inherit;opacity:.88;cursor:pointer}body.theme-infernal #ib-sx-ov .blx-pen{background:rgba(255,255,255,.06);border-color:rgba(165,188,230,.25)}#ib-sx-ov .blx-pv{position:relative;overflow:hidden}#ib-sx-ov .blx-pv::before{content:\"\";position:absolute;inset:-18%;pointer-events:none;filter:blur(2px);background:radial-gradient(42% 56% at 18% 22%,rgba(122,172,236,.26),transparent 60%),radial-gradient(46% 62% at 83% 80%,rgba(255,192,172,.18),transparent 62%),radial-gradient(30% 42% at 70% 14%,rgba(160,225,205,.15),transparent 65%)}body.theme-infernal #ib-sx-ov .blx-pv::before{background:radial-gradient(42% 58% at 16% 20%,rgba(96,150,230,.30),transparent 60%),radial-gradient(46% 62% at 84% 80%,rgba(190,120,220,.16),transparent 62%),radial-gradient(30% 42% at 72% 12%,rgba(90,210,190,.14),transparent 65%)}#ib-sx-ov .blx-pv .mrow{position:relative;z-index:1}#ib-sx-ov .blx-pv.mini{max-height:104px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}#ib-sx-ov .blx-wait{display:inline-flex;gap:5px;padding:3px 2px}#ib-sx-ov .blx-wait i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.3;animation:blxw 1.1s ease-in-out infinite}#ib-sx-ov .blx-wait i:nth-child(2){animation-delay:.18s}#ib-sx-ov .blx-wait i:nth-child(3){animation-delay:.36s}@keyframes blxw{0%,100%{opacity:.22;transform:translateY(0)}45%{opacity:.9;transform:translateY(-2px)}}#ib-sx-ov .blx-m.u{width:fit-content;max-width:78%}#ib-sx-ov .blx-sec{display:block;margin-top:5px;font-size:.72rem;opacity:.72;letter-spacing:.02em}#ib-sx-ov .blx-intro{margin:4px 0 14px;padding:12px 12px 6px;border-radius:18px;border:1px solid rgba(90,120,170,.16);background:rgba(255,255,255,.5);box-shadow:0 6px 18px rgba(70,110,170,.08)}body.theme-infernal #ib-sx-ov .blx-intro{background:rgba(255,255,255,.05);border-color:rgba(165,188,230,.2);box-shadow:0 8px 20px rgba(0,0,0,.3)}#ib-sx-ov .blx-intro .blx-chips{padding:0 0 8px}#ib-sx-ov .blx-intro .blx-tip{padding:8px 4px 6px;text-align:left;font-size:.76rem;opacity:.7}#ib-sx-ov .blx-in{padding:8px 10px;border-radius:18px;background:rgba(255,255,255,.84);border:1px solid rgba(90,120,170,.2);box-shadow:0 8px 22px rgba(70,110,170,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}body.theme-infernal #ib-sx-ov .blx-in{background:rgba(28,36,56,.88);border-color:rgba(165,188,230,.22);box-shadow:0 8px 22px rgba(0,0,0,.4)}#ib-sx-ov .blx-page{padding-bottom:calc(150px + var(--sab,0px))}";
+var CSS="#ib-sx-ov{position:fixed;inset:0;z-index:4600;display:flex;flex-direction:column;background:linear-gradient(180deg,#f3f7fd 0%,#e9effa 62%,#e4ebf7 100%);color:#1d2c44}body.theme-infernal #ib-sx-ov{background:linear-gradient(180deg,#141a2e,#0f1526);color:#dfe8f8}#ib-sx-ov .blx-hd{flex:none;display:flex;align-items:center;gap:10px;padding:calc(10px + var(--sat,0px)) 16px 10px;border-bottom:1px solid rgba(90,120,170,0.18);background:rgba(255,255,255,0.72)}body.theme-infernal #ib-sx-ov .blx-hd{background:rgba(20,28,48,0.9);border-color:rgba(165,188,230,0.16)}body.ib-reduce #ib-sx-ov .blx-hd{background:#eef3fb}body.ib-reduce.theme-infernal #ib-sx-ov .blx-hd{background:#1b2740}#ib-sx-ov .blx-tt{flex:1;min-width:0;font-weight:700;font-size:1.02rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ib-sx-ov .blx-tt small{display:block;font-weight:400;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55}#ib-sx-ov .blx-tt .blx-t1{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#ib-sx-ov .blx-tt .mq{text-overflow:clip}#ib-sx-ov .blx-x{flex:none;width:34px;height:34px;border-radius:50%;border:1px solid rgba(90,120,170,0.3);background:rgba(255,255,255,0.85);font-size:.95rem;color:#33415c;line-height:1}body.theme-infernal #ib-sx-ov .blx-x{background:rgba(255,255,255,.08);color:#dfe8f8;border-color:rgba(165,188,230,.3)}#ib-sx-ov .blx-page{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(96px + var(--sab,0px))}#ib-sx-ov .blx-page[hidden]{display:none}#ib-sx-ov .blx-tabs{position:absolute;left:12px;right:12px;bottom:calc(10px + var(--sab,0px));height:58px;border-radius:20px;display:flex;align-items:stretch;padding:0 4px;background:rgba(255,255,255,.78);border:1px solid rgba(90,120,170,.22);box-shadow:0 8px 24px rgba(30,50,90,.12)}body.theme-infernal #ib-sx-ov .blx-tabs{background:rgba(24,32,54,.92);border-color:rgba(165,188,230,.2)}#ib-sx-ov .blx-tabs button{flex:1;border:0;background:none;font:inherit;font-size:.74rem;color:var(--tx2,#3b4a66);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:16px;margin:4px 2px;-webkit-tap-highlight-color:transparent}#ib-sx-ov .blx-tabs button.on{color:var(--acc,#3f74ad);background:rgba(114,168,216,.16)}#ib-sx-ov .blx-tabs button svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}#ib-sx-ov .blx-pv{padding:14px 12px;border-radius:14px;background:rgba(255,255,255,.55);border:1px solid rgba(90,120,170,.18)}body.theme-infernal #ib-sx-ov .blx-pv{background:rgba(255,255,255,.05);border-color:rgba(165,188,230,.16)}#ib-sx-ov .blx-pv .mrow{display:flex;margin:6px 0}#ib-sx-ov .blx-pv .mrow.user{justify-content:flex-end}#ib-sx-ov .blx-pv .m{max-width:78%;padding:10px 14px;border-radius:14px;font-size:.9rem;line-height:1.6;background:rgba(245,250,255,.55);border:1px solid rgba(114,168,216,.28);color:var(--tx,#1d2c44)}#ib-sx-ov .blx-pv .m.user{background:rgba(102,150,226,.14)}body.theme-infernal #ib-sx-ov .blx-pv .m{background:rgba(175,195,228,.08);color:#e6eefc}body.theme-infernal #ib-sx-ov .blx-pv .m.user{background:rgba(68,116,178,.28)}#ib-sx-ov .blx-pv.mini{padding:8px}#ib-sx-ov .blx-pv.mini .m{font-size:.7rem;padding:6px 9px;max-width:90%}#ib-sx-ov .blx-m{max-width:88%;margin:8px 0;padding:10px 13px;border-radius:14px;font-size:.88rem;line-height:1.65;white-space:pre-wrap;word-break:break-word}#ib-sx-ov .blx-m.u{margin-left:auto;background:rgba(102,150,226,.16);border:1px solid rgba(102,150,226,.32);border-bottom-right-radius:5px}#ib-sx-ov .blx-m.a{margin-right:auto;background:rgba(255,255,255,.5);border:1px solid rgba(90,120,170,.18);border-bottom-left-radius:5px;white-space:normal;max-width:96%}body.theme-infernal #ib-sx-ov .blx-m.a{background:rgba(255,255,255,.06);border-color:rgba(165,188,230,.16)}#ib-sx-ov .blx-m.a .blx-pv{margin:10px 0 6px}#ib-sx-ov .blx-code{margin:6px 0;font-size:.74rem}#ib-sx-ov .blx-code summary{cursor:pointer;color:var(--acc,#3f74ad)}#ib-sx-ov .blx-code pre{margin:6px 0 0;max-height:220px;overflow:auto;padding:8px 10px;border-radius:9px;font-size:.66rem;line-height:1.5;background:rgba(20,30,54,.06);white-space:pre-wrap;word-break:break-all}body.theme-infernal #ib-sx-ov .blx-code pre{background:rgba(0,0,0,.25)}#ib-sx-ov .blx-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}#ib-sx-ov .blx-acts button,#ib-sx-ov .blx-sb button,#ib-sx-ov .blx-pop button{font:inherit;font-size:.76rem;padding:7px 12px;border-radius:999px;border:1px solid rgba(114,168,216,.5);background:rgba(114,168,216,.16);color:var(--acc,#3f74ad);-webkit-tap-highlight-color:transparent}body.theme-infernal #ib-sx-ov .blx-acts button,body.theme-infernal #ib-sx-ov .blx-sb button,body.theme-infernal #ib-sx-ov .blx-pop button{color:#dbe9ff;background:rgba(120,160,220,.22)}#ib-sx-ov .blx-pop{position:fixed;left:14px;right:14px;bottom:calc(150px + var(--sab,0px));z-index:5;padding:10px;border-radius:14px;background:#f2f7fd;border:1px solid rgba(90,120,170,.22);box-shadow:0 14px 40px rgba(20,35,70,.18);display:flex;flex-wrap:wrap;gap:8px}body.theme-infernal #ib-sx-ov .blx-pop{background:#1b2740}#ib-sx-ov .blx-pop b{width:100%;font-weight:400;font-size:.72rem;opacity:.7}#ib-sx-ov .blx-in{position:absolute;left:12px;right:12px;bottom:calc(76px + var(--sab,0px));display:flex;gap:8px;align-items:flex-end}#ib-sx-ov .blx-in textarea{flex:1;min-height:42px;max-height:120px;resize:none;padding:10px 14px;border-radius:14px;border:1px solid rgba(90,120,170,.25);background:rgba(255,255,255,.85);font:inherit;font-size:.88rem;color:inherit}body.theme-infernal #ib-sx-ov .blx-in textarea{background:rgba(20,28,48,.9);border-color:rgba(165,188,230,.22)}#ib-sx-ov .blx-send{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid rgba(114,168,216,.5);background:rgba(114,168,216,.18);color:var(--acc,#3f74ad);display:flex;align-items:center;justify-content:center}#ib-sx-ov .blx-send svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}#ib-sx-ov .blx-send[disabled]{opacity:.45}#ib-sx-ov .blx-tip{font-size:.78rem;line-height:1.7;opacity:.75;text-align:center;padding:12px 8px}#ib-sx-ov .blx-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 8px}#ib-sx-ov .blx-chips::-webkit-scrollbar{display:none}#ib-sx-ov .blx-chips span{flex:none;font-size:.74rem;padding:5px 11px;border-radius:999px;border:1px solid rgba(90,120,170,.22);background:rgba(255,255,255,.4)}body.theme-infernal #ib-sx-ov .blx-chips span{background:rgba(255,255,255,.06);border-color:rgba(165,188,230,.2)}#ib-sx-ov .blx-sec{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;opacity:.6;margin:16px 2px 8px}#ib-sx-ov .blx-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}#ib-sx-ov .blx-slot{border-radius:14px;border:1px solid rgba(90,120,170,.18);background:rgba(255,255,255,.4);padding:8px}body.theme-infernal #ib-sx-ov .blx-slot{background:rgba(255,255,255,.04);border-color:rgba(165,188,230,.14)}#ib-sx-ov .blx-slot.empty .blx-pv.mini{min-height:52px;opacity:.5}#ib-sx-ov .blx-sn{font-size:.74rem;margin:6px 2px 4px;opacity:.8}#ib-sx-ov .blx-sb{display:flex;gap:6px}#ib-sx-ov .blx-sb button{padding:5px 10px;font-size:.72rem}#ib-sx-ov .blx-rg{display:grid;grid-template-columns:78px 1fr 44px;align-items:center;gap:10px;padding:7px 4px;font-size:.8rem}#ib-sx-ov .blx-rg b{font-weight:400;text-align:right;font-variant-numeric:tabular-nums;opacity:.85}#ib-sx-ov .blx-rg input[type=range]{width:100%;height:24px;-webkit-appearance:none;appearance:none;background:transparent}#ib-sx-ov .blx-rg input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:rgba(114,168,216,.35)}#ib-sx-ov .blx-rg input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:#fff;border:1px solid rgba(114,168,216,.7);box-shadow:0 2px 6px rgba(30,50,90,.18)}#ib-sx-ov .blx-clr{flex:none;border:none;background:none;padding:4px 8px;margin-right:2px;font:inherit;font-size:.8rem;color:inherit;opacity:.6;cursor:pointer}#ib-sx-ov .blx-clr:active{opacity:1}#ib-sx-ov .blx-pen{flex:none;max-width:32vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid rgba(90,120,170,.28);background:rgba(255,255,255,.45);border-radius:999px;padding:4px 10px;margin-right:6px;font:inherit;font-size:.72rem;color:inherit;opacity:.88;cursor:pointer}body.theme-infernal #ib-sx-ov .blx-pen{background:rgba(255,255,255,.06);border-color:rgba(165,188,230,.25)}#ib-sx-ov .blx-pv{position:relative;overflow:hidden}#ib-sx-ov .blx-pv::before{content:\"\";position:absolute;inset:-18%;pointer-events:none;filter:blur(2px);background:radial-gradient(42% 56% at 18% 22%,rgba(122,172,236,.26),transparent 60%),radial-gradient(46% 62% at 83% 80%,rgba(255,192,172,.18),transparent 62%),radial-gradient(30% 42% at 70% 14%,rgba(160,225,205,.15),transparent 65%)}body.theme-infernal #ib-sx-ov .blx-pv::before{background:radial-gradient(42% 58% at 16% 20%,rgba(96,150,230,.30),transparent 60%),radial-gradient(46% 62% at 84% 80%,rgba(190,120,220,.16),transparent 62%),radial-gradient(30% 42% at 72% 12%,rgba(90,210,190,.14),transparent 65%)}#ib-sx-ov .blx-pv .mrow{position:relative;z-index:1}#ib-sx-ov .blx-pv.mini{max-height:104px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}#ib-sx-ov .blx-wait{display:inline-flex;gap:5px;padding:3px 2px}#ib-sx-ov .blx-wait i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.3;animation:blxw 1.1s ease-in-out infinite}#ib-sx-ov .blx-wait i:nth-child(2){animation-delay:.18s}#ib-sx-ov .blx-wait i:nth-child(3){animation-delay:.36s}@keyframes blxw{0%,100%{opacity:.22;transform:translateY(0)}45%{opacity:.9;transform:translateY(-2px)}}#ib-sx-ov .blx-m.u{width:fit-content;max-width:78%}#ib-sx-ov .blx-sec{display:block;margin-top:5px;font-size:.72rem;opacity:.72;letter-spacing:.02em}#ib-sx-ov .blx-intro{margin:4px 0 14px;padding:12px 12px 6px;border-radius:18px;border:1px solid rgba(90,120,170,.16);background:rgba(255,255,255,.5);box-shadow:0 6px 18px rgba(70,110,170,.08)}body.theme-infernal #ib-sx-ov .blx-intro{background:rgba(255,255,255,.05);border-color:rgba(165,188,230,.2);box-shadow:0 8px 20px rgba(0,0,0,.3)}#ib-sx-ov .blx-intro .blx-chips{padding:0 0 8px}#ib-sx-ov .blx-intro .blx-tip{padding:8px 4px 6px;text-align:left;font-size:.76rem;opacity:.7}#ib-sx-ov .blx-in{padding:8px 10px;border-radius:18px;background:rgba(255,255,255,.84);border:1px solid rgba(90,120,170,.2);box-shadow:0 8px 22px rgba(70,110,170,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}body.theme-infernal #ib-sx-ov .blx-in{background:rgba(28,36,56,.88);border-color:rgba(165,188,230,.22);box-shadow:0 8px 22px rgba(0,0,0,.4)}#ib-sx-ov .blx-page{padding-bottom:calc(150px + var(--sab,0px))}";
 CSS+='#ib-sx-ov .blx-tabs button{font-size:.72rem}'
  +'#ib-sx-ov .sxx-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px}#ib-sx-ov .sxx-chips::-webkit-scrollbar{display:none}#ib-sx-ov .sxx-chips span{flex:none;font-size:.74rem;padding:5px 11px;border-radius:999px;border:1px solid rgba(114,168,216,.5);background:rgba(114,168,216,.16);color:var(--acc,#3f74ad);-webkit-tap-highlight-color:transparent}body.theme-infernal #ib-sx-ov .sxx-chips span{background:rgba(114,168,216,.14);border-color:rgba(165,188,230,.3);color:#9fc3ee}'
  +'#ib-sx-ov .sxx-card{margin:8px 0 4px}#ib-sx-ov .sxx-ch{display:flex;align-items:center;gap:8px;margin:0 0 8px}#ib-sx-ov .sxx-ch label{flex:none;font-size:.72rem;opacity:.6}#ib-sx-ov .sxx-ch input{flex:1;min-width:0;font:inherit;font-size:.86rem;padding:6px 10px;border-radius:10px;border:1px solid rgba(90,120,170,.25);background:rgba(255,255,255,.55);color:inherit}body.theme-infernal #ib-sx-ov .sxx-ch input{background:rgba(255,255,255,.06);border-color:rgba(165,188,230,.2)}'
@@ -24173,12 +24253,13 @@ function sxSheet(){if(document.getElementById('ib-sx-ov'))return;
   if(!document.getElementById('ib-sx-style')){var st=document.createElement('style');st.id='ib-sx-style';st.textContent=CSS;document.head.appendChild(st)}
   hLoad();
   var ov=document.createElement('div');ov.id='ib-sx-ov';S.ov=ov;
-  ov.innerHTML='<div class="blx-hd"><div class="blx-tt">自制 APP · 水水的工作室<small>Sui\'s Studio · Homemade apps</small></div><button class="blx-pen" id="sx-pen" type="button">执笔 · —</button><button class="blx-clr" id="sx-clear" type="button">清空</button><button class="blx-x" id="sx-close" type="button">✕</button></div>'
+  ov.innerHTML='<div class="blx-hd"><div class="blx-tt"><span class="blx-t1">自制 APP · 水水的工作室</span><small>Sui\'s Studio · Homemade apps</small></div><button class="blx-pen" id="sx-pen" type="button">执笔 · —</button><button class="blx-clr" id="sx-clear" type="button">清空</button><button class="blx-x" id="sx-close" type="button">✕</button></div>'
    +'<div class="blx-page" id="sxx-lab"></div><div class="blx-page sxx-nobar" id="sxx-apps" hidden></div><div class="blx-page sxx-nobar" id="sxx-more" hidden></div>'
    +'<div class="blx-in" id="sxx-in"><textarea id="sxx-ta" rows="1"></textarea><button class="blx-send" id="sxx-send" type="button" aria-label="发送"><svg viewBox="0 0 20 20"><path d="M3.5 10h12M11 5.5l4.5 4.5-4.5 4.5"/></svg></button></div>'
    +'<div class="blx-tabs"><button type="button" data-t="lab" class="on"><svg viewBox="0 0 24 24"><path d="M4 6.5A3.5 3.5 0 0 1 7.5 3h9A3.5 3.5 0 0 1 20 6.5v6a3.5 3.5 0 0 1-3.5 3.5H10l-4 3.5V16A3.5 3.5 0 0 1 4 12.5z"/></svg>Sui\'s Studio</button><button type="button" data-t="apps"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>已装</button><button type="button" data-t="more"><svg viewBox="0 0 24 24">'+ICON_APP+'</svg>导入 · 美化包</button></div>';
   document.body.appendChild(ov);
   penLbl();
+  setTimeout(function(){try{if(window._ibMarqM){window._ibMarqM(ov.querySelector('.blx-tt .blx-t1'),22);window._ibMarqM(ov.querySelector('.blx-tt small'),20)}}catch(e){}},80);/* v257-p：顶栏标题超宽时跑马灯（等执笔药丸落定再量） */
   ov.querySelector('#sx-pen').addEventListener('click',function(){var cs=(Array.isArray(_cfgs)?_cfgs:[]).filter(okCfg);if(!cs.length){toast('先到 API 页添加一位 TA');return}pop('工作室执笔（与水水共用）',cs.map(function(c){return {t:cfgName(c),v:c.id}}),async function(id){try{if(typeof loadMP==='function')await loadMP()}catch(e){}try{_mp.helper=_mp.helper||{};_mp.helper.api=id;if(typeof saveMP==='function')await saveMP()}catch(e){}penLbl();var c9=cs.filter(function(x){return x.id===id})[0];toast('执笔换成 '+(c9?cfgName(c9):'TA'))})});
   ov.querySelector('#sx-close').addEventListener('click',closeSheet);
   ov.querySelector('#sx-clear').addEventListener('click',function(){if(!S.H.length&&!S.cur){toast('没有可清的');return}if(S.busy){toast('水水还在写，等它写完');return}unPv();S.H=[];S.cur=null;persist();paintLab();toast('对话已清空（已装的 APP 不受影响）')});
@@ -24294,7 +24375,7 @@ function cfgList(){return (typeof _cfgs!=='undefined'&&Array.isArray(_cfgs))?_cf
 function cfgOf(){var id=hp().api,l=cfgList();return l.filter(function(x){return x.id===id})[0]||l[0]||null}
 function cfgLabel(c){try{return c?(typeof cfgName==='function'?cfgName(c):(c.name||c.model||c.id)):''}catch(e){return (c&&(c.name||c.id))||''}}
 /* ── 设置表：从 mobilePrefs 自动遍历，密钥 / 图片 / 长串一律不进表 ── */
-var LABEL={'ui.reduce':'减少动效（低配机模式：玻璃改实色、动画归零）','ui.fx':'特效质量：空=高 / mid=中（气泡去毛玻璃、发光、投影）；要「低」就把 ui.reduce 打开','ui.fs':'全站字号倍率（1 为默认）','ui.miniPw':'迷你播放器悬浮窗','ui.bubStyle':'气泡款式：空=默认 / glass 液态玻璃 / frostw 磨砂白 / frostb 磨砂黑 / gray 磨砂灰','ui.bubTx':'气泡文字色：空=自动 / light 浅 / dark 深','ui.icoStyle':'桌面图标材质：空=液态玻璃 / frost / ink / brick','ui.wgStyle':'桌面挂件材质：空=默认 / glass / frost / ink','ui.deskLayout':'桌面布局：空=分页 / classic 经典滚动','ui.heroSt':'桌面英雄区款式','ui.zcNav':'导航区文字色：空 / light / dark','ui.zcDesk':'桌面文字色：空 / light / dark','ui.zcChat':'聊天区文字色：空 / light / dark','ui.zcBlog':'Blog 文字色：空 / light / dark','ui.zcIcon':'图标文字色：空 / light / dark','helper.api':'小助手的执笔 API（配置 id）','local.ib_reduce':'减少动效（与 ui.reduce 同一开关）','local.ib_wsFineTools':'精细文件工具（ICode）','local.ib_fileCap':'附件正文上限：15000 / 30000 / 120000','local.ib_sysSplit':'提示缓存拆块：记忆档案核心单独一块（关掉＝退回单块，档案位置不变）','chat.bubbleSplit':'分段对话（口语叫「气泡分段」「拆气泡」）：AI 长回复按空行拆成多个气泡连发；含代码块 / 表格 / 指令的回复不拆。这是显示方式，不是话题频道','chat.mdMode':'聊天排版：full 全部渲染 / clean 排版净化 / none 不处理','chat.askCards':'选项卡：TA 给出的选择题出成可点的选项卡','out.maxContinues':'自动续写轮数（0 关闭，默认 3）','out.maxTokens':'单次输出上限 token（0＝自动顶格）','out.toolRounds':'工具连续调用轮数（0 关闭续答，默认 2）','out.btCap':'蓝牙每回复调用上限（0 不限，默认 4）','out.wsRounds':'ICode 工作区任务连续轮数（默认 3）','perms.geo':'读取定位','perms.wx':'读取天气','perms.phone':'查看手机状态','perms.city':'手动城市（定位兜底）','presence.hbOn':'定时推送总开关','ui.txColor':'全站文字颜色（空＝主题默认）','ui.txShadow':'文字投影','ui.chatFont':'聊天正文字体：空＝跟随全站 / serif 衬线','ui.accColor':'强调色一键换色（空＝默认蓝）','ui.bigTouch':'触控目标放大','ui.blurPx':'玻璃模糊强度 px（默认 20）','ui.bgBlur':'站点背景模糊 px','ui.drawerAlpha':'导航抽屉不透明度 %','ui.inputAlpha':'聊天输入条不透明度 %','ui.lineAlpha':'卡片描边强度 %','ui.wxOn':'抽屉天气显示','ui.chatFs':'对话文字大小倍率（0.85-1.25，1 为默认）','ui.uiScale':'界面整体大小倍率（0.9-1.1，1 为默认）','ui.panelAlpha':'面板玻璃不透明度 %（40-160，100 为默认）','ui.scrimAlpha':'背景遮罩不透明度 %（40-160，100 为默认）','ui.glassBase':'玻璃底色：空=主题默认 / w 白 / b 黑','ui.scrimColor':'背景遮罩颜色（空＝主题默认）','ui.szTop':'顶栏大小倍率（0.8-1.3，1 为默认）','ui.szDock':'底栏大小倍率（0.8-1.3，1 为默认）','ui.szBrv':'Blog 阅读工具条大小倍率（0.8-1.3，1 为默认）','ui.szCvh':'聊天会话顶栏大小倍率（0.8-1.3，1 为默认）','ui.szCvi':'聊天输入区大小倍率（0.8-1.3，1 为默认）','ui.wgMusic':'桌面音乐挂件尺寸：空=整行 / half 半宽 / mini 小方块','ui.wgNotes':'桌面便笺挂件尺寸：空=半宽 / low 半宽矮款 / full 整行','ui.wgSched':'桌面日程挂件尺寸：空=半宽 / low 半宽矮款 / full 整行','ui.wgClock':'桌面时钟挂件：空=关闭 / half 半宽 / low 半宽矮款 / full 整行','ui.wgClockSt':'时钟挂件字身：空=简约实字 / glass 玻璃字身','ui.wgTk':'Token 挂件款式：空=关闭 / ring 仪表环 / bars 七日柱 / mini 极简','ui.tone':'主题色调：空=默认蓝 / wall 随壁纸 / light 月白 / gray 石灰 / dark 墨黑','ui.heroTone':'桌面英雄区文字：空=自动 / light 浅 / dark 深','ui.deskPages':'桌面分页数','ui.lockAdapt':'锁屏随壁纸自适应'};/* 手机端：设置表补全局聊天 / 输出与工具 / 权限 / 视觉的中文说明 */
+var LABEL={'ui.reduce':'减少动效（低配机模式：玻璃改实色、动画归零）','ui.fx':'特效质量：空=高 / mid=中（气泡去毛玻璃、发光、投影）；要「低」就把 ui.reduce 打开','ui.fs':'全站字号倍率（1 为默认）','ui.miniPw':'迷你播放器悬浮窗','ui.bubStyle':'气泡款式：空=默认 / glass 液态玻璃 / frostw 磨砂白 / frostb 磨砂黑 / gray 磨砂灰','ui.bubTx':'气泡文字色：空=自动 / light 浅 / dark 深','ui.icoStyle':'桌面图标材质：空=液态玻璃 / frost / ink / brick','ui.wgStyle':'桌面挂件材质：空=默认 / glass / frost / ink','ui.deskLayout':'桌面布局：空=分页 / classic 经典滚动','ui.heroSt':'桌面英雄区款式','ui.zcNav':'导航区文字色：空 / light / dark','ui.zcDesk':'桌面文字色：空 / light / dark','ui.zcChat':'聊天区文字色：空 / light / dark','ui.zcBlog':'Blog 文字色：空 / light / dark','ui.zcIcon':'图标文字色：空 / light / dark','helper.api':'小助手的执笔 API（配置 id）','local.ib_reduce':'减少动效（与 ui.reduce 同一开关）','local.ib_wsFineTools':'精细文件工具（ICode）','local.ib_fileCap':'附件正文上限：15000 / 30000 / 120000','local.ib_sysSplit':'提示缓存拆块：记忆档案核心单独一块（关掉＝退回单块，档案位置不变）','chat.bubbleSplit':'分段对话（口语叫「气泡分段」「拆气泡」）：AI 长回复按空行拆成多个气泡连发；含代码块 / 表格 / 指令的回复不拆。这是显示方式，不是话题频道','chat.mdMode':'聊天排版：full 全部渲染 / clean 排版净化 / none 不处理','chat.askCards':'选项卡：TA 给出的选择题出成可点的选项卡','out.maxContinues':'自动续写轮数（0 关闭，默认 3）','out.maxTokens':'单次输出上限 token（0＝自动顶格）','out.toolRounds':'工具连续调用轮数（0 关闭续答，默认 2）','out.btCap':'蓝牙每回复调用上限（0 不限，默认 4）','out.wsRounds':'ICode 工作区任务连续轮数（默认 3）','perms.geo':'读取定位','perms.wx':'读取天气','perms.phone':'查看手机状态','perms.city':'手动城市（定位兜底）','presence.hbOn':'定时推送总开关','ui.txColor':'全站文字颜色（空＝主题默认）','ui.txShadow':'文字投影','ui.chatFont':'聊天正文字体：空＝跟随全站 / serif 衬线','ui.accColor':'强调色一键换色（空＝默认蓝）','ui.bigTouch':'触控目标放大','ui.blurPx':'玻璃模糊强度 px（默认 20）','ui.bgBlur':'站点背景模糊 px','ui.drawerAlpha':'导航抽屉不透明度 %','ui.inputAlpha':'聊天输入条不透明度 %','ui.lineAlpha':'卡片描边强度 %','ui.wxOn':'抽屉天气显示','ui.chatFs':'对话文字大小倍率（0.85-1.25，1 为默认）','ui.uiScale':'界面整体大小倍率（0.9-1.1，1 为默认）','ui.panelAlpha':'面板玻璃不透明度 %（40-160，100 为默认）','ui.scrimAlpha':'背景遮罩不透明度 %（40-160，100 为默认）','ui.glassBase':'玻璃底色：空=主题默认 / w 白 / b 黑','ui.scrimColor':'背景遮罩颜色（空＝主题默认）','ui.szTop':'顶栏大小倍率（0.8-1.3，1 为默认）','ui.szDock':'底栏大小倍率（0.8-1.3，1 为默认）','ui.szBrv':'Blog 阅读工具条大小倍率（0.8-1.3，1 为默认）','ui.szCvh':'聊天会话顶栏大小倍率（0.8-1.3，1 为默认）','ui.szCvi':'聊天输入区大小倍率（0.8-1.3，1 为默认）','ui.wgMusic':'桌面音乐挂件尺寸：空=整行 / half 半宽 / mini 小方块','ui.wgNotes':'桌面便笺挂件尺寸：空=半宽 / low 半宽矮款 / full 整行','ui.wgSched':'桌面日程挂件尺寸：空=半宽 / low 半宽矮款 / full 整行','ui.wgClock':'桌面时钟挂件：空=关闭 / half 半宽 / low 半宽矮款 / full 整行','ui.wgClockSt':'时钟挂件字身：空=简约实字 / glass 玻璃字身','ui.wgTk':'Token 挂件款式：空=关闭 / ring 仪表环 / bars 七日柱 / mini 极简','ui.tone':'主题色调：空=默认蓝 / wall 随壁纸 / light 月白 / gray 石灰 / dark 墨黑','ui.heroTone':'桌面英雄区文字：空=自动 / light 浅 / dark 深','ui.deskPages':'桌面分页数','ui.lockAdapt':'锁屏随壁纸自适应','ui.thTx':'思考链正文字色：空=默认（跟随聊天区 / 全站文字色）/ light 浅 / dark 深 / gray 灰','ui.thLb':'思考链标题「Thought process」与箭头字色：空=默认 / light 浅 / dark 深 / gray 灰','ui.thLn':'思考链左侧竖线：空=默认 / light 浅 / dark 深 / acc 强调色 / hide 隐藏','ui.thFs':'思考链正文字号倍率（0.85-1.25，1 为默认）','ui.thMax':'思考链展开高度：空=默认 360px 内滚动 / tall 加高 / free 不限'};/* v258-p：思考链五项 *//* 手机端：设置表补全局聊天 / 输出与工具 / 权限 / 视觉的中文说明 */
 var BLOCK=/key|token|secret|cookie|pass|pwd|pin|pattern|base64|data:|avatar|wall|bg\b|img|pic|pos\b|order|seq|_at$|At$|cache|wxCache|qt[A-Z]|geo\.|lat\b|lon\b|city|nonce|uuid|deviceId/i;
 function registry(){var m=mp(),rows=[];if(!m)return rows;
   (function walk(o,pre,d){if(!o||typeof o!=='object'||d>3)return;Object.keys(o).forEach(function(k){var v=o[k],p=pre?pre+'.'+k:k;if(BLOCK.test(p)||p==='helper.on'||v===null||v===undefined)return;var t=typeof v;if(t==='object'){if(!Array.isArray(v))walk(v,p,d+1);return}if(t==='function'||(t==='string'&&v.length>60))return;rows.push({path:p,val:v,type:t})})})(m,'',0);
@@ -24308,7 +24389,7 @@ function registry(){var m=mp(),rows=[];if(!m)return rows;
   rows.sort(function(a,b){var ord=function(p){return p.indexOf('ui.')===0?0:p.indexOf('helper')===0?1:(p.indexOf('api.')===0||p.indexOf('call.')===0||p.indexOf('perAi.')===0)?3:2};var ka=ord(a.path),kb=ord(b.path);return ka-kb||a.path.localeCompare(b.path)});/* 手机端：全局项排在每好友项之前，好友多时不再被截掉 */
   return rows.slice(0,320)}
 function fmt(v){return typeof v==='boolean'?(v?'开':'关'):(v===''?'空':String(v))}
-var WORD={light:'浅',dark:'深',glass:'玻璃',frost:'磨砂',frostw:'磨砂白',frostb:'磨砂黑',gray:'磨砂灰',ink:'墨',brick:'砖',classic:'经典滚动',full:'整行',half:'半宽',low:'半宽矮款',mini:'迷你',ring:'仪表环',bars:'七日柱',serif:'衬线',wall:'随壁纸',w:'白',b:'黑',mid:'中',clean:'排版净化',none:'不处理',hybrid:'混合',retrieval:'纯语义',en:'英语',ja:'日语',ko:'韩语',true:'开',false:'关'};
+var WORD={light:'浅',dark:'深',glass:'玻璃',frost:'磨砂',frostw:'磨砂白',frostb:'磨砂黑',gray:'磨砂灰',ink:'墨',brick:'砖',classic:'经典滚动',full:'整行',half:'半宽',low:'半宽矮款',mini:'迷你',ring:'仪表环',bars:'七日柱',serif:'衬线',wall:'随壁纸',w:'白',b:'黑',mid:'中',clean:'排版净化',none:'不处理',hybrid:'混合',retrieval:'纯语义',en:'英语',ja:'日语',ko:'韩语',true:'开',false:'关',hide:'隐藏',acc:'强调色',tall:'加高',free:'不限'};/* v258-p */
 function friendly(lb,v){var head=lb.split('：')[0].split('（')[0],name=head.replace(/\s*(px|%)\s*$/,'').trim(),unit=/\bpx\b/.test(head)?'px':(/%/.test(head)?'%':'');
   if(typeof v==='boolean')return name+'＝'+(v?'开':'关');
   var vs=(v===''||v==null)?'空':String(v),hit='',opts=lb.indexOf('：')>0?lb.slice(lb.indexOf('：')+1):'';
@@ -24619,19 +24700,22 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
+<script id="ib-marq-pack">
+window._ibMarqM=function(el,speed){try{if(!el)return;var txt=(el._mqT!=null)?el._mqT:el.textContent;txt=String(txt||'');el._mqT=txt;el.classList.remove('mq');el.style.removeProperty('--mqw');el.style.removeProperty('--mqd');el.textContent=txt;if(!txt||document.body.classList.contains('ib-reduce'))return;var w=el.scrollWidth,cw=el.clientWidth;if(!cw||w-cw<=2)return;var gap=28,esc1=function(t){return t.replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};el.innerHTML='<span class="mq-tr"><span>'+esc1(txt)+'</span><span aria-hidden="true">'+esc1(txt)+'</span></span>';el.style.setProperty('--mqw',(w+gap)+'px');el.style.setProperty('--mqd',Math.max(6,Math.round((w+gap)/(speed||22)))+'s');el.classList.add('mq')}catch(e){}};
+</script>
 <script id="ib-kaostk-pack">
 (function(){'use strict';
-var PAW='<circle cx="12" cy="12" r="8.6"/><path d="M8.5 14.1c.8 1.3 2 2 3.5 2s2.7-.7 3.5-2"/><path d="M9.3 9.9h.01M14.7 9.9h.01"/>';/* v246-p：输入条与设置卡角标同用笑脸 *//* v246-p：输入条用重画的猫爪（圆润肉垫 + 四颗圆趾）；设置卡角标仍是笑脸 *//* v246-p：简约笑脸（圆 + 弧 + 两点） */
+var PAW='<circle cx="12" cy="12" r="8.6"/><path d="M8.5 14.1c.8 1.3 2 2 3.5 2s2.7-.7 3.5-2"/><path d="M9.3 9.9h.01M14.7 9.9h.01"/>';/* 输入条与设置卡角标同用简约笑脸（圆 + 弧 + 两点） */
 var CATS=['开心','生气','伤心','惊讶','无语','Kiss','经典','双人款'];
 var KAO={
- '开心':['(＾▽＾)','(´∀｀)','(*^▽^*)','ヽ(・∀・)ﾉ','(｡･ω･｡)','(●´ω｀●)','(≧∇≦)/','٩(◕‿◕)۶','(o^▽^o)','ヾ(＾∇＾)'],
- '生气':['(╬ಠ益ಠ)','(#`皿´)','ヽ(`Д´)ﾉ','(ノ｀Д´)ノ彡┻━┻','(＃￣皿￣)','(╯°□°)╯︵ ┻━┻','(；￣Д￣)','ヽ(#`Д´)ﾉ'],
- '伤心':['(T_T)','(；ω；)','(ಥ_ಥ)','(╥﹏╥)','(´；ω；`)','( ; _ ; )','(｡•︿•｡)','(T▽T)','｡ﾟ(ﾟ´ω`ﾟ)ﾟ｡'],
- '惊讶':['(⊙_⊙)','Σ(°△°|||)','(°o°)','(⊙o⊙)','Σ(ﾟДﾟ)','(O_O)','(´⊙ω⊙`)','(｡ﾟДﾟ)'],
- '无语':['(¬_¬)','(￣▽￣)','( ´_ゝ`)','(￣_￣)','┐(´～｀)┌','(・_・;)','(＝_＝)','¯\\_(ツ)_/¯'],
- 'Kiss':['(´ε｀ )','(*^3^)','(´3｀)','( ˘ ³˘)♥','(っ˘з(˘⌣˘ )','(*´з`)','( ˘ ε ˘ )','(´っ˘з(˘⌣˘ )'],
- '经典':['(・ω・)','(・∀・)','(´・ω・`)','(｀・ω・´)','(・ω<)','(o´ω`o)','(´-ω-`)','(￣ω￣)','(・ε・)','ヾ(・ω・)'],
- '双人款':['(づ｡◕‿‿◕｡)づ','(っ´ω`)っ','⊂(・ω・*⊂)','(ﾉ´ω`)ﾉ','(づ￣ ³￣)づ','(ノ・∀・)ノ','(´ω｀)人(´ω｀)','(´・ω・)(・ω・`)','ヽ(´▽`)人(´▽`)ノ','(*・ω・)ノ']
+ "开心":["ᕙ( •̀ ᗜ •́ )ᕗ", "ヾ(＾∇＾)", "^>⸝⸝⸝⸝<^੭", "˶ᵒ ᵕ ˂˶", "(˃ ⌑ ˂ഃ )", "(*^▽^*)", "ʚ˶˃ ᵕ ˂˶ɞ", "(≧∇≦)/", "૮₍ ˶ᵔ ᵕ ᵔ˶ ₎ა", "◍˃ᵕ˂◍", "=ᗜꇴᗜ=", "໒꒰ྀི ˶> ˕ <˶꒱ྀི১", "(o^▽^o)", "ヽ(・∀・)ﾉ", "(＾▽＾)", "૮꒰˶ᵔ ᵕ ᵔ˶꒱ა", "꒰՞> · <՞꒱", "⸝⸝(⸝⸝>ᵕ<⸝⸝)⸝⸝♡", "٩(◕‿◕)۶", "๑'ꇴ'๑"],
+ "生气":["(ꐦ ^-^)", "◺ ̫ ◿ꐦ", "-᷅ ⤙ -᷄", "(╯°□°)╯︵ ┻━┻", "(ノ｀Д´)ノ彡┻━┻", "(•̀ロ•́)", "(；￣Д￣)", "(＃￣皿￣)", "(#`皿´)", "૮₍ꐦ -᷅ ⤙ -᷄ ₎ა", "ヽ(`Д´)ﾉ", "(╬ಠ益ಠ)", "(。-`ω-)！", "(๑•̀ㅁ•́๑)"],
+ "伤心":["꒦ິ^꒦ິ", "՞╥⩊╥՞", "•᷄⌓•᷅", "(｡•︿•｡)", "(´；ω；`)", "(ಥ_ಥ)", "(；ω；)", "૮(◞ ‸ ◟ )ა", "૮₍˶Ó﹏Ò ⑅₎ა", "ŏ̥ㅁŏ̥", "(T_T)", "( •ʚ•̥ )", "(っ꒪ཀ꒪)っ", "｡ﾟ(ﾟ´ω`ﾟ)ﾟ｡", "(╥﹏╥)", "꒰⑅ᐢ. ̯.ᐢ꒱", "૮꒰⸝⸝›̥̥̥ ·̭ ‹̥̥̥⸝⸝꒱১", "っω<｡"],
+ "惊讶":["(°o°)", "(O_O)", "°ﾛ°", "(´⊙ω⊙`)", "(⊙o⊙)", "(｡ﾟДﾟ)", "⌯'⊙'⌯", "⦕(>ロ<)⦖", "( ˙ε . )？", "^⎚˕⎚^", "˙º˙", "Σ(ﾟДﾟ)", "ᗒᗣᗕ", "Σ(°△°|||)", "(⊙_⊙)", "ටᆼට"],
+ "无语":["┐(´～｀)┌", "(・_・;)", "(- ₃ -)", "(￣_￣)", "૮․ ․ ྀིა", "(๑˙ー˙๑)", "¯\\_(ツ)_/¯", "╸▵╺", "⦁֊⦁", "(っ. -｡)", "(＝_＝)", "( ´_ゝ`)", "ᴗ.ᴗᶻ", "˶ｰ`֊´ｰ", "(￣▽￣)", "ᶻz ₍^_ ̫ _^₎", "⁃ ⌓ ⁃", "(¬_¬)"],
+ "Kiss":["૮꒰ ˶• ༝ •˶꒱ა ♡", "(*´з`)", "(˵>ㅿ<˵)♡", "(っ˘з(˘⌣˘ )", "( ˘ ³˘)♥", "꒒ ০ ⌵ ୧ ♡", "₍ᐢ..ᐢ₎♡", "♪～(´ε｀　)", "(´3｀)", "՞⩌⌯⩌՞", "( ˘ ε ˘ )", "˃͈ દ ˂͈", "(´ε｀ )", "(*￣3￣)╭♡", "˘³˘", "(*^3^)"],
+ "经典":["(・ω・)", ":P", "QAQ", "₍ᐢ. ̫ .ᐢ₎", "^_^", "QwQ", "=_=", "XD", "૮₍ ´ ꒳ `₎ა", "^^", "orz", "T_T", "OvO", "(´・ω・`)", ":D", ">_<"],
+ "双人款":["( ◜◡¯)(¯◡◝ )", "( ˶◝◡ ◜|◝◡ ◜˶ )", "૮₍ ˃ ⤙ ˂ ₎ა", "(ﾉ´ω`)ﾉ", "⸜₍๑•⌔•๑₎⸝", "(´・ω・)(・ω・`)", "(ノ・∀・)ノ", "(ᐡ⦁⩊⦁⸝⸝ᐡ )₊୭", "ヽ(´▽`)人(´▽`)ノ", "∠( ᐛ 」∠)", "(づ￣ ³￣)づ", "(づ｡◕‿‿◕｡)づ", "(´ω｀)人(´ω｀)", "(*・ω・)ノ", "(っ´ω`)っ", "⊂(・ω・*⊂)"]
 };
 var $$=function(id){return document.getElementById(id)};
 function E(t){try{return esc(String(t==null?'':t))}catch(e){return String(t==null?'':t)}}
@@ -24639,26 +24723,32 @@ function dbReady(){try{return typeof db!=='undefined'&&!!db}catch(e){return fals
 function T(t){try{toast(t)}catch(e){}}
 /* ── 样式 ── */
 (function(){var st=document.createElement('style');st.id='ib-kaostk-css';st.textContent=
- '#sh-kao,#sh-stk{max-height:52vh;padding:12px 14px calc(12px + var(--sab))}'
-+'.kao-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}'
-+'.kao-tt{font-weight:600;font-size:0.86rem;letter-spacing:0.04em;color:var(--tx)}.kao-tt i{font-style:normal;font-family:var(--disp);font-weight:300;font-size:0.66rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--tx3);margin-left:8px}'
-+'.kao-x{width:28px;height:28px;border-radius:50%;border:1px solid var(--glass-line);background:rgba(255,255,255,0.4);color:var(--tx2);font-size:0.8rem;line-height:1;cursor:pointer}'
-+'.kao-tabs{display:flex;gap:6px;overflow-x:auto;flex:none;padding-bottom:8px;scrollbar-width:none}.kao-tabs::-webkit-scrollbar{display:none}'
-+'.kao-tab{flex:none;padding:5px 11px;border-radius:999px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.32);font-size:0.76rem;color:var(--tx2);cursor:pointer;font-family:inherit}'
+ '#kao-panel{display:none;flex:none;flex-direction:column;box-sizing:border-box;margin:0 10px 2px;padding:8px 10px 10px;border-radius:18px;max-height:min(300px,42vh);overflow:hidden}'
++'#kao-panel.open{display:flex}#conv.sel-mode #kao-panel{display:none!important}#kao-panel [hidden]{display:none!important}'
++'body.ib-reduce #kao-panel{-webkit-backdrop-filter:none;backdrop-filter:none}'
++'.kp-hd{display:flex;align-items:center;gap:8px;flex:none;margin-bottom:6px}'
++'.kp-seg{display:inline-flex;flex:none;padding:2px;border-radius:999px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.32)}'
++'.kp-seg button{border:0;background:none;padding:4px 12px;border-radius:999px;font-size:0.78rem;line-height:1.4;color:var(--tx2);font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}'
++'.kp-seg button.on{background:var(--acc);color:#fff}'
++'.kp-cap{margin-left:auto;font-style:normal;font-family:var(--disp);font-weight:300;font-size:0.6rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--tx3);white-space:nowrap}'
++'.kp-x{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--glass-line);background:rgba(255,255,255,0.4);color:var(--tx2);font-size:0.74rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;-webkit-tap-highlight-color:transparent}'
++'.kao-tabs{display:flex;gap:6px;overflow-x:auto;flex:none;padding-bottom:7px;scrollbar-width:none}.kao-tabs::-webkit-scrollbar{display:none}'
++'.kao-tab{flex:none;padding:4px 11px;border-radius:999px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.32);font-size:0.74rem;color:var(--tx2);cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent}'
 +'.kao-tab.on{background:var(--acc);border-color:var(--acc);color:#fff}'
-+'.kao-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:38px;gap:7px;max-height:173px;overflow-y:auto;padding:2px 0 6px;align-content:start;-webkit-overflow-scrolling:touch}'
-+'.kao-it{position:relative;height:38px;padding:0 6px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.42);font-size:0.88rem;line-height:1.3;text-align:center;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-family:inherit;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}'
++'.kao-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:38px;gap:7px;flex:1 1 auto;min-height:0;max-height:173px;overflow-y:auto;padding:2px 0 4px;align-content:start;-webkit-overflow-scrolling:touch}'
++'.kao-it{position:relative;height:38px;padding:0 6px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.42);font-size:0.88rem;line-height:1.3;text-align:center;color:var(--tx);white-space:nowrap;overflow:hidden;cursor:pointer;font-family:inherit;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}'
 +'.kao-it span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
 +'.kao-it.mine::after{content:"";position:absolute;right:6px;top:6px;width:4px;height:4px;border-radius:50%;background:var(--acc);opacity:0.7}'
-+'.kao-add{flex:none;display:flex;gap:8px;align-items:center;margin-top:8px}'
++'.kao-add{flex:none;display:flex;gap:8px;align-items:center;margin-top:6px}'
 +'.kao-add input{flex:1;min-width:0;height:34px;border-radius:999px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.35);padding:0 12px;font-size:0.86rem;color:var(--tx);outline:none;font-family:inherit}'
 +'.kao-add .ask-send{width:34px;height:34px}'
-+'.stk-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-height:232px;overflow-y:auto;padding:2px 0 6px;align-content:start;-webkit-overflow-scrolling:touch}.stk-pk{aspect-ratio:1;border-radius:12px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.42);display:flex;align-items:center;justify-content:center;padding:6px;cursor:pointer;-webkit-tap-highlight-color:transparent}.stk-pk img{max-width:100%;max-height:100%;object-fit:contain}body.theme-infernal .stk-pk{background:rgba(255,255,255,0.06)}'
++'.stk-pick{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;flex:1 1 auto;min-height:0;max-height:150px;overflow-y:auto;padding:2px 0 4px;align-content:start;-webkit-overflow-scrolling:touch}.stk-pk{aspect-ratio:1;border-radius:12px;border:1px solid var(--glass-line);background:rgba(255,255,255,0.42);display:flex;align-items:center;justify-content:center;padding:5px;cursor:pointer;-webkit-tap-highlight-color:transparent}.stk-pk img{max-width:100%;max-height:100%;object-fit:contain;display:block}'
++'#cv-kao.on{color:#fff;background:var(--acc);border-color:var(--acc)}'
 +'.att-thumb.att-stk{background-size:contain;background-color:rgba(255,255,255,0.35)}.ws-stk.u{margin:2px 0 6px}'
-+'.sb-ic.sk-img{background-size:cover;background-position:center;background-repeat:no-repeat}.sb-ic.sk-img svg{display:none}'
-+'.kao-empty{grid-column:1/-1;padding:18px 6px;text-align:center;font-size:0.76rem;color:var(--tx3)}'
-+'body.theme-infernal .kao-it,body.theme-infernal .kao-tab,body.theme-infernal .kao-add input,body.theme-infernal .kao-x{background:rgba(255,255,255,0.06)}'
-+'body.theme-infernal .kao-tab.on{background:var(--acc);color:#fff}'
++'.sb-ic.sk-img{background-size:cover;background-position:center;background-repeat:no-repeat}.sb-ic.sk-img svg{display:none}body .sb-ic.sk-img::after{content:none!important}'
++'.kao-empty{grid-column:1/-1;padding:18px 6px;text-align:center;font-size:0.76rem;color:var(--tx3);line-height:1.6}'
++'body.theme-infernal .kao-it,body.theme-infernal .kao-tab,body.theme-infernal .kao-add input,body.theme-infernal .kp-x,body.theme-infernal .kp-seg,body.theme-infernal .stk-pk{background:rgba(255,255,255,0.06)}'
++'body.theme-infernal .kao-tab.on,body.theme-infernal .kp-seg button.on{background:var(--acc);color:#fff}'
 +'.ws-stk{display:block;margin:4px 0}.ws-stk img{display:block;max-width:min(46vw,180px);max-height:180px;border-radius:12px}'
 +'.ws-stk-miss{display:inline-block;font-size:0.74rem;color:var(--tx3);padding:4px 8px;border:1px dashed var(--glass-line);border-radius:8px}'
 +'#stk-card .fx-ico{pointer-events:auto;cursor:pointer;transition:opacity .15s}#stk-card .fx-ico:active{opacity:0.32}#stk-card .tog{border-bottom:none}#stk-card .tog+.tog{border-top:1px solid var(--line)}'
@@ -24678,39 +24768,61 @@ function T(t){try{toast(t)}catch(e){}}
 +'.stk-hint{font-size:0.72rem;color:var(--o2tx2);line-height:1.7;margin-top:12px}'
 +'#sh-stk-edit{z-index:4650}.stk-ed-prev{display:flex;justify-content:center;margin-bottom:12px}.stk-ed-prev img{max-width:140px;max-height:140px;border-radius:12px}';
 document.head.appendChild(st)})();
+/* ── 面板（颜文字 / 表情包共用一块，挂在输入条上方） ── */
+var kp={mode:'kao',open:false};
+function kpEl(){var p=$$('kao-panel');if(p)return p;p=document.createElement('div');p.id='kao-panel';p.className='glass';
+  p.innerHTML='<div class="kp-hd"><div class="kp-seg" id="kp-seg"><button type="button" data-m="kao" class="on">颜文字</button><button type="button" data-m="stk">表情包</button></div><i class="kp-cap" id="kp-cap">Kaomoji</i><button class="kp-x" type="button" aria-label="收起">✕</button></div>'
+   +'<div class="kao-tabs" id="kao-tabs"></div><div class="kao-grid" id="kao-grid"></div><div class="kao-add" id="kao-addrow"><input id="kao-in" placeholder="粘贴或输入颜文字，加进当前分组" maxlength="40" autocomplete="off"><button type="button" id="kao-put" class="ask-send" aria-label="加入"><svg viewBox="0 0 24 24"><path d="M4 12h13M13 6l6 6-6 6"/></svg></button></div>'
+   +'<div class="kao-tabs" id="stk-pk-tabs" hidden></div><div class="stk-pick" id="stk-pick" hidden></div>';
+  var strip=$$('cv-attach-strip'),conv=$$('conv');
+  if(strip&&strip.parentNode)strip.parentNode.insertBefore(p,strip);else if(conv)conv.appendChild(p);else document.body.appendChild(p);
+  p.addEventListener('pointerdown',function(e){if(e.target&&e.target.closest&&e.target.closest('input,textarea'))return;e.preventDefault()});/* 不抢输入框焦点：键盘开着时点面板不收键盘 */
+  p.querySelector('.kp-x').addEventListener('click',function(){kpClose()});
+  $$('kp-seg').addEventListener('click',function(e){var b=e.target.closest('button[data-m]');if(!b)return;kpMode(b.dataset.m)});
+  $$('kao-put').addEventListener('click',async function(){var v=String($$('kao-in').value||'').trim();if(!v)return;var c=kao.cat;kao.mine[c]=kao.mine[c]||[];if(kao.mine[c].indexOf(v)>=0||(KAO[c]||[]).indexOf(v)>=0){T('已经有这一枚了');return}kao.mine[c].push(v);$$('kao-in').value='';await kaoSave();kaoPaint();T('已加入「'+c+'」')});
+  $$('kao-in').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$$('kao-put').click()}});
+  return p}
+function kpMode(m){kp.mode=(m==='stk')?'stk':'kao';var p=kpEl();p.querySelectorAll('#kp-seg button').forEach(function(b){b.classList.toggle('on',b.dataset.m===kp.mode)});$$('kp-cap').textContent=kp.mode==='stk'?'Stickers':'Kaomoji';
+  ['kao-tabs','kao-grid','kao-addrow'].forEach(function(id){$$(id).hidden=kp.mode!=='kao'});['stk-pk-tabs','stk-pick'].forEach(function(id){$$(id).hidden=kp.mode!=='stk'});
+  if(kp.mode==='stk')sLoad().then(function(){stkPickPaint()});else kaoLoad().then(function(){kaoPaint()});
+  try{localStorage.setItem('ib_kp_mode',kp.mode)}catch(e){}}
+function kpOpen(m){var p=kpEl();if(m)kp.mode=(m==='stk')?'stk':'kao';var box=$$('cv-msgs'),atB=box?(box.scrollHeight-box.scrollTop-box.clientHeight<140):false;
+  if(!p.classList.contains('open')){p.classList.add('open');kp.open=true;var b=$$('cv-kao');if(b)b.classList.add('on')}
+  kpMode(kp.mode);if(atB&&box)requestAnimationFrame(function(){box.scrollTop=box.scrollHeight})}
+function kpClose(){var p=$$('kao-panel');kp.open=false;var b=$$('cv-kao');if(b)b.classList.remove('on');if(p)p.classList.remove('open')}
+function kpToggle(){if(kp.open)kpClose();else kpOpen()}
+window._ibKaoPanel={open:kpOpen,close:kpClose,toggle:kpToggle,mode:kpMode};
 /* ── 颜文字 ── */
 var kao={mine:{},cat:CATS[0],loaded:false};
 async function kaoLoad(){if(kao.loaded||!dbReady())return;try{var r=await dbGet('apiSettings','ib_kao');if(r&&r.v&&typeof r.v==='object')kao.mine=r.v}catch(e){return}kao.loaded=true}/* 读库失败不标已读 */
 async function kaoSave(){if(!kao.loaded){T('本地数据库还没准备好，过几秒再试');return}try{await dbPut('apiSettings',{id:'ib_kao',v:kao.mine,updated:Date.now()})}catch(e){T('保存失败')}}
 function kaoIns(t){var ta=$$('cv-ta');if(!ta)return;var v=ta.value||'',s=ta.selectionStart,e=ta.selectionEnd;if(typeof s!=='number'){s=v.length;e=s}ta.value=v.slice(0,s)+t+v.slice(e);var p=s+t.length;try{ta.setSelectionRange(p,p)}catch(x){}try{ta.dispatchEvent(new Event('input',{bubbles:true}))}catch(x){}}
-function kaoSheet(){var sh=$$('sh-kao');if(sh)return sh;sh=document.createElement('div');sh.className='sheet';sh.id='sh-kao';
-  sh.innerHTML='<div class="kao-hd"><span class="kao-tt">颜文字<i>Kaomoji</i></span><button class="kao-x" type="button" aria-label="关闭">✕</button></div><div class="kao-tabs" id="kao-tabs"></div><div class="kao-grid" id="kao-grid"></div><div class="kao-add"><input id="kao-in" placeholder="粘贴或输入颜文字，加进当前分组" maxlength="40" autocomplete="off"><button type="button" id="kao-put" class="ask-send" aria-label="加入"><svg viewBox="0 0 24 24"><path d="M4 12h13M13 6l6 6-6 6"/></svg></button></div>';
-  document.body.appendChild(sh);
-  sh.querySelector('.kao-x').addEventListener('click',function(){closeSheets()});
-  $$('kao-put').addEventListener('click',async function(){var v=String($$('kao-in').value||'').trim();if(!v)return;var c=kao.cat;kao.mine[c]=kao.mine[c]||[];if(kao.mine[c].indexOf(v)>=0||(KAO[c]||[]).indexOf(v)>=0){T('已经有这一枚了');return}kao.mine[c].push(v);$$('kao-in').value='';await kaoSave();kaoPaint();T('已加入「'+c+'」')});
-  return sh}
+function fitKao(grid){try{if(!grid||!grid.offsetParent)return;var sizes=['0.88rem','0.8rem','0.72rem','0.64rem'];grid.querySelectorAll('.kao-it').forEach(function(d){var sp=d.firstChild;if(!sp)return;for(var i=0;i<sizes.length;i++){d.style.fontSize=sizes[i];if(sp.scrollWidth<=sp.clientWidth+1)break}})}catch(e){}}/* 超宽的颜文字逐档缩字，缩到最小仍放不下才省略 */
 function kaoPaint(){var tabs=$$('kao-tabs'),grid=$$('kao-grid');if(!tabs||!grid)return;
   tabs.innerHTML='';CATS.forEach(function(c){var b=document.createElement('button');b.type='button';b.className='kao-tab'+(c===kao.cat?' on':'');b.textContent=c;b.addEventListener('click',function(){kao.cat=c;kaoPaint()});tabs.appendChild(b)});
   grid.innerHTML='';var base=KAO[kao.cat]||[],mine=kao.mine[kao.cat]||[];
   var put=function(t,isMine){var d=document.createElement('button');d.type='button';d.className='kao-it'+(isMine?' mine':'');var sp=document.createElement('span');sp.textContent=t;d.appendChild(sp);d.title=t;var tm=null,held=false;
-    d.addEventListener('click',function(){if(held){held=false;return}kaoIns(t);closeSheets();try{var ta=$$('cv-ta');if(ta)ta.focus()}catch(e){}});/* v255-p：点一枚即插入并收起抽屉、回到输入框 */
+    d.addEventListener('click',function(){if(held){held=false;return}kaoIns(t);kpClose();try{var ta=$$('cv-ta');if(ta)ta.focus()}catch(e){}});/* 点一枚即插入并收起面板、回到输入框 */
     if(isMine){var st=function(){held=false;tm=setTimeout(async function(){held=true;tm=null;if(!await confirmDlg('删除这枚自定义颜文字？','删除'))return;var arr=kao.mine[kao.cat]||[];var i=arr.indexOf(t);if(i>=0)arr.splice(i,1);await kaoSave();kaoPaint()},520)},en=function(){if(tm){clearTimeout(tm);tm=null}};
       d.addEventListener('touchstart',st,{passive:true});d.addEventListener('touchend',en);d.addEventListener('touchmove',en);d.addEventListener('touchcancel',en);d.addEventListener('mousedown',st);d.addEventListener('mouseup',en);d.addEventListener('mouseleave',en);d.addEventListener('contextmenu',function(e){e.preventDefault()})}
     grid.appendChild(d)};
   mine.forEach(function(t){put(t,true)});base.forEach(function(t){put(t,false)});
-  if(!mine.length&&!base.length)grid.innerHTML='<div class="kao-empty">这一组还是空的，在下面加一枚。</div>'}
-function noBlur(id){try{var sc=$$('sheet-scrim'),sh=$$(id);if(!sc||!sh)return;sc.classList.add('kao-lite');if(!sh._kmo){sh._kmo=new MutationObserver(function(){if(!sh.classList.contains('open'))sc.classList.remove('kao-lite')});sh._kmo.observe(sh,{attributes:true,attributeFilter:['class']})}}catch(e){}}/* v255-p：这两个小抽屉快点快出，不模糊底下的聊天（其它 sheet 照旧）；抽屉一收起就把遮罩改回默认 */
-async function kaoOpen(){await kaoLoad();kaoSheet();kaoPaint();openSheet('sh-kao');noBlur('sh-kao')}
-function kaoBtn(){var plus=$$('cv-plus');if(!plus||$$('cv-kao'))return;var b=document.createElement('button');b.className='cv-mini';b.id='cv-kao';b.type='button';b.setAttribute('aria-label','颜文字与表情包');b.innerHTML='<svg viewBox="0 0 24 24">'+PAW+'</svg>';plus.insertAdjacentElement('afterend',b);b.addEventListener('click',function(e){e.preventDefault();actionSheet([{label:'发送颜文字',fn:function(){kaoOpen()}},{label:'发送表情包',fn:function(){stkPickOpen()}}])})}/* v246-p：与「+」同款动作单 */
-function stkPickSheet(){var sh=$$('sh-stk');if(sh)return sh;sh=document.createElement('div');sh.className='sheet';sh.id='sh-stk';sh.innerHTML='<div class="kao-hd"><span class="kao-tt">表情包<i>Stickers</i></span><button class="kao-x" type="button" aria-label="关闭">✕</button></div><div class="kao-tabs" id="stk-pk-tabs"></div><div class="stk-pick" id="stk-pick"></div>';document.body.appendChild(sh);sh.querySelector('.kao-x').addEventListener('click',function(){closeSheets()});return sh}
+  if(!mine.length&&!base.length)grid.innerHTML='<div class="kao-empty">这一组还是空的，在下面加一枚。</div>';
+  requestAnimationFrame(function(){fitKao(grid)})}
+function kaoBtn(){var plus=$$('cv-plus');if(!plus||$$('cv-kao'))return;var b=document.createElement('button');b.className='cv-mini';b.id='cv-kao';b.type='button';b.setAttribute('aria-label','颜文字与表情包');b.innerHTML='<svg viewBox="0 0 24 24">'+PAW+'</svg>';plus.insertAdjacentElement('afterend',b);
+  b.addEventListener('pointerdown',function(e){e.preventDefault()});/* 键盘开着时点它不收键盘 */
+  b.addEventListener('click',function(e){e.preventDefault();kpToggle()});
+  try{kp.mode=localStorage.getItem('ib_kp_mode')==='stk'?'stk':'kao'}catch(e){}
+  var conv=$$('conv');if(conv&&!conv._kpmo){try{conv._kpmo=new MutationObserver(function(){if(!conv.classList.contains('open')||conv.classList.contains('sel-mode'))kpClose()});conv._kpmo.observe(conv,{attributes:true,attributeFilter:['class']})}catch(e){}}/* 会话关闭 / 进入选择模式即收起 */
+  var oc=window.openConv;if(typeof oc==='function'&&!oc._kp){var w=function(){kpClose();return oc.apply(this,arguments)};w._kp=1;window.openConv=w}/* 切换会话即收起（函数声明可被 window 属性覆盖） */}
+/* ── 表情包选发 ── */
 var pick={cat:''};
 function stkPickPaint(){var tabs=$$('stk-pk-tabs'),grid=$$('stk-pick');if(!tabs||!grid)return;var ps=S.presets||[];if(!pick.cat||!ps.some(function(p){return p.id===pick.cat}))pick.cat=(curP()&&curP().id)||(ps[0]&&ps[0].id)||'';
   tabs.innerHTML='';ps.forEach(function(p){var b=document.createElement('button');b.type='button';b.className='kao-tab'+(p.id===pick.cat?' on':'');b.textContent=p.name;b.addEventListener('click',function(){pick.cat=p.id;stkPickPaint()});tabs.appendChild(b)});
   var p=ps.filter(function(x){return x.id===pick.cat})[0]||null,items=p?(p.items||[]).filter(ok):[];grid.innerHTML='';
   if(!items.length)grid.innerHTML='<div class="kao-empty">'+(p?'这套预设里还没有写好名字与用法的表情包。':'还没有表情包预设——到 API 页「表情包」卡里传几枚。')+'</div>';
   items.forEach(function(it){var c=document.createElement('button');c.type='button';c.className='stk-pk';c.title=it.name;var im=document.createElement('img');im.alt=it.name;c.appendChild(im);imgGet(it.id).then(function(u){if(u)im.src=u});
-    c.addEventListener('click',function(){imgGet(it.id).then(function(u){if(!u){T('这枚表情包的图片已不在本机');return}window._ibPendStk={id:it.id,name:it.name,desc:String(it.desc||''),use:String(it.use||''),dataUrl:u};try{drawAttach()}catch(e){}closeSheets();try{var ta=$$('cv-ta');if(ta)ta.focus()}catch(e){}})});grid.appendChild(c)})}
-async function stkPickOpen(){await sLoad();stkPickSheet();stkPickPaint();openSheet('sh-stk');noBlur('sh-stk')}/* v246-p：抽屉顶部预设页签（照颜文字抽屉），任意一套都能发，不受开关与当前预设限制 */
+    c.addEventListener('click',function(){imgGet(it.id).then(function(u){if(!u){T('这枚表情包的图片已不在本机');return}window._ibPendStk={id:it.id,name:it.name,desc:String(it.desc||''),use:String(it.use||''),dataUrl:u};try{drawAttach()}catch(e){}kpClose();try{var ta=$$('cv-ta');if(ta)ta.focus()}catch(e){}})});grid.appendChild(c)})}/* 顶部预设页签：任意一套都能发，不受开关与当前预设限制 */
 /* ── 表情包 ── */
 var S={on:false,cur:'',presets:[]},IMG={},sLoaded=false,PMAX=10,pg=null,edit=null;
 function pid(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
@@ -24779,6 +24891,5 @@ function boot(){(async function(){try{if(typeof loadMP==='function')await loadMP
   var sw=document.getElementById('ui-reduce');if(sw)sw.addEventListener('click',function(){setTimeout(apply,60)})})()}
 window.IBFx={apply:apply,set:set,cur:cur};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else setTimeout(boot,0)})();
 </script>
-<script src="./custom/extension.js"></script>
-</body>
+<script src="./custom/extension.js"></script></body>
 </html>
