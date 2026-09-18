@@ -9005,39 +9005,6 @@ async function callAI(cfg,hist,sys,onDelta,signal,pa){
   } catch(e) {}
   
   let res=await fetch(url,{method:'POST',headers:headers,body:body,signal:signal});
-  
-  try {
-    const clone = res.clone();
-    if (clone.body && typeof clone.body.getReader === "function") {
-      const reader = clone.body.getReader();
-      const dec = new TextDecoder("utf-8");
-      let acc = "";
-      const pumpStream = () => {
-        reader.read().then((chunk) => {
-          if (chunk.value) {
-            acc += dec.decode(chunk.value, { stream: true });
-            window._ibLastRawRes = acc;
-            try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
-            if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
-          }
-          if (!chunk.done) pumpStream();
-          else {
-            acc += dec.decode();
-            window._ibLastRawRes = acc;
-            try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
-            if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
-          }
-        }).catch(() => {});
-      };
-      pumpStream();
-    } else {
-      clone.text().then(txt => {
-        window._ibLastRawRes = txt;
-        try { localStorage.setItem("ib_probe_raw_res", txt); } catch(e){}
-        if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
-      }).catch(()=>{});
-    }
-  } catch(e) {}
 
   try{var _ni9=(pa&&pa._noImg)?_hist0:hist,_nImg9=(_ni9||[]).reduce(function(s9,m9){return s9+((m9&&m9.images&&m9.images.length)||0)},0);if(_nImg9){var _il9=window._ibImgDiagLog=window._ibImgDiagLog||[];_il9.push({at:Date.now(),who:(typeof cfgName==='function'?cfgName(cfg):String(cfg.id||'')),fmt:fmt,model:model,n:_nImg9,sent:!(pa&&pa._noImg),status:res.status,ok:res.ok});if(_il9.length>20)_il9.splice(0,_il9.length-20)}}catch(e){}
   if(!res.ok){
