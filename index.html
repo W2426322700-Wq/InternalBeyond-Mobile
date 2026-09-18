@@ -3413,13 +3413,19 @@ self.addEventListener(&#x27;fetch&#x27;,function(e){
         <div class="cm-sub-t">按 API</div><div id="tk-byapi"></div>
         <div class="cm-sub-t">按模型</div><div id="tk-bymodel"></div>
         <div class="cm-sub-t" style="margin-top:12px">最近明细</div><div id="tk-detail" class="tk-exl"></div>
-        <div style="display:flex;gap:10px;margin-top:10px">
-          <button class="btn danger" style="flex:1" id="tk-clear">清除此范围明细</button>
-          <button class="btn" style="flex:1" id="tk-export">导出此范围明细</button><!-- 本轮：CSV 导出当前时间段的全部逐条明细（含单条费用估算），与左侧清除按钮同一范围口径 -->
+        <div class="cm-sub-t" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+          <span>原始报文探针（最近一次）</span>
+          <span id="tk-raw-time" style="font-size:0.7rem;color:var(--tx3);font-weight:normal"></span>
         </div>
-        <p class="hint" style="margin-bottom:0" id="tk-note">用量明细与单价表都与电脑端共用同一份记账（ibTokenStats），任一端填写单价即两端生效。费用为估算：缓存读取按输入单价 ×0.1、缓存写入 ×1.25（勾选「长效缓存 1 小时」的写入按官方口径 ×2），与账单可能有差异。明细最多保留最近 5000 条，超出自动清理最旧。</p>
-      </div>
-    </div>
+        <div id="tk-raw-probe" style="margin-bottom:12px;font-size:0.75rem;border:1px solid var(--line);border-radius:6px;overflow:hidden">
+          <div style="display:flex;border-bottom:1px solid var(--line);background:var(--bg2)">
+            <button class="btn" id="btn-raw-req" style="flex:1;border-radius:0;border:none;padding:7px;font-weight:bold" onclick="window._ibShowProbeTab&&window._ibShowProbeTab('req')">查看 Request</button>
+            <button class="btn" id="btn-raw-res" style="flex:1;border-radius:0;border:none;border-left:1px solid var(--line);padding:7px;opacity:0.6" onclick="window._ibShowProbeTab&&window._ibShowProbeTab('res')">查看 Response</button>
+            <button class="btn" id="btn-raw-copy" style="width:72px;border-radius:0;border:none;border-left:1px solid var(--line);padding:7px;font-size:0.7rem" onclick="window._ibCopyProbe&&window._ibCopyProbe()">复制</button>
+          </div>
+          <pre id="tk-raw-req" style="margin:0;padding:8px;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-wrap:break-word;display:block;background:var(--bg)">暂无记录（发一次聊天即可捕获）</pre>
+          <pre id="tk-raw-res" style="margin:0;padding:8px;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-wrap:break-word;display:none;background:var(--bg)">暂无记录</pre>
+        </div>
     <div class="psec" id="sec-data-note">
       <div class="sec-label">版本</div><!-- v154-p：#8 版本号与说明自 API 页 → 工具 → PWA 卡迁入 -->
       <div class="card fx-card"><div class="fx-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5l3 1.8"/></svg></div>
@@ -8936,7 +8942,51 @@ async function callAI(cfg,hist,sys,onDelta,signal,pa){
     body=JSON.stringify(b);
   }
 
+  
+  try {
+    var reqInfo = { url: url, time: new Date().toLocaleTimeString(), body: body };
+    window._ibLastRawReq = reqInfo;
+    localStorage.setItem("ib_probe_raw_req", JSON.stringify(reqInfo));
+    window._ibLastRawRes = "等待响应返回中…";
+    localStorage.setItem("ib_probe_raw_res", "等待响应返回中…");
+    if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+  } catch(e) {}
+  
   let res=await fetch(url,{method:'POST',headers:headers,body:body,signal:signal});
+  
+  try {
+    const clone = res.clone();
+    if (clone.body && typeof clone.body.getReader === "function") {
+      const reader = clone.body.getReader();
+      const dec = new TextDecoder("utf-8");
+      let acc = "";
+      const pumpStream = () => {
+        reader.read().then((chunk) => {
+          if (chunk.value) {
+            acc += dec.decode(chunk.value, { stream: true });
+            window._ibLastRawRes = acc;
+            try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
+            if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+          }
+          if (!chunk.done) pumpStream();
+          else {
+            acc += dec.decode();
+            window._ibLastRawRes = acc;
+            try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
+            if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+          }
+        }).catch(() => {});
+      };
+      pumpStream();
+    } else {
+      clone.text().then(txt => {
+        window._ibLastRawRes = txt;
+        try { localStorage.setItem("ib_probe_raw_res", txt); } catch(e){}
+        if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+      }).catch(()=>{});
+    }
+  } catch(e) {}
+
   try{var _ni9=(pa&&pa._noImg)?_hist0:hist,_nImg9=(_ni9||[]).reduce(function(s9,m9){return s9+((m9&&m9.images&&m9.images.length)||0)},0);if(_nImg9){var _il9=window._ibImgDiagLog=window._ibImgDiagLog||[];_il9.push({at:Date.now(),who:(typeof cfgName==='function'?cfgName(cfg):String(cfg.id||'')),fmt:fmt,model:model,n:_nImg9,sent:!(pa&&pa._noImg),status:res.status,ok:res.ok});if(_il9.length>20)_il9.splice(0,_il9.length-20)}}catch(e){}
   if(!res.ok){
     let errTxt=await res.text().catch(()=>'');try{var _il8=window._ibImgDiagLog;if(_il8&&_il8.length&&_il8[_il8.length-1].status===res.status&&!_il8[_il8.length-1].err)_il8[_il8.length-1].err=String(errTxt||'').replace(/\s+/g,' ').slice(0,220)}catch(e){}
@@ -16992,7 +17042,7 @@ async function renderTkM(){
   }).join('')||'<div class="empty" style="padding:10px">此范围内没有记录</div>';
   $('tk-bymodel').querySelectorAll('input[data-tkp]').forEach(inp=>{if(!inp._b){inp._b=1;inp.addEventListener('change',()=>_tkPriceM(inp.dataset.m,inp.dataset.k,inp.value))}});
   $('tk-cost').innerHTML=rs.length?('估算费用 <b>'+(_costKnown?'$'+_cost.toFixed(2):(_cost>0?'≥ $'+_cost.toFixed(2):'—'))+'</b><span style="font-size:0.68rem;color:var(--tx3)"> · 按已填单价推算'+(_costKnown?'':'（有模型未填单价）')+'</span>'):'';
-  const _dx=$('tk-detail');
+  try{if(window._ibUpdateProbeUI)window._ibUpdateProbeUI()}catch(e){};const _dx=$('tk-detail');
   if(_dx){
     _dx.innerHTML=rs.slice(-200).reverse().map(r=>{
       const c=_tkCostM(r,d.prices[r.m]);const tmd=new Date(r.t);

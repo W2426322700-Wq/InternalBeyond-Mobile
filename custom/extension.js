@@ -869,6 +869,7 @@
     if (!origFetch || origFetch._nativeASRHooked) return;
 
     var wrappedFetch = async function (input, init) {
+      try { console.log('[IB FETCH HOOK CALLED] input:', input); } catch(e){}
       var url = '';
       if (typeof input === 'string') url = input;
       else if (input && input.url) url = input.url;
@@ -932,6 +933,82 @@
         }
       }
 
+      var finalBody = (init && init.body) || body;
+      console.log("[Probe Hook Check] URL:", url, "Method:", method);
+      var isLLMReq = method === "POST" && (
+        (typeof finalBody === "string" && (finalBody.indexOf('"messages":') !== -1 || finalBody.indexOf('"contents":') !== -1 || finalBody.indexOf('"system":') !== -1 || finalBody.indexOf('"prompt":') !== -1 || finalBody.indexOf('"model":') !== -1)) ||
+        (url && (url.indexOf("/chat/completions") !== -1 || url.indexOf("/messages") !== -1 || url.indexOf(":generateContent") !== -1 || url.indexOf("/generation") !== -1))
+      );
+
+      if (isLLMReq) {
+        try {
+          var reqInfo = {
+            url: url,
+            time: new Date().toLocaleTimeString(),
+            body: finalBody
+          };
+          window._ibLastRawReq = reqInfo;
+          localStorage.setItem("ib_probe_raw_req", JSON.stringify(reqInfo));
+          window._ibLastRawRes = "等待响应返回中…";
+          localStorage.setItem("ib_probe_raw_res", "等待响应返回中…");
+          if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+        } catch (eProbeReq) {}
+
+        var fetchP = origFetch.apply(this, arguments);
+        return fetchP.then(function (res) {
+          try {
+            var clone = res.clone();
+            if (clone.body && typeof clone.body.getReader === "function") {
+              var reader = clone.body.getReader();
+              var dec = new TextDecoder("utf-8");
+              var acc = "";
+              function pumpStream() {
+                reader.read().then(function (chunk) {
+                  if (chunk.value) {
+                    acc += dec.decode(chunk.value, { stream: true });
+                    window._ibLastRawRes = acc;
+                    try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
+                    if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+                  }
+                  if (!chunk.done) {
+                    pumpStream();
+                  } else {
+                    acc += dec.decode();
+                    window._ibLastRawRes = acc;
+                    try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
+                    if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+                  }
+                }).catch(function (streamErr) {
+                  if (acc) {
+                    window._ibLastRawRes = acc;
+                    try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
+                  } else {
+                    window._ibLastRawRes = "[流读取中断: " + String(streamErr) + "]";
+                    try { localStorage.setItem("ib_probe_raw_res", window._ibLastRawRes); } catch(e){}
+                  }
+                  if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+                });
+              }
+              pumpStream();
+            } else {
+              clone.text().then(function (txt) {
+                window._ibLastRawRes = txt;
+                try { localStorage.setItem("ib_probe_raw_res", txt); } catch(e){}
+                if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+              }).catch(function () {});
+            }
+          } catch (eProbeRes) {
+            console.warn("[Probe] response capture error:", eProbeRes);
+          }
+          return res;
+        }).catch(function (fetchErr) {
+          window._ibLastRawRes = "请求错误: " + String(fetchErr);
+          try { localStorage.setItem("ib_probe_raw_res", window._ibLastRawRes); } catch(e){}
+          if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+          throw fetchErr;
+        });
+      }
+
       return origFetch.apply(this, arguments);
     };
 
@@ -961,6 +1038,106 @@
       }
     }
   }
+
+  
+  // ── 原始报文探针（最近一次）全局助手 ──
+  window._ibProbeCurrentTab = "req";
+  window._ibUpdateProbeUI = function () {
+    var reqEl = document.getElementById("tk-raw-req");
+    var resEl = document.getElementById("tk-raw-res");
+    var timeEl = document.getElementById("tk-raw-time");
+    if (!reqEl || !resEl) return;
+
+    var reqData = window._ibLastRawReq;
+    if (!reqData) {
+      try {
+        var savedReq = localStorage.getItem("ib_probe_raw_req");
+        if (savedReq) reqData = JSON.parse(savedReq);
+      } catch (e) {}
+    }
+
+    if (reqData) {
+      var bodyStr = typeof reqData.body === "string" ? reqData.body : JSON.stringify(reqData.body);
+      var formatted = bodyStr;
+      try {
+        formatted = JSON.stringify(JSON.parse(bodyStr), null, 2);
+      } catch (e) {}
+      var metaHeader = "/* 接口地址: " + (reqData.url || "未知") + " */\n" +
+                         "/* 请求时间: " + (reqData.time || "刚刚") + " */\n\n";
+      reqEl.textContent = metaHeader + formatted;
+      if (timeEl) timeEl.textContent = reqData.time ? "最近捕获: " + reqData.time : "";
+    } else {
+      reqEl.textContent = "暂无记录（发一次聊天即可捕获）";
+      if (timeEl) timeEl.textContent = "";
+    }
+
+    var resData = window._ibLastRawRes;
+    if (!resData) {
+      try {
+        resData = localStorage.getItem("ib_probe_raw_res") || "";
+      } catch (e) {}
+    }
+
+    if (resData) {
+      var resFormatted = resData;
+      try {
+        resFormatted = JSON.stringify(JSON.parse(resData), null, 2);
+      } catch (e) {}
+      resEl.textContent = resFormatted;
+    } else {
+      resEl.textContent = "暂无记录";
+    }
+  };
+
+  window._ibShowProbeTab = function (tab) {
+    window._ibProbeCurrentTab = tab;
+    var reqEl = document.getElementById("tk-raw-req");
+    var resEl = document.getElementById("tk-raw-res");
+    var btnReq = document.getElementById("btn-raw-req");
+    var btnRes = document.getElementById("btn-raw-res");
+    if (!reqEl || !resEl) return;
+    window._ibUpdateProbeUI();
+    if (tab === "req") {
+      reqEl.style.display = "block";
+      resEl.style.display = "none";
+      if (btnReq) { btnReq.style.opacity = "1"; btnReq.style.fontWeight = "bold"; }
+      if (btnRes) { btnRes.style.opacity = "0.6"; btnRes.style.fontWeight = "normal"; }
+    } else {
+      reqEl.style.display = "none";
+      resEl.style.display = "block";
+      if (btnReq) { btnReq.style.opacity = "0.6"; btnReq.style.fontWeight = "normal"; }
+      if (btnRes) { btnRes.style.opacity = "1"; btnRes.style.fontWeight = "bold"; }
+    }
+  };
+
+  window._ibCopyProbe = function () {
+    var reqEl = document.getElementById("tk-raw-req");
+    var resEl = document.getElementById("tk-raw-res");
+    var text = window._ibProbeCurrentTab === "res" ? (resEl ? resEl.textContent : "") : (reqEl ? reqEl.textContent : "");
+    if (!text || text.indexOf("暂无记录") === 0) {
+      if (typeof toast === "function") toast("暂无内容可复制");
+      return;
+    }
+    if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        if (typeof toast === "function") toast("已复制到剪贴板");
+      }).catch(function () {
+        if (typeof toast === "function") toast("复制失败，请手动选择");
+      });
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        if (typeof toast === "function") toast("已复制到剪贴板");
+      } catch(e) {
+        if (typeof toast === "function") toast("复制失败");
+      }
+      document.body.removeChild(ta);
+    }
+  };
 
   function hookVTReady() {
     var origLoadVT = window.loadVT;
@@ -6353,8 +6530,9 @@
   if (typeof window.openCvDrawer === 'function') {
     const origOpenCvDrawer = window.openCvDrawer;
     window.openCvDrawer = function(...args) {
+      const res = origOpenCvDrawer.apply(this, args);
       hookChatSideDrawer();
-      return origOpenCvDrawer.apply(this, args);
+      return res;
     };
   } else {
     // 监听 openCvDrawer 可能后续定义的时机
@@ -6365,16 +6543,17 @@
       get() { return _origDrawer; },
       set(fn) {
         _origDrawer = function(...args) {
+          const res = fn.apply(this, args);
           hookChatSideDrawer();
-          return fn.apply(this, args);
+          return res;
         };
       }
     });
   }
   // 同时监听右上方菜单按钮点击事件与侧边栏过渡，确保任何触发场景零延迟
   document.addEventListener('click', (e) => {
-    if (e.target && (e.target.closest('#cv-menu-btn') || e.target.closest('#chat-side') || e.target.closest('#btn-chat-side'))) {
-      hookChatSideDrawer();
+    if (e.target && (e.target.closest('#cv-menu-btn') || e.target.closest('#chat-side') || e.target.closest('#chat-side-btn'))) {
+      setTimeout(hookChatSideDrawer, 0);
     }
   }, true);
 
