@@ -931,6 +931,16 @@
         } catch (errCross) {
           console.warn('[CrossContext] fetch injection error:', errCross);
         }
+        try {
+          if (typeof processLocationPromptInjection === 'function') {
+            var locBody = processLocationPromptInjection(init.body || body);
+            if (locBody) {
+              init.body = locBody;
+            }
+          }
+        } catch (errLoc) {
+          console.warn('[Location] prompt injection error:', errLoc);
+        }
       }
 
       var finalBody = (init && init.body) || body;
@@ -6652,5 +6662,836 @@
     hookGlobalAutoMemRoomSettings();
     checkAutoMemoryRoomTrigger();
   }, 1200);
+
+
+  /* ═══════════════════════════════════════════════════════════════════ */
+  /* ── 高德地图位置分享 & 地图卡片 & MCP 联动模块 ── */
+  /* ═══════════════════════════════════════════════════════════════════ */
+
+  // 1. 动态注入位置卡片与弹窗样式
+  (function injectLocationStyles() {
+    if (document.getElementById('ib-location-style')) return;
+    const st = document.createElement('style');
+    st.id = 'ib-location-style';
+    st.textContent = `
+      .m.ib-m-loc {
+        padding: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        max-width: 290px !important;
+        width: 100% !important;
+      }
+      .ib-loc-card {
+        width: 100%;
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--glass, rgba(255, 255, 255, 0.92));
+        border: 1px solid var(--glass-line, rgba(255, 255, 255, 0.7));
+        box-shadow: 0 4px 18px rgba(30, 41, 59, 0.08);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        user-select: none;
+      }
+      .ib-loc-card:active {
+        transform: scale(0.985);
+      }
+      body.theme-infernal .ib-loc-card {
+        background: rgba(30, 41, 59, 0.92);
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+      }
+      .ib-loc-map {
+        width: 100%;
+        height: 135px;
+        position: relative;
+        background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 50%, #eff6ff 100%);
+        overflow: hidden;
+      }
+      body.theme-infernal .ib-loc-map {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      }
+      .ib-loc-map-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .ib-loc-map-fallback {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-image: 
+          linear-gradient(rgba(59, 130, 246, 0.12) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(59, 130, 246, 0.12) 1px, transparent 1px);
+        background-size: 18px 18px;
+        position: relative;
+      }
+      .ib-loc-map-pin {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -100%);
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.35));
+        pointer-events: none;
+        z-index: 2;
+        animation: ibLocPinBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      @keyframes ibLocPinBounce {
+        0% { transform: translate(-50%, -160%); opacity: 0; }
+        100% { transform: translate(-50%, -100%); opacity: 1; }
+      }
+      .ib-loc-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(15, 23, 42, 0.65);
+        color: #fff;
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 6px;
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        letter-spacing: 0.3px;
+        z-index: 3;
+      }
+      .ib-loc-content {
+        padding: 10px 12px 11px;
+      }
+      .ib-loc-name {
+        font-size: 14.5px;
+        font-weight: 600;
+        color: var(--txt, #1e293b);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        line-height: 1.35;
+      }
+      body.theme-infernal .ib-loc-name {
+        color: #f1f5f9;
+      }
+      .ib-loc-addr {
+        font-size: 11.5px;
+        color: var(--sub, #64748b);
+        margin-top: 4px;
+        line-height: 1.4;
+        word-break: break-all;
+      }
+      body.theme-infernal .ib-loc-addr {
+        color: #94a3b8;
+      }
+      .ib-loc-footer {
+        margin-top: 8px;
+        padding-top: 7px;
+        border-top: 1px solid rgba(125, 125, 125, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--acc, #3b82f6);
+        font-weight: 500;
+      }
+      #sheet-send-loc {
+        max-width: 440px;
+        margin: 0 auto;
+      }
+      .ib-loc-loading-spin {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(59, 130, 246, 0.25);
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: ibLocSpin 0.8s linear infinite;
+        vertical-align: middle;
+        margin-right: 4px;
+      }
+      @keyframes ibLocSpin {
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(st);
+  })();
+
+  // 2. WGS-84 (GPS标准) 转 GCJ-02 (高德/火星坐标系) 精密算法
+  function wgs84ToGcj02(lng, lat) {
+    var PI = 3.1415926535897932384626;
+    var a = 6378245.0;
+    var ee = 0.00669342162296594323;
+    if (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271) return [lng, lat];
+    
+    var dLat = -100.0 + 2.0 * (lng - 105.0) + 3.0 * (lat - 35.0) + 0.2 * (lat - 35.0) * (lat - 35.0) + 0.1 * (lng - 105.0) * (lat - 35.0) + 0.2 * Math.sqrt(Math.abs(lng - 105.0));
+    dLat += (20.0 * Math.sin(6.0 * (lng - 105.0) * PI) + 20.0 * Math.sin(2.0 * (lng - 105.0) * PI)) * 2.0 / 3.0;
+    dLat += (20.0 * Math.sin((lat - 35.0) * PI) + 40.0 * Math.sin((lat - 35.0) / 3.0 * PI)) * 2.0 / 3.0;
+    dLat += (160.0 * Math.sin((lat - 35.0) / 12.0 * PI) + 320 * Math.sin((lat - 35.0) * PI / 30.0)) * 2.0 / 3.0;
+
+    var dLng = 300.0 + (lng - 105.0) + 2.0 * (lat - 35.0) + 0.1 * (lng - 105.0) * (lng - 105.0) + 0.1 * (lng - 105.0) * (lat - 35.0) + 0.1 * Math.sqrt(Math.abs(lng - 105.0));
+    dLng += (20.0 * Math.sin(6.0 * (lng - 105.0) * PI) + 20.0 * Math.sin(2.0 * (lng - 105.0) * PI)) * 2.0 / 3.0;
+    dLng += (20.0 * Math.sin((lng - 105.0) * PI) + 40.0 * Math.sin((lng - 105.0) / 3.0 * PI)) * 2.0 / 3.0;
+    dLng += (150.0 * Math.sin((lng - 105.0) / 12.0 * PI) + 300.0 * Math.sin((lng - 105.0) * PI / 30.0)) * 2.0 / 3.0;
+
+    var radLat = lat / 180.0 * PI;
+    var magic = Math.sin(radLat);
+    magic = 1 - ee * magic * magic;
+    var sqrtMagic = Math.sqrt(magic);
+    dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * PI);
+    dLng = (dLng * 180.0) / (a / sqrtMagic * Math.cos(radLat) * PI);
+    return [Number((lng + dLng).toFixed(6)), Number((lat + dLat).toFixed(6))];
+  }
+
+  // 3. 获取设备定位，具备全方位多源 IP 兜底与降级保障（永不中断用户操作）
+  async function fallbackIpLocation() {
+    const amapKey = localStorage.getItem('ib_amap_key') || '';
+    if (amapKey) {
+      try {
+        const resp = await fetch('https://restapi.amap.com/v3/ip?key=' + encodeURIComponent(amapKey));
+        const data = await resp.json();
+        if (data && data.status === '1' && data.rectangle) {
+          const parts = data.rectangle.split(';')[0].split(',');
+          if (parts.length === 2) {
+            const lng = parseFloat(parts[0]);
+            const lat = parseFloat(parts[1]);
+            const city = data.city || data.province || '当前城市';
+            return {
+              rawLat: lat,
+              rawLng: lng,
+              lat: lat,
+              lng: lng,
+              accuracy: 2000,
+              name: city,
+              address: city
+            };
+          }
+        }
+      } catch(e) {}
+    }
+
+    // IP 快速定位源 1: ipwho.is (无需 Key，全球多节点支持 CORS)
+    try {
+      const resp = await fetch('https://ipwho.is/');
+      const j = await resp.json();
+      if (j && j.success && j.latitude && j.longitude) {
+        const rawLat = Number(j.latitude);
+        const rawLng = Number(j.longitude);
+        const gcj = wgs84ToGcj02(rawLng, rawLat);
+        const cityName = j.city || j.region || j.country || '定位城市';
+        return {
+          rawLat: rawLat,
+          rawLng: rawLng,
+          lat: gcj[1],
+          lng: gcj[0],
+          accuracy: 1500,
+          name: cityName,
+          address: [j.country, j.region, j.city].filter(Boolean).join(' ')
+        };
+      }
+    } catch(e) {}
+
+    // IP 快速定位源 2: bigdatacloud
+    try {
+      const res = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=zh');
+      const j2 = await res.json();
+      if (j2 && j2.latitude && j2.longitude) {
+        const rawLat = Number(j2.latitude);
+        const rawLng = Number(j2.longitude);
+        const gcj = wgs84ToGcj02(rawLng, rawLat);
+        const cityName = j2.city || j2.locality || j2.principalSubdivision || '我的位置';
+        return {
+          rawLat: rawLat,
+          rawLng: rawLng,
+          lat: gcj[1],
+          lng: gcj[0],
+          accuracy: 2000,
+          name: cityName,
+          address: [j2.countryName, j2.principalSubdivision, j2.city, j2.locality].filter(Boolean).join('')
+        };
+      }
+    } catch(e) {}
+
+    // IP 快速定位源 3: 本地历史缓存或标准基准点
+    try {
+      const last = localStorage.getItem('ib_last_loc');
+      if (last) {
+        const parsed = JSON.parse(last);
+        if (parsed && parsed.lat && parsed.lng) {
+          return Object.assign({}, parsed, { isCached: true });
+        }
+      }
+    } catch(e) {}
+
+    // 终极保底坐标：北京中心
+    const defGcj = wgs84ToGcj02(116.4074, 39.9042);
+    return {
+      rawLat: 39.9042,
+      rawLng: 116.4074,
+      lat: defGcj[1],
+      lng: defGcj[0],
+      accuracy: 5000,
+      name: '当前位置 (可编辑微调)',
+      address: '北京市东城区 (请点击微调地点名称)',
+      isDefault: true
+    };
+  }
+
+  function getCurrentGeoLocation() {
+    return new Promise(function(resolve) {
+      if (!navigator.geolocation) {
+        fallbackIpLocation().then(resolve);
+        return;
+      }
+
+      var finished = false;
+      var finishWith = function(res) {
+        if (!finished) {
+          finished = true;
+          resolve(res);
+        }
+      };
+
+      // 4秒快速超时：避免因宿主 iframe 无权限或硬件室内无 GPS 信号导致长时间挂起
+      var timer = setTimeout(function() {
+        if (!finished) {
+          console.info('[Location] GPS 响应超时，自动切换至 IP / 网络定位...');
+          fallbackIpLocation().then(finishWith);
+        }
+      }, 3500);
+
+      try {
+        navigator.geolocation.getCurrentPosition(
+          function(pos) {
+            clearTimeout(timer);
+            if (finished) return;
+            var rawLat = pos.coords.latitude;
+            var rawLng = pos.coords.longitude;
+            var accuracy = Math.round(pos.coords.accuracy || 0);
+            var gcj = wgs84ToGcj02(rawLng, rawLat);
+            finishWith({
+              rawLat: rawLat,
+              rawLng: rawLng,
+              lat: gcj[1],
+              lng: gcj[0],
+              accuracy: accuracy
+            });
+          },
+          function(err) {
+            clearTimeout(timer);
+            if (finished) return;
+            var msg = err ? (err.message || 'code ' + err.code) : '未允许';
+            console.info('[Location] 硬件 GPS 未获权限 (' + msg + ')，无缝切换网络定位...');
+            fallbackIpLocation().then(finishWith);
+          },
+          { enableHighAccuracy: false, timeout: 3000, maximumAge: 120000 }
+        );
+      } catch(e) {
+        clearTimeout(timer);
+        fallbackIpLocation().then(finishWith);
+      }
+    });
+  }
+
+  // 4. 逆地理编码（坐标反查地址与周边 POI）
+  async function resolveLocationAddress(gcjLat, gcjLng, rawLat, rawLng) {
+    const amapKey = localStorage.getItem('ib_amap_key') || '';
+    let resData = {
+      name: '当前位置',
+      address: gcjLng + ', ' + gcjLat,
+      source: 'coords'
+    };
+
+    // 如果配置了高德 Web 服务 Key，优先请求高德官方高精逆地理编码
+    if (amapKey) {
+      try {
+        const url = 'https://restapi.amap.com/v3/geocode/regeo?key=' + encodeURIComponent(amapKey) + '&location=' + gcjLng + ',' + gcjLat + '&extensions=all';
+        const resp = await fetch(url);
+        const json = await resp.json();
+        if (json && json.status === '1' && json.regeocode) {
+          const rg = json.regeocode;
+          const pois = rg.pois || [];
+          let poiName = '';
+          if (pois.length > 0 && pois[0] && pois[0].name) {
+            poiName = pois[0].name;
+          } else if (rg.addressComponent && rg.addressComponent.township) {
+            poiName = rg.addressComponent.township;
+          }
+          resData.name = poiName || rg.formatted_address || '当前位置';
+          resData.address = rg.formatted_address || resData.address;
+          resData.source = 'amap';
+          resData.pois = pois.slice(0, 5).map(p => p.name);
+          return resData;
+        }
+      } catch(e) {
+        console.warn('[Location] Amap regeo failed, fallback:', e);
+      }
+    }
+
+    // 免费免 Key 逆地理反查（内置兜底）
+    try {
+      const osmUrl = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + (rawLat || gcjLat) + '&lon=' + (rawLng || gcjLng) + '&accept-language=zh-CN,zh&zoom=16';
+      const r = await fetch(osmUrl, { headers: { 'Accept': 'application/json' } });
+      const j = await r.json();
+      if (j && j.address) {
+        const a = j.address;
+        const main = a.building || a.amenity || a.tourism || a.leisure || a.road || a.neighbourhood || a.suburb || a.city || '';
+        resData.name = main || (j.display_name ? j.display_name.split(',')[0] : '') || '当前位置';
+        resData.address = j.display_name || resData.address;
+        resData.source = 'osm';
+        return resData;
+      }
+    } catch(e) {}
+
+    return resData;
+  }
+
+  // 5. 挂载或获取发送位置的预览弹窗 (#sheet-send-loc)
+  let _currentLocDraft = null;
+  function getOrCreateSendLocSheet() {
+    let sh = document.getElementById('sheet-send-loc');
+    if (sh) return sh;
+
+    sh = document.createElement('div');
+    sh.className = 'sheet';
+    sh.id = 'sheet-send-loc';
+    sh.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="margin:0;font-size:1.08rem;display:flex;align-items:center;gap:6px;font-weight:600">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+          发送实时位置
+        </h3>
+        <button class="icon-btn" id="loc-preview-refresh" title="重新获取定位" style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid rgba(125,125,125,0.2);background:transparent;cursor:pointer">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+      </div>
+
+      <div id="loc-preview-map-box" style="width:100%;height:136px;border-radius:12px;overflow:hidden;position:relative;background:#e2e8f0;margin-bottom:12px;border:1px solid rgba(125,125,125,0.15)">
+        <img id="loc-preview-img" style="width:100%;height:100%;object-fit:cover;display:block;" src="" alt="地图">
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));pointer-events:none">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>
+        </div>
+        <div id="loc-preview-badge" style="position:absolute;right:8px;top:8px;background:rgba(15,23,42,0.65);color:#fff;font-size:10px;padding:2px 7px;border-radius:6px;backdrop-filter:blur(4px)">高德 (GCJ-02)</div>
+      </div>
+
+      <div class="f-group" style="margin-bottom:10px">
+        <label style="font-size:0.8rem;color:var(--tx2,#64748b);margin-bottom:4px;display:block">地点名称（支持随时手动微调）</label>
+        <input id="loc-send-name" type="text" maxlength="50" placeholder="例如：朝阳大悦城 / 我的位置" style="width:100%;box-sizing:border-box">
+      </div>
+      <div class="f-group" style="margin-bottom:10px">
+        <label style="font-size:0.8rem;color:var(--tx2,#64748b);margin-bottom:4px;display:block">详细地址</label>
+        <input id="loc-send-addr" type="text" maxlength="120" placeholder="详细位置地址" style="width:100%;box-sizing:border-box">
+      </div>
+      <div style="font-size:0.75rem;color:var(--tx3,#888);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+        <span id="loc-send-coords">坐标：读取中…</span>
+        <span id="loc-send-accuracy" style="opacity:0.85"></span>
+      </div>
+
+      <details style="margin-bottom:14px;font-size:0.8rem;color:var(--tx2,#666)">
+        <summary style="cursor:pointer;user-select:none;color:var(--acc,#3b82f6);font-weight:500">高德地图 Web 服务 Key（选填）</summary>
+        <div style="margin-top:8px;padding:10px;border-radius:10px;background:var(--soft,rgba(0,0,0,0.03));border:1px solid var(--line,rgba(0,0,0,0.06))">
+          <div style="font-size:0.75rem;margin-bottom:6px;line-height:1.4">配置高德 Web 服务 Key 可解锁商户地标级超清识别与官方静态路网图（不填亦可免费正常定位）：</div>
+          <div style="display:flex;gap:6px">
+            <input id="loc-amap-key-val" type="text" placeholder="粘贴高德 Web Key" style="flex:1;font-size:0.8rem">
+            <button class="btn" id="loc-amap-key-save-btn" style="padding:0 12px;font-size:0.78rem">保存</button>
+          </div>
+        </div>
+      </details>
+
+      <div class="sheet-btns" style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn" id="loc-send-cancel-btn">取消</button>
+        <button class="btn primary" id="loc-send-confirm-btn" style="display:inline-flex;align-items:center;gap:4px">
+          <span>发送定位</span>
+        </button>
+      </div>
+    `;
+    document.body.appendChild(sh);
+
+    // 绑定事件
+    const cancelBtn = sh.querySelector('#loc-send-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        if (typeof closeSheets === 'function') closeSheets();
+      });
+    }
+
+    const refreshBtn = sh.querySelector('#loc-preview-refresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function() {
+        startLocateAndShowPreview();
+      });
+    }
+
+    const keyInput = sh.querySelector('#loc-amap-key-val');
+    const saveKeyBtn = sh.querySelector('#loc-amap-key-save-btn');
+    if (keyInput) {
+      keyInput.value = localStorage.getItem('ib_amap_key') || '';
+    }
+    if (saveKeyBtn) {
+      saveKeyBtn.addEventListener('click', function() {
+        const val = (keyInput.value || '').trim();
+        localStorage.setItem('ib_amap_key', val);
+        if (typeof toast === 'function') toast(val ? '高德 API Key 已保存' : '已清除高德 Key');
+        if (_currentLocDraft) {
+          updateLocPreviewUI(_currentLocDraft);
+        }
+      });
+    }
+
+    const confirmBtn = sh.querySelector('#loc-send-confirm-btn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', async function() {
+        if (!_currentLocDraft) return;
+        const nameVal = (sh.querySelector('#loc-send-name').value || '').trim() || _currentLocDraft.name || '我的位置';
+        const addrVal = (sh.querySelector('#loc-send-addr').value || '').trim() || _currentLocDraft.address || '';
+        if (typeof closeSheets === 'function') closeSheets();
+
+        await sendLocationMessage({
+          lat: _currentLocDraft.lat,
+          lng: _currentLocDraft.lng,
+          name: nameVal,
+          address: addrVal,
+          pois: _currentLocDraft.pois || []
+        });
+      });
+    }
+
+    return sh;
+  }
+
+  // 6. 更新预览弹窗内容
+  function updateLocPreviewUI(locData) {
+    _currentLocDraft = locData;
+    const sh = getOrCreateSendLocSheet();
+    const nameInp = sh.querySelector('#loc-send-name');
+    const addrInp = sh.querySelector('#loc-send-addr');
+    const coordsSpan = sh.querySelector('#loc-send-coords');
+    const accSpan = sh.querySelector('#loc-send-accuracy');
+    const imgEl = sh.querySelector('#loc-preview-img');
+
+    if (nameInp) nameInp.value = locData.name || '';
+    if (addrInp) addrInp.value = locData.address || '';
+    if (coordsSpan) coordsSpan.textContent = '坐标：' + locData.lng + ', ' + locData.lat + ' (GCJ-02)';
+    if (accSpan) accSpan.textContent = locData.accuracy ? ('精度约 ' + locData.accuracy + 'm') : '';
+
+    const amapKey = localStorage.getItem('ib_amap_key') || '';
+    let mapUrl = '';
+    if (amapKey) {
+      mapUrl = 'https://restapi.amap.com/v3/staticmap?location=' + locData.lng + ',' + locData.lat + '&zoom=15&size=400*220&scale=2&markers=mid,0xFF3333,A:' + locData.lng + ',' + locData.lat + '&key=' + encodeURIComponent(amapKey);
+    } else {
+      mapUrl = 'https://staticmap.openstreetmap.de/staticmap.php?center=' + locData.lat + ',' + locData.lng + '&zoom=15&size=400x220&maptype=mapnik&markers=' + locData.lat + ',' + locData.lng + ',ol-marker';
+    }
+
+    if (imgEl) {
+      imgEl.src = mapUrl;
+      imgEl.onerror = function() {
+        imgEl.style.display = 'none';
+      };
+      imgEl.onload = function() {
+        imgEl.style.display = 'block';
+      };
+    }
+  }
+
+  // 7. 发起定位并打开预览弹窗（永不中断，弹窗必定呼出）
+  async function startLocateAndShowPreview() {
+    if (typeof toast === 'function') toast('正在读取定位…');
+    let loc = null;
+    let addrInfo = null;
+
+    try {
+      loc = await getCurrentGeoLocation();
+    } catch(locErr) {
+      console.warn('[Location] Primary geo failed, using fallback:', locErr);
+      loc = await fallbackIpLocation();
+    }
+
+    try {
+      addrInfo = await resolveLocationAddress(loc.lat, loc.lng, loc.rawLat || loc.lat, loc.rawLng || loc.lng);
+    } catch(addrErr) {
+      console.warn('[Location] Address resolve failed:', addrErr);
+      addrInfo = {
+        name: loc.name || '我的位置',
+        address: loc.address || (loc.lng + ', ' + loc.lat),
+        source: 'fallback'
+      };
+    }
+
+    const fullLoc = {
+      lat: loc.lat,
+      lng: loc.lng,
+      accuracy: loc.accuracy || 0,
+      name: (addrInfo && addrInfo.name && addrInfo.name !== '当前位置') ? addrInfo.name : (loc.name || '我的位置'),
+      address: (addrInfo && addrInfo.address) || loc.address || (loc.lng + ', ' + loc.lat),
+      pois: (addrInfo && addrInfo.pois) || []
+    };
+
+    // 缓存有效位置
+    try {
+      localStorage.setItem('ib_last_loc', JSON.stringify(fullLoc));
+    } catch(e) {}
+
+    getOrCreateSendLocSheet();
+    updateLocPreviewUI(fullLoc);
+
+    if (typeof openSheet === 'function') {
+      openSheet('sheet-send-loc');
+    }
+  }
+
+  // 8. 正式发送位置消息进聊天流
+  async function sendLocationMessage(locData) {
+    const cfg = window._activeCfg;
+    if (!cfg) {
+      if (typeof toast === 'function') toast('请先选择一个聊天会话');
+      return;
+    }
+
+    const nameStr = locData.name || '当前位置';
+    const addrStr = locData.address || '';
+    const content = '[位置] ' + nameStr + '\n' + addrStr + '\n<ws_location lat="' + locData.lat + '" lng="' + locData.lng + '" name="' + encodeURIComponent(nameStr) + '" address="' + encodeURIComponent(addrStr) + '"/>';
+
+    const um = {
+      id: 'msg_' + Date.now() + '_u',
+      role: 'user',
+      content: content,
+      location: {
+        lat: locData.lat,
+        lng: locData.lng,
+        name: nameStr,
+        address: addrStr,
+        pois: locData.pois || []
+      },
+      friendId: cfg.id,
+      timestamp: Date.now()
+    };
+
+    if (window._activeThread) um.threadId = window._activeThread.id;
+
+    try {
+      if (typeof dbPut === 'function') await dbPut('chatMessages', um);
+    } catch(e) {
+      if (typeof toast === 'function') toast('本地保存失败');
+      return;
+    }
+
+    if (typeof _presTouch === 'function') _presTouch();
+    if (Array.isArray(window._msgs)) window._msgs.push(um);
+
+    const box = (typeof convEl === 'function') ? convEl('cv-msgs') : document.getElementById('cv-msgs');
+    if (box) {
+      const emptyEl = box.querySelector('.empty');
+      if (emptyEl) emptyEl.remove();
+      if (typeof buildMsgEl === 'function') {
+        box.appendChild(buildMsgEl(um, (window._msgs && window._msgs[window._msgs.length - 2]) || null));
+      }
+    }
+
+    if (typeof pinBottom === 'function') pinBottom();
+
+    // 位置消息发送后角色不直接回复，等待用户发送后续文字消息后再行回复，届时角色上下文中完整可见此位置
+  }
+
+  // 9. 渲染聊天气泡中的高颜值地图卡片
+  function renderLocationCardInRow(row, m) {
+    if (!row) return;
+    let loc = m.location;
+    if (!loc && typeof m.content === 'string') {
+      const tagMatch = m.content.match(/<ws_location\s+([^>]+)\/>/i);
+      if (tagMatch) {
+        const attrs = tagMatch[1];
+        const getAttr = function(name) {
+          const match = attrs.match(new RegExp(name + '="([^"]*)"', 'i'));
+          return match ? decodeURIComponent(match[1]) : '';
+        };
+        loc = {
+          lat: parseFloat(getAttr('lat')) || 0,
+          lng: parseFloat(getAttr('lng')) || 0,
+          name: getAttr('name') || '当前位置',
+          address: getAttr('address') || ''
+        };
+      }
+    }
+    if (!loc || (!loc.lat && !loc.lng)) return;
+
+    const d = row.querySelector('.m');
+    if (!d) return;
+
+    d.classList.add('ib-m-loc');
+
+    // 隐藏气泡原生纯文本
+    const txt = d.querySelector('.m-text');
+    if (txt) {
+      txt.style.display = 'none';
+    }
+
+    if (d.querySelector('.ib-loc-card')) return;
+
+    const card = document.createElement('div');
+    card.className = 'ib-loc-card';
+    card.setAttribute('data-loc-lat', loc.lat);
+    card.setAttribute('data-loc-lng', loc.lng);
+
+    const amapKey = localStorage.getItem('ib_amap_key') || '';
+    let mapUrl = '';
+    if (amapKey) {
+      mapUrl = 'https://restapi.amap.com/v3/staticmap?location=' + loc.lng + ',' + loc.lat + '&zoom=15&size=400*220&scale=2&markers=mid,0xFF3333,A:' + loc.lng + ',' + loc.lat + '&key=' + encodeURIComponent(amapKey);
+    } else {
+      mapUrl = 'https://staticmap.openstreetmap.de/staticmap.php?center=' + loc.lat + ',' + loc.lng + '&zoom=15&size=400x220&maptype=mapnik&markers=' + loc.lat + ',' + loc.lng + ',ol-marker';
+    }
+
+    const escName = typeof esc === 'function' ? esc(loc.name || '当前位置') : (loc.name || '当前位置');
+    const escAddr = typeof esc === 'function' ? esc(loc.address || (loc.lng + ', ' + loc.lat)) : (loc.address || (loc.lng + ', ' + loc.lat));
+    const amapUri = 'https://uri.amap.com/marker?position=' + loc.lng + ',' + loc.lat + '&name=' + encodeURIComponent(loc.name || '位置') + '&coordinate=gaode&callnative=1';
+
+    card.innerHTML = 
+      '<div class="ib-loc-map">' +
+        '<img class="ib-loc-map-img" src="' + mapUrl + '" alt="地图" />' +
+        '<div class="ib-loc-map-pin">' +
+          '<svg viewBox="0 0 24 24" width="30" height="30" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>' +
+        '</div>' +
+        '<div class="ib-loc-badge">高德 (GCJ-02)</div>' +
+      '</div>' +
+      '<div class="ib-loc-content">' +
+        '<div class="ib-loc-name">' +
+          '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>' +
+          '<span>' + escName + '</span>' +
+        '</div>' +
+        '<div class="ib-loc-addr">' + escAddr + '</div>' +
+        '<div class="ib-loc-footer">' +
+          '<span>' + loc.lng + ', ' + loc.lat + '</span>' +
+          '<span style="display:inline-flex;align-items:center;gap:3px">在高德地图查看 <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>' +
+        '</div>' +
+      '</div>';
+
+    const imgEl = card.querySelector('.ib-loc-map-img');
+    if (imgEl) {
+      imgEl.onerror = function() {
+        const mapBox = card.querySelector('.ib-loc-map');
+        if (mapBox) {
+          mapBox.innerHTML = 
+            '<div class="ib-loc-map-fallback">' +
+              '<div style="font-size:11px;color:rgba(100,116,139,0.9);margin-top:40px;letter-spacing:0.5px">高德地图坐标 · 卫星定位标注</div>' +
+              '<div class="ib-loc-map-pin">' +
+                '<svg viewBox="0 0 24 24" width="30" height="30" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>' +
+              '</div>' +
+              '<div class="ib-loc-badge">高德 (GCJ-02)</div>' +
+            '</div>';
+        }
+      };
+    }
+
+    card.addEventListener('click', function(e) {
+      e.stopPropagation();
+      window.open(amapUri, '_blank');
+    });
+
+    d.appendChild(card);
+  }
+
+  // 10. Hook buildMsgEl 拦截并渲染位置卡片
+  function hookBuildMsgElForLocation() {
+    if (typeof window.buildMsgEl === 'function' && !window.buildMsgEl._locHooked) {
+      const origBuildMsgEl = window.buildMsgEl;
+      window.buildMsgEl = function(m, prev, opt) {
+        const row = origBuildMsgEl.apply(this, arguments);
+        try {
+          if (m && (m.location || (typeof m.content === 'string' && m.content.indexOf('<ws_location') !== -1))) {
+            renderLocationCardInRow(row, m);
+          }
+        } catch(e) {
+          console.warn('[Location] buildMsgEl hook error:', e);
+        }
+        return row;
+      };
+      window.buildMsgEl._locHooked = true;
+    }
+  }
+
+  // 11. Hook actionSheet 与点击事件，在「+」加号弹窗中插入「发送位置」
+  function hookActionSheetForLocation() {
+    if (typeof window.actionSheet === 'function' && !window.actionSheet._locHooked) {
+      const origActionSheet = window.actionSheet;
+      window.actionSheet = function(items) {
+        try {
+          if (Array.isArray(items)) {
+            const hasImg = items.some(it => it && it.label && it.label.indexOf('发送图片') !== -1);
+            const hasFile = items.some(it => it && it.label && it.label.indexOf('发送文件') !== -1);
+            const hasLoc = items.some(it => it && it.label && it.label.indexOf('发送位置') !== -1);
+            if (hasImg && hasFile && !hasLoc) {
+              items.push({
+                label: '发送位置',
+                fn: function() {
+                  startLocateAndShowPreview();
+                }
+              });
+            }
+          }
+        } catch(e) {}
+        return origActionSheet.apply(this, arguments);
+      };
+      window.actionSheet._locHooked = true;
+    }
+
+    // DOM 事件双重拦截
+    document.addEventListener('click', function(e) {
+      const btn = e.target && e.target.closest('#cv-plus');
+      if (btn) {
+        setTimeout(function() {
+          const actBody = document.getElementById('act-body');
+          if (!actBody) return;
+          const items = actBody.querySelectorAll('.act-item');
+          let hasImg = false;
+          let hasLoc = false;
+          items.forEach(it => {
+            if (it.textContent && it.textContent.indexOf('发送图片') !== -1) hasImg = true;
+            if (it.textContent && it.textContent.indexOf('发送位置') !== -1) hasLoc = true;
+          });
+          if (hasImg && !hasLoc) {
+            const locItem = document.createElement('div');
+            locItem.className = 'act-item';
+            locItem.id = 'act-item-loc';
+            locItem.innerHTML = '发送位置';
+            locItem.addEventListener('click', function() {
+              if (typeof closeSheets === 'function') closeSheets();
+              startLocateAndShowPreview();
+            });
+            const cancelBtn = items[items.length - 1];
+            if (cancelBtn) actBody.insertBefore(locItem, cancelBtn);
+            else actBody.appendChild(locItem);
+          }
+        }, 35);
+      }
+    }, true);
+  }
+
+  // 12. 联动高德 MCP 工具：在发往 AI 的 Prompt 中结构化展开坐标与工具引导
+  window.processLocationPromptInjection = function(bodyStr) {
+    if (typeof bodyStr !== 'string' || bodyStr.indexOf('<ws_location') === -1) return bodyStr;
+    try {
+      return bodyStr.replace(/<ws_location\s+lat="([^"]*)"\s+lng="([^"]*)"\s+name="([^"]*)"\s+address="([^"]*)"\s*\/?>/gi, function(match, lat, lng, nameEnc, addrEnc) {
+        const name = decodeURIComponent(nameEnc || '未知地标');
+        const addr = decodeURIComponent(addrEnc || '');
+        return '\n【用户实时地理位置分享】' +
+               '\n地标名称：' + name +
+               '\n详细地址：' + addr +
+               '\n坐标(高德火星坐标系 GCJ-02)：经度 ' + lng + ', 纬度 ' + lat +
+               '\n【高德地图 MCP 联动提示】用户已向你共享了其实时地理位置。你已连接高德地图相关 MCP 工具（如周边搜索 around_search、POI查询、路线规划等）。你可以使用用户的当前经纬度坐标 (' + lng + ', ' + lat + ')，直接调用工具查询用户周边 500~1000 米内的餐馆、美食、商铺、咖啡厅、景点设施或实时天气，以同行者的第一人称视角陪伴用户，并给出精准的周边建议！\n';
+      });
+    } catch(e) {
+      console.warn('[Location] prompt injection replace error:', e);
+      return bodyStr;
+    }
+  };
+
+  // 立即初始化与轮询保活
+  hookBuildMsgElForLocation();
+  hookActionSheetForLocation();
+  setInterval(function() {
+    hookBuildMsgElForLocation();
+    hookActionSheetForLocation();
+  }, 1500);
+
 
 })();

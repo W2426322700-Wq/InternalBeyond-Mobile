@@ -3,7 +3,8 @@
   "description": "Internal Beyond 的移动端同源版本：一个离线运行的单文件个人网站应用，包含15个核心功能模块、共读间、观影室与小助手水水，支持多 AI 模型对话。",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "geolocation"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
