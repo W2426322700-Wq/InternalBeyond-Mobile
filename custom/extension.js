@@ -680,7 +680,7 @@
     } catch (e) {}
   }
 
-  // 通话语音轮次防串扰剥离函数：彻底消除上一轮识别文本在前缀的残留或多轮拼接
+  // 通话语音轮次防串扰剥离函数：消除上一轮识别文本在前缀的残留，但绝不误杀当前轮合法语句
   function stripCallPreviousTurnPrefix(text, prevList) {
     if (!text) return '';
     if (!prevList || !prevList.length) return String(text).trim();
@@ -697,7 +697,7 @@
     var changed = true;
     var outerPass = 0;
 
-    while (changed && outerPass < 5) {
+    while (changed && outerPass < 4) {
       changed = false;
       outerPass++;
 
@@ -710,12 +710,7 @@
         var cResult = clean(result);
         if (!cResult) break;
 
-        // 仅当整段文字与历史完全相同且长度较长(>=2字符)时清空
-        if (cResult === cPrev && cPrev.length >= 2) {
-          return '';
-        }
-
-        // 如果当前文本严格以历史文本为开头，且后面还有新内容
+        // 如果当前文本以历史文本为开头，且后面还有新内容，才进行前缀剥离
         if (cResult.startsWith(cPrev) && cResult.length > cPrev.length) {
           // 单字前缀防护：如果历史只有1个字符（如“对”、“好”），必须要求原文本在该字之后紧跟空格或标点，避免误切“对不起”、“好像”等词首字
           if (cPrev.length === 1) {
@@ -759,14 +754,13 @@
     return result;
   }
 
-  // 4.2 语音通话与视频通话常驻原生识别管理器（一轮是一轮，杜绝多轮串话）
+  // 4.2 语音通话与视频通话常驻原生识别管理器（每轮独立、永不死锁、高容错保活）
   var CallNativeSpeech = {
     active: false,
     instance: null,
     currentInterim: '',
     historyFinal: '',
     waitResolvers: [],
-    turnId: 0,
     recentUtterances: [],
 
     start: function () {
@@ -777,28 +771,35 @@
       this.historyFinal = '';
       this.waitResolvers = [];
       this.recentUtterances = [];
-      this.turnId = 1;
       this._startRecognizer();
     },
 
     _startRecognizer: function () {
       if (!this.active || !isCallActive() || !SpeechRecClass) return;
       var self = this;
+
+      if (self.instance) {
+        try {
+          self.instance.onresult = null;
+          self.instance.onerror = null;
+          self.instance.onend = null;
+          self.instance.abort();
+        } catch (e) {}
+        self.instance = null;
+      }
+
       try {
         var rec = new SpeechRecClass();
         rec.continuous = true;
         rec.interimResults = true;
         rec.lang = getAppropriateSpeechLang();
-        rec._turnId = self.turnId;
-        rec._lastConsumedIndex = 0;
 
         rec.onresult = function (event) {
-          if (!self.active || rec._turnId !== self.turnId) return;
+          if (!self.active || self.instance !== rec) return;
 
           var interim = '';
           var finalStr = '';
-          rec._totalResultsCount = (event.results && event.results.length) || 0;
-          var startIdx = Math.max(event.resultIndex || 0, rec._lastConsumedIndex || 0);
+          var startIdx = event.resultIndex || 0;
 
           for (var i = startIdx; i < event.results.length; i++) {
             var item = event.results[i];
@@ -817,7 +818,7 @@
             self.currentInterim = interim.trim();
           }
 
-          var full = self.getFullText();
+          var full = (self.historyFinal || self.currentInterim || '').trim();
           if (full && self.waitResolvers.length > 0) {
             var resolvedText = self.consumeText();
             while (self.waitResolvers.length > 0) {
@@ -828,55 +829,61 @@
         };
 
         rec.onerror = function (e) {
-          if (e.error === 'not-allowed') {
+          console.warn('[CallNativeSpeech] rec error:', e && e.error);
+          if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
             self.active = false;
           }
         };
 
         rec.onend = function () {
-          // 通话依然在线且实例仍是本轮合法实例，自动续跑保活
-          if (self.active && isCallActive() && self.instance === rec) {
+          if (self.instance === rec) {
+            self.instance = null;
+          }
+          // 通话依然在线时，自动创建新实例续跑保活（严禁在已结束的 rec 上调用 start）
+          if (self.active && isCallActive()) {
             setTimeout(function () {
-              if (self.active && isCallActive() && self.instance === rec) {
-                try { rec.start(); } catch (err) {}
+              if (self.active && isCallActive() && !self.instance) {
+                self._startRecognizer();
               }
-            }, 120);
+            }, 80);
           }
         };
 
         self.instance = rec;
         rec.start();
+        console.log('[CallNativeSpeech] Recognizer started');
       } catch (err) {
         console.warn('[CallNativeSpeech] Start error:', err);
+        self.instance = null;
+        if (self.active && isCallActive()) {
+          setTimeout(function () {
+            if (self.active && isCallActive() && !self.instance) {
+              self._startRecognizer();
+            }
+          }, 400);
+        }
       }
     },
 
     getFullText: function () {
-      var parts = [];
-      if (this.historyFinal) parts.push(this.historyFinal);
-      if (this.currentInterim) parts.push(this.currentInterim);
-      var raw = parts.join(' ').trim();
+      var raw = (this.historyFinal || this.currentInterim || '').trim();
       if (!raw) return '';
       return stripCallPreviousTurnPrefix(raw, this.recentUtterances);
     },
 
     consumeText: function () {
       var full = this.getFullText();
-      
-      // 记录已确认消费的文本到本通电话历史，用于防串轮过滤
       if (full) {
         this.recentUtterances.push(full);
-        if (this.recentUtterances.length > 8) {
+        if (this.recentUtterances.length > 6) {
           this.recentUtterances.shift();
         }
       }
-
       this.historyFinal = '';
       this.currentInterim = '';
 
-      // 核心机制：一旦一轮消耗完成，立即重置下一轮会话，阻断浏览器 continuous 堆积上一轮文本
-      this.resetForNextTurn(!!full);
-
+      // 每轮消费后彻底重启 SpeechRecognition 实例，保证下一轮是纯净独立的会话上下文
+      this.resetForNextTurn(true);
       return full;
     },
 
@@ -884,14 +891,8 @@
       this.historyFinal = '';
       this.currentInterim = '';
       this.waitResolvers = [];
-      this.turnId = (this.turnId || 0) + 1;
 
       var oldRec = this.instance;
-      if (oldRec) {
-        oldRec._lastConsumedIndex = oldRec._totalResultsCount || 999999;
-      }
-
-      // 如果有有效语音输出，重启 SpeechRecognition 实例，彻底清空浏览器的 event.results 缓存
       if (forceRestart && oldRec) {
         this.instance = null;
         try {
@@ -907,14 +908,14 @@
             if (self.active && isCallActive() && !self.instance) {
               self._startRecognizer();
             }
-          }, 80);
+          }, 60);
         }
       }
     },
 
     waitForUtterance: function (timeoutMs) {
       var self = this;
-      timeoutMs = timeoutMs || 800;
+      timeoutMs = timeoutMs || 2500;
       return new Promise(function (resolve) {
         var current = self.getFullText();
         if (current) {
@@ -922,10 +923,17 @@
           return;
         }
 
+        // 如果实例未启动或意外掉线，立即补拉起
+        if (self.active && !self.instance) {
+          self._startRecognizer();
+        }
+
         var timer = setTimeout(function () {
           var idx = self.waitResolvers.indexOf(onDone);
           if (idx !== -1) self.waitResolvers.splice(idx, 1);
-          resolve(self.consumeText());
+          var finalTxt = self.consumeText();
+          console.log('[CallNativeSpeech] waitForUtterance resolved after wait:', finalTxt);
+          resolve(finalTxt);
         }, timeoutMs);
 
         var onDone = function (text) {
@@ -939,7 +947,6 @@
 
     stop: function () {
       this.active = false;
-      this.turnId = (this.turnId || 0) + 1;
       if (this.instance) {
         try {
           this.instance.onend = null;
@@ -989,22 +996,28 @@
 
   function isCallActive() {
     try {
-      if (window._IBCALL && window._IBCALL.active && window._IBCALL.active()) return true;
+      if (window._IBCALL && typeof window._IBCALL.active === 'function' && window._IBCALL.active()) return true;
       var el = document.getElementById('ibcall');
-      if (el && !el.hidden && !el.classList.contains('mini')) return true;
+      if (el && !el.hidden) return true;
+      var pill = document.getElementById('ibcall-pill');
+      if (pill && !pill.hidden) return true;
+      if (document.body && document.body.classList.contains('ibcall-full')) return true;
     } catch (e) {}
     return false;
   }
 
   function checkAndSyncCallASR() {
+    hookIBCALL();
     var isCalling = isCallActive();
     var isNative = isCurrentVtNative();
     if (isCalling && isNative) {
       if (!CallNativeSpeech.active) {
+        console.log('[CallASR] Starting CallNativeSpeech');
         CallNativeSpeech.start();
       }
     } else {
-      if (CallNativeSpeech.active) {
+      if (CallNativeSpeech.active && !isCalling) {
+        console.log('[CallASR] Stopping CallNativeSpeech');
         CallNativeSpeech.stop();
       }
     }
@@ -1012,40 +1025,53 @@
 
   function isCurrentVtNative() {
     if (window._isBrowserNativeVT) return true;
-    if (typeof _vt !== 'undefined' && _vt && _vt.model === 'browser-native') return true;
+    try {
+      if (window._vt && window._vt.model === 'browser-native') return true;
+    } catch (e) {}
+    try {
+      var mInput = document.getElementById('vt-model');
+      if (mInput && mInput.value === 'browser-native') return true;
+      var mPre = document.getElementById('vt-mpre');
+      if (mPre && mPre.value === 'browser-native') return true;
+    } catch (e) {}
+    try {
+      if (localStorage.getItem('ib_vt_is_native') === '1') return true;
+    } catch (e) {}
     return false;
   }
 
   function hookIBCALL() {
     if (!window._IBCALL) return;
+    if (window._IBCALL._nativeHooked) return;
+    window._IBCALL._nativeHooked = true;
+
     var origOpen = window._IBCALL.open;
-    if (origOpen && !origOpen._nativeHooked) {
+    if (typeof origOpen === 'function') {
       window._IBCALL.open = async function () {
         var res = await origOpen.apply(this, arguments);
+        setTimeout(checkAndSyncCallASR, 50);
         setTimeout(checkAndSyncCallASR, 300);
+        setTimeout(checkAndSyncCallASR, 1000);
         return res;
       };
-      window._IBCALL.open._nativeHooked = true;
     }
 
     var origEnd = window._IBCALL.end;
-    if (origEnd && !origEnd._nativeHooked) {
+    if (typeof origEnd === 'function') {
       window._IBCALL.end = async function () {
         CallNativeSpeech.stop();
         lastCallTurnText = '';
         return origEnd.apply(this, arguments);
       };
-      window._IBCALL.end._nativeHooked = true;
     }
   }
 
-  // 4.3 核心：拦截 fetch 发送至语音识别接口的请求，无缝注入浏览器原生识别文本
+  // 4.3 核心：拦截 fetch 发送至语音识别接口的请求，无缝注入浏览器原生识别文本与千问兼容
   function hookFetchForNativeASR() {
     var origFetch = window.fetch;
     if (!origFetch || origFetch._nativeASRHooked) return;
 
     var wrappedFetch = async function (input, init) {
-      try { console.log('[IB FETCH HOOK CALLED] input:', input); } catch(e){}
       var url = '';
       if (typeof input === 'string') url = input;
       else if (input && input.url) url = input.url;
@@ -1063,10 +1089,15 @@
       }
 
       if (isNativeReq) {
+        window._isBrowserNativeVT = true;
+        try { localStorage.setItem('ib_vt_is_native', '1'); } catch (e) {}
         var text = '';
         if (isCallActive()) {
+          if (!CallNativeSpeech.active) {
+            CallNativeSpeech.start();
+          }
           // 通话模式下提取常驻识别结果，并进行严格的跨轮防串隔离
-          text = await CallNativeSpeech.waitForUtterance(750);
+          text = await CallNativeSpeech.waitForUtterance(2500);
           if (text) {
             text = stripCallPreviousTurnPrefix(text, CallNativeSpeech.recentUtterances);
           }
@@ -1080,11 +1111,36 @@
           window._nativeTranscript = '';
         }
 
+        console.log('[CallASR] Resolved text for request:', text);
         return new Response(JSON.stringify({ text: text || '' }), {
           status: 200,
           statusText: 'OK',
           headers: { 'Content-Type': 'application/json' }
         });
+      }
+
+      // 如果是千问系 ASR 模型，在通话模式下自动适配兼容 chat audio 接口
+      var isQwenAsr = false;
+      try {
+        if (modelVal && /^qwen[\w.-]*(asr|omni)/i.test(modelVal)) isQwenAsr = true;
+        if (typeof _vtChatAudioM === 'function' && typeof _vt !== 'undefined' && _vtChatAudioM(_vt)) isQwenAsr = true;
+      } catch (e) {}
+
+      if (isQwenAsr && isFormData && init.body.has('file') && typeof _vtViaChatM === 'function') {
+        try {
+          var vtObj = typeof loadVT === 'function' ? await loadVT() : null;
+          if (vtObj) {
+            var fileBlob = init.body.get('file');
+            var qwenText = await _vtViaChatM(vtObj, fileBlob, 'audio/wav', 'wav');
+            return new Response(JSON.stringify({ text: qwenText || '' }), {
+              status: 200,
+              statusText: 'OK',
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        } catch (errQwen) {
+          console.warn('[CallASR] Qwen audio chat fallback error:', errQwen);
+        }
       }
 
       // 如果是发往云端 ASR 的请求，确保追加中文语言参数，杜绝 Whisper 产生英文幻觉乱码
@@ -1106,8 +1162,7 @@
                 var cloudText = parsed.text || (parsed.data && parsed.data.text) || '';
                 if (cloudText) {
                   var cleanedCloud = stripCallPreviousTurnPrefix(cloudText, CallNativeSpeech.recentUtterances);
-                  if (cleanedCloud !== cloudText) {
-                    console.log('[CallASR] Stripped cloud ASR previous turn prefix:', { orig: cloudText, cleaned: cleanedCloud });
+                  if (cleanedCloud) {
                     if (parsed.text !== undefined) parsed.text = cleanedCloud;
                     if (parsed.data && parsed.data.text !== undefined) parsed.data.text = cleanedCloud;
                     return new Response(JSON.stringify(parsed), {
@@ -1365,23 +1420,31 @@
 
   function hookVTReady() {
     var origLoadVT = window.loadVT;
-    if (origLoadVT) {
+    if (origLoadVT && !origLoadVT._nativeHooked) {
       window.loadVT = async function (force) {
         var vt = await origLoadVT.apply(this, arguments);
         if (vt && vt.model === 'browser-native') {
           window._isBrowserNativeVT = true;
+          try { localStorage.setItem('ib_vt_is_native', '1'); } catch (e) {}
           vt.apiKey = vt.apiKey || 'browser-native';
           vt.endpoint = vt.endpoint || 'browser-native';
+        } else if (vt && vt.model) {
+          window._isBrowserNativeVT = false;
+          try { localStorage.setItem('ib_vt_is_native', '0'); } catch (e) {}
         }
         return vt;
       };
+      window.loadVT._nativeHooked = true;
     }
 
     var origVtReady = window.vtReady;
-    window.vtReady = function () {
-      if (isCurrentVtNative()) return true;
-      return origVtReady ? origVtReady.apply(this, arguments) : false;
-    };
+    if (origVtReady && !origVtReady._nativeHooked) {
+      window.vtReady = function () {
+        if (isCurrentVtNative()) return true;
+        return origVtReady ? origVtReady.apply(this, arguments) : false;
+      };
+      window.vtReady._nativeHooked = true;
+    }
   }
 
   function bindGlobalMicTrigger() {
@@ -2449,6 +2512,9 @@
   // 7. 初始化与 DOM 监听入口
   // ----------------------------------------------------
   function initExtension() {
+    if (window._ibVoiceExtInitialized) return;
+    window._ibVoiceExtInitialized = true;
+
     hookMdRenderHtml();
     hookFillTextInto();
     hookStPaintText();
@@ -2501,13 +2567,13 @@
       }
     } catch (e) {}
 
-    setInterval(injectElToneUI, 400);
-    setInterval(cleanAllVoiceTextNodes, 1200);
-    setInterval(checkAndSyncCallASR, 1000);
-    setInterval(hookSendQuickTextForCall, 1000);
-    setInterval(injectNativeSttOption, 800);
-    setInterval(injectGroupCrossContextUI, 800);
-    setInterval(syncGroupCrossUIState, 500);
+    setInterval(injectElToneUI, 1200);
+    setInterval(cleanAllVoiceTextNodes, 2500);
+    setInterval(checkAndSyncCallASR, 2000);
+    setInterval(hookSendQuickTextForCall, 2000);
+    setInterval(injectNativeSttOption, 1800);
+    setInterval(injectGroupCrossContextUI, 1800);
+    setInterval(syncGroupCrossUIState, 1500);
   }
 
   if (document.readyState === 'loading') {
@@ -2721,14 +2787,20 @@
     initEnhancer();
   }
 
-  // 周期性与 DOM 变动持续检测挂载
-  setInterval(initEnhancer, 300);
+  // 周期性与 DOM 变动防抖检测挂载
+  setInterval(initEnhancer, 2500);
 
+  var _enhancerTimer = null;
   var observer = new MutationObserver(function () {
-    initEnhancer();
+    if (_enhancerTimer) return;
+    _enhancerTimer = setTimeout(function () {
+      _enhancerTimer = null;
+      initEnhancer();
+    }, 1000);
   });
   try {
-    observer.observe(document.body, { childList: true, subtree: true });
+    var bEd = document.getElementById('sub-blog-editor') || document.body;
+    observer.observe(bEd, { childList: true, subtree: true });
   } catch (e) {}
 
   console.log('[InternalBeyond Extension] Blog Import Enhancer active.');
@@ -2899,6 +2971,27 @@
     }
   }
 
+  // 安全扫描本地真实 IndexedDB 数据规模
+  async function getLocalStats() {
+    const stats = { totalItems: 0, msgCount: 0, storeCounts: {} };
+    const targetStores = [
+      'chatMessages', 'memories', 'autoMemory', 'apiSettings', 'apiConfigs',
+      'posts', 'letters', 'groups', 'calEvents'
+    ];
+    for (const s of targetStores) {
+      if (typeof window.dbGetAll === 'function') {
+        try {
+          const list = await window.dbGetAll(s);
+          const len = Array.isArray(list) ? list.length : 0;
+          stats.storeCounts[s] = len;
+          stats.totalItems += len;
+          if (s === 'chatMessages') stats.msgCount = len;
+        } catch (e) {}
+      }
+    }
+    return stats;
+  }
+
   // 3. 核心比对与拉取逻辑（打开网页或换设备时执行）
   async function checkAndSyncFromRemote(force = false) {
     if (isPulling) return;
@@ -2917,18 +3010,36 @@
 
       const serverLastModified = meta?.lastModified || 0;
       const localLastMtime = localMeta.mtime || 0;
-      const storeKeys = Object.keys(meta?.stores || {});
+      const serverStores = meta?.stores || {};
+      const storeKeys = Object.keys(serverStores);
+      const serverMsgCount = serverStores['chatMessages']?.count || 0;
 
-      // 情况 A：服务器上还是全新的，但本地已经有数据了 -> 自动全量初始化到服务器
-      if (storeKeys.length === 0 || serverLastModified === 0) {
-        console.log('[ServerSync] Remote is empty. Uploading local baseline to server...');
+      // 实时检测本地实际存储的数据规模
+      const localStats = await getLocalStats();
+
+      // 核心防护 1：本地拥有数据且比服务器更丰富时（如本地聊天记录多于服务器），绝对不从远端回滚覆盖！
+      // 而是立即将本地更新的数据作为真值推送到服务器
+      if (localStats.totalItems > 0 && (storeKeys.length === 0 || serverLastModified === 0 || localStats.msgCount > serverMsgCount)) {
+        console.log('[ServerSync] Local has richer/newer data (' + localStats.msgCount + ' msgs vs server ' + serverMsgCount + '). Uploading local baseline to server...');
         await uploadFullLocalDump();
         return;
       }
 
-      // 情况 B：服务器数据更新，或者新设备第一次打开，或者用户手动强制刷新
-      if (force || serverLastModified > localLastMtime || !localMeta.lastCheck) {
-        console.log('[ServerSync] Remote has newer data or initial visit. Pulling from server...');
+      // 情况 A：服务器上为空
+      if (storeKeys.length === 0 || serverLastModified === 0) {
+        if (localStats.totalItems > 0) {
+          await uploadFullLocalDump();
+        } else {
+          updateIndicatorUI('ready', '存储已就绪 (空状态)');
+        }
+        return;
+      }
+
+      // 情况 B：仅在本地完全为空（新设备首次打开）或用户主动在抽屉面板点击强制更新 (force=true) 时才拉取远端覆盖
+      const shouldPull = force || (localStats.totalItems === 0 && storeKeys.length > 0);
+
+      if (shouldPull) {
+        console.log('[ServerSync] Pulling from server (force=' + force + ', localTotal=' + localStats.totalItems + ')...');
         updateIndicatorUI('syncing', '正在同步服务器最新数据...');
         
         const pullRes = await fetch(`${STORAGE_API_BASE}/pull`);
@@ -2942,10 +3053,11 @@
           updateIndicatorUI('ready', '服务器数据已同步至最新');
         }
       } else {
-        // 数据完全一致
+        // 数据完全一致或本地优先
         SyncState.status = 'ready';
         SyncState.lastSyncTime = Date.now();
-        updateIndicatorUI('ready', '数据与服务器一致');
+        localStorage.setItem(LOCAL_META_KEY, JSON.stringify({ lastCheck: SyncState.lastSyncTime, mtime: Math.max(serverLastModified, localLastMtime) }));
+        updateIndicatorUI('ready', '数据已保持同步');
       }
     } catch (e) {
       console.warn('[ServerSync] Check manifest error:', e);
@@ -2969,9 +3081,18 @@
         const storeEntries = Object.entries(stores).filter(([s]) => availableStores.includes(s));
 
         if (storeEntries.length === 0) {
+          try { db.close(); } catch (err) {}
           resolve();
           return;
         }
+
+        const safeFinish = () => {
+          completed++;
+          if (completed >= storeEntries.length) {
+            try { db.close(); } catch (err) {}
+            resolve();
+          }
+        };
 
         for (const [storeName, dataMap] of storeEntries) {
           try {
@@ -2983,21 +3104,10 @@
                 os.put(val);
               } catch (putErr) {}
             }
-            tx.oncomplete = () => {
-              completed++;
-              if (completed >= storeEntries.length) {
-                resolve();
-              }
-            };
-            tx.onerror = () => {
-              completed++;
-              if (completed >= storeEntries.length) {
-                resolve();
-              }
-            };
+            tx.oncomplete = safeFinish;
+            tx.onerror = safeFinish;
           } catch (txErr) {
-            completed++;
-            if (completed >= storeEntries.length) resolve();
+            safeFinish();
           }
         }
       };
@@ -3007,7 +3117,7 @@
 
   // 将当前本地全部数据打包备份上传至服务器（初始化用）
   async function uploadFullLocalDump() {
-    updateIndicatorUI('syncing', '正在上传初次全量数据...');
+    updateIndicatorUI('syncing', '正在上传全量数据至服务器...');
     try {
       const dump = {};
       const targetStores = [
@@ -3032,13 +3142,13 @@
         return;
       }
 
-      const dumpSizeStr = JSON.stringify(dump);
-      const dumpSize = dumpSizeStr.length;
+      const dumpPayload = { dump };
+      const dumpSize = JSON.stringify(dumpPayload).length;
 
       const res = await fetch(`${STORAGE_API_BASE}/full-dump`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: dumpSizeStr
+        body: JSON.stringify(dumpPayload)
       });
       const json = await res.json();
       if (json.ok) {
@@ -7709,5 +7819,170 @@
     hookActionSheetForLocation();
   }, 1500);
 
+  /* ══════════ 13. 聊天输入与回复触发逻辑增强（回车发送、空输入触发AI） ══════════ */
+  // 用户需求：
+  // 1. 用户在输入框输入内容后按回车，消息直接发送出去；
+  // 2. 发送消息后不自动触发 AI 回复（支持连续输入/多轮发言）；
+  // 3. 当输入框为空时，按回车或点击发送键，AI 再进入回复。
+  (function initChatInputAndReplyControl() {
+    window._ibSuppressSendMsgReply = false;
+
+    // A. Hook genReply & genReplyGroup：当从输入框发消息时，抑制自动触发回复
+    function hookGenReply() {
+      if (typeof window.genReply === 'function' && !window.genReply._ibManualReplyHooked) {
+        var origGenReply = window.genReply;
+        window.origGenReply = origGenReply;
+        var hooked = function(cfg, internalCtx) {
+          if (window._ibSuppressSendMsgReply) {
+            console.info('[ChatControl] AI 自动回复已被抑制（等待输入框为空时回车或点击发送手动触发回复）');
+            return;
+          }
+          return origGenReply.apply(this, arguments);
+        };
+        hooked._ibManualReplyHooked = true;
+        window.genReply = hooked;
+      }
+
+      if (typeof window.genReplyGroup === 'function' && !window.genReplyGroup._ibManualReplyHooked) {
+        var origGenReplyGroup = window.genReplyGroup;
+        window.origGenReplyGroup = origGenReplyGroup;
+        var hookedGroup = function(pcfg, opt) {
+          if (window._ibSuppressSendMsgReply) {
+            console.info('[ChatControl] 群聊 AI 自动回复已被抑制（等待输入框为空时回车或点击发送手动触发回复）');
+            return;
+          }
+          return origGenReplyGroup.apply(this, arguments);
+        };
+        hookedGroup._ibManualReplyHooked = true;
+        window.genReplyGroup = hookedGroup;
+      }
+    }
+
+    // B. 手动触发 AI 回复方法
+    function triggerManualAIReply(cfg) {
+      cfg = cfg || window._activeCfg;
+      if (!cfg) {
+        try {
+          if (typeof _activeCfg !== 'undefined' && _activeCfg) cfg = _activeCfg;
+        } catch (e) {}
+      }
+      if (!cfg) return;
+
+      // 检查当前会话是否正在回复中
+      try {
+        var k = '';
+        if (typeof _convKey === 'function') {
+          k = _convKey(cfg);
+        } else if (typeof _keyOf === 'function') {
+          var th = window._activeThread || (typeof _activeThread !== 'undefined' ? _activeThread : null);
+          k = _keyOf(cfg.id, th ? th.id : '');
+        }
+        if (k && typeof _sendKeys !== 'undefined' && _sendKeys.has(k)) {
+          return;
+        }
+      } catch (e) {}
+
+      var sendBtn = document.getElementById('cv-send');
+      if (sendBtn && sendBtn.classList.contains('stop')) {
+        return;
+      }
+
+      // 检查 API Key
+      if (!cfg.apiKey && !cfg._group) {
+        if (typeof toast === 'function') toast('这个配置还没有 API Key，请到 API 页填写');
+        return;
+      }
+
+      // 确保解除抑制标记
+      window._ibSuppressSendMsgReply = false;
+
+      // 触发生成回复
+      if (cfg._group) {
+        try { if (typeof _gAutoReset === 'function') _gAutoReset(cfg); } catch (e) {}
+        if (typeof window.origGenReplyGroup === 'function') {
+          window.origGenReplyGroup(cfg);
+        } else if (typeof genReplyGroup === 'function') {
+          genReplyGroup(cfg);
+        }
+      } else {
+        if (typeof window.origGenReply === 'function') {
+          window.origGenReply(cfg);
+        } else if (typeof genReply === 'function') {
+          genReply(cfg);
+        }
+      }
+    }
+
+    // C. Hook sendMsg：处理有内容发消息（抑制AI回复）与无内容（触发AI回复）
+    function hookSendMsg() {
+      if (typeof window.sendMsg === 'function' && !window.sendMsg._ibManualReplyHooked) {
+        var origSendMsg = window.sendMsg;
+        window.origSendMsg = origSendMsg;
+
+        var hookedSendMsg = async function() {
+          var ta = document.getElementById('cv-ta');
+          var val = ta ? ta.value.trim() : '';
+
+          var hasAttach = false;
+          try {
+            if (typeof _pendImgs !== 'undefined' && Array.isArray(_pendImgs) && _pendImgs.length) hasAttach = true;
+            if (typeof _pendFiles !== 'undefined' && Array.isArray(_pendFiles) && _pendFiles.length) hasAttach = true;
+            if (window._ibPendStk) hasAttach = true;
+          } catch (e) {}
+
+          // 1. 输入框为空且无附件：触发 AI 回复
+          if (!val && !hasAttach) {
+            if (ta && ta.value) {
+              ta.value = '';
+              if (typeof autoGrow === 'function') autoGrow();
+            }
+            triggerManualAIReply();
+            return;
+          }
+
+          // 2. 输入框有内容或有附件：发送消息，但不触发 AI 回复
+          window._ibSuppressSendMsgReply = true;
+          try {
+            return await origSendMsg.apply(this, arguments);
+          } finally {
+            setTimeout(function() {
+              window._ibSuppressSendMsgReply = false;
+            }, 80);
+          }
+        };
+
+        hookedSendMsg._ibManualReplyHooked = true;
+        window.sendMsg = hookedSendMsg;
+      }
+    }
+
+    // D. 键盘回车监听（捕获模式）：输入框内按 Enter 键发送消息或触发 AI
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        var target = e.target;
+        if (!target || target.id !== 'cv-ta') return;
+        // 中文/日文输入法合成中（未按下选词确认）不处理
+        if (e.isComposing || e.keyCode === 229) return;
+        // Shift + Enter 保持原生换行体验
+        if (e.shiftKey) return;
+
+        // 阻止默认回车换行
+        e.preventDefault();
+
+        // 调用经过改造的 sendMsg
+        if (typeof window.sendMsg === 'function') {
+          window.sendMsg();
+        }
+      }
+    }, true);
+
+    // E. 立即执行与保活
+    hookGenReply();
+    hookSendMsg();
+    setInterval(function() {
+      hookGenReply();
+      hookSendMsg();
+    }, 1200);
+  })();
 
 })();

@@ -166,7 +166,8 @@ app.post('/api/v2/storage/patch', (req, res) => {
 // 4. 全量覆盖初始化
 app.post('/api/v2/storage/full-dump', (req, res) => {
   try {
-    const { dump } = req.body;
+    const rawBody = req.body || {};
+    const dump = rawBody.dump || rawBody.stores || (typeof rawBody === 'object' ? rawBody : null);
     if (!dump || typeof dump !== 'object') {
       return res.status(400).json({ ok: false, error: 'Invalid dump format' });
     }
