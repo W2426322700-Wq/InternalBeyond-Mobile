@@ -3429,6 +3429,20 @@ self.addEventListener(&#x27;fetch&#x27;,function(e){
         <div class="cm-sub-t">按 API</div><div id="tk-byapi"></div>
         <div class="cm-sub-t">按模型</div><div id="tk-bymodel"></div>
         <div class="cm-sub-t" style="margin-top:12px">最近明细</div><div id="tk-detail" class="tk-exl"></div>
+        <div class="cm-sub-t" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+          <span>原始报文探针（最近一次）</span>
+          <span id="tk-raw-time" style="font-size:0.7rem;color:var(--tx3);font-weight:normal"></span>
+        </div>
+        <div id="tk-raw-probe" style="margin-bottom:12px;font-size:0.75rem;border:1px solid var(--line);border-radius:6px;overflow:hidden">
+          <div style="display:flex;border-bottom:1px solid var(--line);background:var(--bg2)">
+            <button class="btn" id="btn-raw-req" style="flex:1;border-radius:0;border:none;padding:7px;font-weight:bold" onclick="window._ibShowProbeTab&&window._ibShowProbeTab('req')">查看 Request</button>
+            <button class="btn" id="btn-raw-res" style="flex:1;border-radius:0;border:none;padding:7px;opacity:0.6" onclick="window._ibShowProbeTab&&window._ibShowProbeTab('res')">查看 Response</button>
+            <button class="btn" style="border-radius:0;border:none;border-left:1px solid var(--line);padding:7px 12px" onclick="window._ibCopyProbe&&window._ibCopyProbe()">复制</button>
+          </div>
+          <pre id="tk-raw-req" style="margin:0;padding:8px;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace;font-size:0.7rem;color:var(--tx1)"></pre>
+          <pre id="tk-raw-res" style="margin:0;padding:8px;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace;font-size:0.7rem;color:var(--tx1);display:none"></pre>
+        </div>
+
         <div style="display:flex;gap:10px;margin-top:10px">
           <button class="btn danger" style="flex:1" id="tk-clear">清除此范围明细</button>
           <button class="btn" style="flex:1" id="tk-export">导出此范围明细</button><!-- 本轮：CSV 导出当前时间段的全部逐条明细（含单条费用估算），与左侧清除按钮同一范围口径 -->
@@ -8852,7 +8866,30 @@ function _extractSuggestedMaxTokM(s){
   var n=parseInt(m[1].replace(/,/g,''),10);
   return(n>=256&&n<=400000)?n:0;
 }
+
+function _cleanCardMarkupForAI(text) {
+  if (typeof text !== "string" || !text) return text;
+  if (!/<(?:style|script|svg|iframe|div|p|span|table|tr|td|h[1-6]|html|body|card)[^>]*>/i.test(text) && !/<!DOCTYPE/i.test(text)) {
+    return text;
+  }
+  let s = text;
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, "");
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, "");
+  s = s.replace(/<svg[\s\S]*?<\/svg>/gi, "");
+  s = s.replace(/<iframe[\s\S]*?<\/iframe>/gi, "");
+  s = s.replace(/<[^>]+>/g, " ");
+  s = s.replace(/&nbsp;/g, " ")
+       .replace(/&amp;/g, "&")
+       .replace(/&lt;/g, "<")
+       .replace(/&gt;/g, ">")
+       .replace(/&quot;/g, "\"")
+       .replace(/&#39;/g, "'");
+  s = s.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+  return s || text;
+}
+
 async function callAI(cfg,hist,sys,onDelta,signal,pa){
+  if(Array.isArray(hist)){hist=hist.map(m=>{if(!m||!m.content)return m;let c=m.content;if(typeof c==="string"){c=_cleanCardMarkupForAI(c)}else if(Array.isArray(c)){c=c.map(part=>{if(part&&part.type==="text"&&typeof part.text==="string"){return Object.assign({},part,{text:_cleanCardMarkupForAI(part.text)})}return part})}return Object.assign({},m,{content:c})})} 
   const prov=PROVIDERS[cfg.provider]||PROVIDERS.custom;
   const fmt=_cfgFmtM(cfg);/* v141-p：#4 自定义服务商按地址自动识别格式 */
   const ep=(cfg.endpoint||prov.endpoint||'').trim();
@@ -8957,7 +8994,51 @@ async function callAI(cfg,hist,sys,onDelta,signal,pa){
     body=JSON.stringify(b);
   }
 
+  
+  try {
+    var reqInfo = { url: url, time: new Date().toLocaleTimeString(), body: body };
+    window._ibLastRawReq = reqInfo;
+    localStorage.setItem("ib_probe_raw_req", JSON.stringify(reqInfo));
+    window._ibLastRawRes = "等待响应返回中…";
+    localStorage.setItem("ib_probe_raw_res", "等待响应返回中…");
+    if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+  } catch(e) {}
+  
   let res=await fetch(url,{method:'POST',headers:headers,body:body,signal:signal});
+  
+  try {
+    const clone = res.clone();
+    if (clone.body && typeof clone.body.getReader === "function") {
+      const reader = clone.body.getReader();
+      const dec = new TextDecoder("utf-8");
+      let acc = "";
+      const pumpStream = () => {
+        reader.read().then((chunk) => {
+          if (chunk.value) {
+            acc += dec.decode(chunk.value, { stream: true });
+            window._ibLastRawRes = acc;
+            try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
+            if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+          }
+          if (!chunk.done) pumpStream();
+          else {
+            acc += dec.decode();
+            window._ibLastRawRes = acc;
+            try { localStorage.setItem("ib_probe_raw_res", acc); } catch(e){}
+            if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+          }
+        }).catch(() => {});
+      };
+      pumpStream();
+    } else {
+      clone.text().then(txt => {
+        window._ibLastRawRes = txt;
+        try { localStorage.setItem("ib_probe_raw_res", txt); } catch(e){}
+        if (window._ibUpdateProbeUI) window._ibUpdateProbeUI();
+      }).catch(()=>{});
+    }
+  } catch(e) {}
+
   try{var _ni9=(pa&&pa._noImg)?_hist0:hist,_nImg9=(_ni9||[]).reduce(function(s9,m9){return s9+((m9&&m9.images&&m9.images.length)||0)},0);if(_nImg9){var _il9=window._ibImgDiagLog=window._ibImgDiagLog||[];_il9.push({at:Date.now(),who:(typeof cfgName==='function'?cfgName(cfg):String(cfg.id||'')),fmt:fmt,model:model,n:_nImg9,sent:!(pa&&pa._noImg),status:res.status,ok:res.ok});if(_il9.length>20)_il9.splice(0,_il9.length-20)}}catch(e){}
   if(!res.ok){
     let errTxt=await res.text().catch(()=>'');try{var _il8=window._ibImgDiagLog;if(_il8&&_il8.length&&_il8[_il8.length-1].status===res.status&&!_il8[_il8.length-1].err)_il8[_il8.length-1].err=String(errTxt||'').replace(/\s+/g,' ').slice(0,220)}catch(e){}
