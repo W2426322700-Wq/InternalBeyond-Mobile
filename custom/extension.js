@@ -680,13 +680,94 @@
     } catch (e) {}
   }
 
-  // 4.2 语音通话与视频通话常驻原生识别管理器
+  // 通话语音轮次防串扰剥离函数：彻底消除上一轮识别文本在前缀的残留或多轮拼接
+  function stripCallPreviousTurnPrefix(text, prevList) {
+    if (!text) return '';
+    if (!prevList || !prevList.length) return String(text).trim();
+
+    var clean = function (s) {
+      return String(s || '').replace(/[\s，。！？!?,.：:；;、“”"'`~～_—\-\(\)（）\[\]【】]/g, '').toLowerCase();
+    };
+
+    var isPunctOrSpace = function (ch) {
+      return /[\s，。！？!?,.：:；;、“”"'`~～_—\-\(\)（）\[\]【】]/.test(ch);
+    };
+
+    var result = String(text).trim();
+    var changed = true;
+    var outerPass = 0;
+
+    while (changed && outerPass < 5) {
+      changed = false;
+      outerPass++;
+
+      for (var idx = 0; idx < prevList.length; idx++) {
+        var prev = prevList[idx];
+        if (!prev) continue;
+        var cPrev = clean(prev);
+        if (!cPrev) continue;
+
+        var cResult = clean(result);
+        if (!cResult) break;
+
+        // 仅当整段文字与历史完全相同且长度较长(>=2字符)时清空
+        if (cResult === cPrev && cPrev.length >= 2) {
+          return '';
+        }
+
+        // 如果当前文本严格以历史文本为开头，且后面还有新内容
+        if (cResult.startsWith(cPrev) && cResult.length > cPrev.length) {
+          // 单字前缀防护：如果历史只有1个字符（如“对”、“好”），必须要求原文本在该字之后紧跟空格或标点，避免误切“对不起”、“好像”等词首字
+          if (cPrev.length === 1) {
+            var firstCleanIdx = -1;
+            for (var k = 0; k < result.length; k++) {
+              if (!isPunctOrSpace(result[k])) {
+                firstCleanIdx = k;
+                break;
+              }
+            }
+            if (firstCleanIdx >= 0 && firstCleanIdx + 1 < result.length) {
+              var nextChar = result[firstCleanIdx + 1];
+              if (!isPunctOrSpace(nextChar)) {
+                // 紧接着是汉字/字母（如“对不起”的“不”），不切分
+                continue;
+              }
+            }
+          }
+
+          var matchedCleanLen = 0;
+          var cutIndex = 0;
+          for (var i = 0; i < result.length; i++) {
+            var ch = result[i];
+            if (!isPunctOrSpace(ch)) {
+              matchedCleanLen++;
+            }
+            if (matchedCleanLen >= cPrev.length) {
+              cutIndex = i + 1;
+              break;
+            }
+          }
+          var nextPart = result.slice(cutIndex).replace(/^[\s，。！？!?,.：:；;、“”"'`~～_—\-\(\)（）\[\]【】]+/, '').trim();
+          if (nextPart && nextPart !== result) {
+            result = nextPart;
+            changed = true;
+            break; // 重新从外层扫描，确保多轮串联被彻底剥离干净
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  // 4.2 语音通话与视频通话常驻原生识别管理器（一轮是一轮，杜绝多轮串话）
   var CallNativeSpeech = {
     active: false,
     instance: null,
     currentInterim: '',
     historyFinal: '',
     waitResolvers: [],
+    turnId: 0,
+    recentUtterances: [],
 
     start: function () {
       if (!SpeechRecClass) return;
@@ -695,18 +776,31 @@
       this.currentInterim = '';
       this.historyFinal = '';
       this.waitResolvers = [];
+      this.recentUtterances = [];
+      this.turnId = 1;
+      this._startRecognizer();
+    },
 
+    _startRecognizer: function () {
+      if (!this.active || !isCallActive() || !SpeechRecClass) return;
       var self = this;
       try {
         var rec = new SpeechRecClass();
         rec.continuous = true;
         rec.interimResults = true;
         rec.lang = getAppropriateSpeechLang();
+        rec._turnId = self.turnId;
+        rec._lastConsumedIndex = 0;
 
         rec.onresult = function (event) {
+          if (!self.active || rec._turnId !== self.turnId) return;
+
           var interim = '';
           var finalStr = '';
-          for (var i = event.resultIndex; i < event.results.length; i++) {
+          rec._totalResultsCount = (event.results && event.results.length) || 0;
+          var startIdx = Math.max(event.resultIndex || 0, rec._lastConsumedIndex || 0);
+
+          for (var i = startIdx; i < event.results.length; i++) {
             var item = event.results[i];
             if (item && item[0]) {
               if (item.isFinal) {
@@ -740,10 +834,10 @@
         };
 
         rec.onend = function () {
-          // 通话依然在线且用户未主动停掉，自动续跑保活
-          if (self.active && isCallActive()) {
+          // 通话依然在线且实例仍是本轮合法实例，自动续跑保活
+          if (self.active && isCallActive() && self.instance === rec) {
             setTimeout(function () {
-              if (self.active && isCallActive()) {
+              if (self.active && isCallActive() && self.instance === rec) {
                 try { rec.start(); } catch (err) {}
               }
             }, 120);
@@ -761,14 +855,61 @@
       var parts = [];
       if (this.historyFinal) parts.push(this.historyFinal);
       if (this.currentInterim) parts.push(this.currentInterim);
-      return parts.join(' ').trim();
+      var raw = parts.join(' ').trim();
+      if (!raw) return '';
+      return stripCallPreviousTurnPrefix(raw, this.recentUtterances);
     },
 
     consumeText: function () {
       var full = this.getFullText();
+      
+      // 记录已确认消费的文本到本通电话历史，用于防串轮过滤
+      if (full) {
+        this.recentUtterances.push(full);
+        if (this.recentUtterances.length > 8) {
+          this.recentUtterances.shift();
+        }
+      }
+
       this.historyFinal = '';
       this.currentInterim = '';
+
+      // 核心机制：一旦一轮消耗完成，立即重置下一轮会话，阻断浏览器 continuous 堆积上一轮文本
+      this.resetForNextTurn(!!full);
+
       return full;
+    },
+
+    resetForNextTurn: function (forceRestart) {
+      this.historyFinal = '';
+      this.currentInterim = '';
+      this.waitResolvers = [];
+      this.turnId = (this.turnId || 0) + 1;
+
+      var oldRec = this.instance;
+      if (oldRec) {
+        oldRec._lastConsumedIndex = oldRec._totalResultsCount || 999999;
+      }
+
+      // 如果有有效语音输出，重启 SpeechRecognition 实例，彻底清空浏览器的 event.results 缓存
+      if (forceRestart && oldRec) {
+        this.instance = null;
+        try {
+          oldRec.onresult = null;
+          oldRec.onerror = null;
+          oldRec.onend = null;
+          oldRec.abort();
+        } catch (e) {}
+
+        var self = this;
+        if (this.active && isCallActive()) {
+          setTimeout(function () {
+            if (self.active && isCallActive() && !self.instance) {
+              self._startRecognizer();
+            }
+          }, 80);
+        }
+      }
     },
 
     waitForUtterance: function (timeoutMs) {
@@ -798,19 +939,53 @@
 
     stop: function () {
       this.active = false;
+      this.turnId = (this.turnId || 0) + 1;
       if (this.instance) {
         try {
           this.instance.onend = null;
           this.instance.onerror = null;
-          this.instance.stop();
+          this.instance.onresult = null;
+          this.instance.abort();
         } catch (e) {}
         this.instance = null;
       }
       this.currentInterim = '';
       this.historyFinal = '';
       this.waitResolvers = [];
+      this.recentUtterances = [];
     }
   };
+
+  // 全局通话消息外层防串轮过滤器
+  var lastCallTurnText = '';
+  function hookSendQuickTextForCall() {
+    if (typeof window.sendQuickText !== 'function' || window.sendQuickText._callHooked) return;
+    var origSendQuickText = window.sendQuickText;
+    window.sendQuickText = async function (t, extra) {
+      if (typeof t === 'string' && isCallActive() && /^\[(?:语音|视频)通话\]\s*/.test(t)) {
+        var prefixMatch = t.match(/^(\[(?:语音|视频)通话\]\s*)/);
+        var prefixTag = prefixMatch ? prefixMatch[1] : '[语音通话] ';
+        var speechContent = t.slice(prefixTag.length);
+        if (speechContent) {
+          var historyList = (CallNativeSpeech.recentUtterances || []).slice();
+          if (lastCallTurnText && historyList.indexOf(lastCallTurnText) === -1) {
+            historyList.push(lastCallTurnText);
+          }
+          var cleaned = stripCallPreviousTurnPrefix(speechContent, historyList);
+          if (cleaned && cleaned !== speechContent) {
+            console.log('[CallASR] Stripped mixed turn speech in sendQuickText:', { before: speechContent, after: cleaned });
+            speechContent = cleaned;
+            t = prefixTag + cleaned;
+          }
+          if (speechContent) {
+            lastCallTurnText = speechContent;
+          }
+        }
+      }
+      return origSendQuickText.apply(this, arguments);
+    };
+    window.sendQuickText._callHooked = true;
+  }
 
   function isCallActive() {
     try {
@@ -857,6 +1032,7 @@
     if (origEnd && !origEnd._nativeHooked) {
       window._IBCALL.end = async function () {
         CallNativeSpeech.stop();
+        lastCallTurnText = '';
         return origEnd.apply(this, arguments);
       };
       window._IBCALL.end._nativeHooked = true;
@@ -889,8 +1065,11 @@
       if (isNativeReq) {
         var text = '';
         if (isCallActive()) {
-          // 通话模式下提取常驻识别结果
+          // 通话模式下提取常驻识别结果，并进行严格的跨轮防串隔离
           text = await CallNativeSpeech.waitForUtterance(750);
+          if (text) {
+            text = stripCallPreviousTurnPrefix(text, CallNativeSpeech.recentUtterances);
+          }
         } else {
           // 普通聊天输入
           if (window._nativeIsListening) {
@@ -915,6 +1094,41 @@
             init.body.append('language', 'zh');
           }
         } catch (e) {}
+
+        // 通话模式下拦截云端识别回包，同样做前置防串隔离保护
+        if (isCallActive()) {
+          try {
+            var cloudResp = await origFetch.apply(this, arguments);
+            if (cloudResp && cloudResp.ok) {
+              var rawJson = await cloudResp.text();
+              try {
+                var parsed = JSON.parse(rawJson);
+                var cloudText = parsed.text || (parsed.data && parsed.data.text) || '';
+                if (cloudText) {
+                  var cleanedCloud = stripCallPreviousTurnPrefix(cloudText, CallNativeSpeech.recentUtterances);
+                  if (cleanedCloud !== cloudText) {
+                    console.log('[CallASR] Stripped cloud ASR previous turn prefix:', { orig: cloudText, cleaned: cleanedCloud });
+                    if (parsed.text !== undefined) parsed.text = cleanedCloud;
+                    if (parsed.data && parsed.data.text !== undefined) parsed.data.text = cleanedCloud;
+                    return new Response(JSON.stringify(parsed), {
+                      status: cloudResp.status,
+                      statusText: cloudResp.statusText,
+                      headers: cloudResp.headers
+                    });
+                  }
+                }
+              } catch (e) {}
+              return new Response(rawJson, {
+                status: cloudResp.status,
+                statusText: cloudResp.statusText,
+                headers: cloudResp.headers
+              });
+            }
+            return cloudResp;
+          } catch (errCloud) {
+            throw errCloud;
+          }
+        }
       }
 
       // 跨聊上下文双向互通：拦截发送给 AI 模型的对话请求，动态注入单聊/群聊记忆
@@ -2249,6 +2463,7 @@
     hookVTReady();
     hookIBCALL();
     hookFetchForNativeASR();
+    hookSendQuickTextForCall();
     bindGlobalMicTrigger();
     hookTranscribe();
     injectNativeSttOption();
@@ -2289,6 +2504,7 @@
     setInterval(injectElToneUI, 400);
     setInterval(cleanAllVoiceTextNodes, 1200);
     setInterval(checkAndSyncCallASR, 1000);
+    setInterval(hookSendQuickTextForCall, 1000);
     setInterval(injectNativeSttOption, 800);
     setInterval(injectGroupCrossContextUI, 800);
     setInterval(syncGroupCrossUIState, 500);
