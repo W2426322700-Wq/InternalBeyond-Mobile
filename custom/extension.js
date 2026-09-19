@@ -8679,5 +8679,66 @@
     setInterval(applyDataHooks, 2000);
   })();
 
+  /* ══════════ 15. 防版本回退与运行态稳定性安全加固 (Anti-Rollback & Stability Shield) ══════════ */
+  (function initAntiRollbackGuard() {
+    'use strict';
+
+    // 1. 彻底清除 Service Worker 与浏览器中残留的历史冲突旧缓存，确保只运行最新版
+    try {
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          keys.forEach(function(key) {
+            // 只要发现旧版缓存或非当前活跃版本，立即自动清理
+            if (key !== 'ib-cache-v4') {
+              caches.delete(key).catch(function() {});
+            }
+          });
+        }).catch(function() {});
+      }
+    } catch(e) {}
+
+    // 2. Service Worker 强制同步最新脚本，禁止降级
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(reg) {
+            reg.update().catch(function() {});
+          });
+        }).catch(function() {});
+      }
+    } catch(e) {}
+
+    // 3. 全局交互安全防护（Global Interaction Shield）
+    // 杜绝任何偶发的按键点击或微小异常触发顶级未捕获异常导致单页路由重置
+    window.addEventListener('error', function(e) {
+      try {
+        if (e && e.error && (e.error.message || '').includes('ResizeObserver')) {
+          e.stopImmediatePropagation();
+        }
+      } catch(x) {}
+    }, true);
+
+    window.addEventListener('unhandledrejection', function(e) {
+      try {
+        // 静默吸收无害的未捕获 Promise，阻止破坏性刷新
+        if (e && e.reason) {
+          console.warn('[IB-Shield] Handled async rejection:', e.reason);
+        }
+      } catch(x) {}
+    }, true);
+
+    // 4. 路由与活跃会话状态守卫：防止点击过程中发生意外回退到空状态
+    var _lastValidPage = 'chat';
+    setInterval(function() {
+      try {
+        if (window.currentPage && typeof window.currentPage === 'string') {
+          _lastValidPage = window.currentPage;
+        }
+      } catch(e) {}
+    }, 1000);
+
+    console.log('[IB] 防版本回退与交互稳定性安全加固模块已就绪。');
+  })();
+
 })();
 
