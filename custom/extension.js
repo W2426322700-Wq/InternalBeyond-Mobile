@@ -8417,5 +8417,267 @@
     }, 1200);
   })();
 
+  /* ══════════ 14. Data 数据页性能优化：异步轻量统计与分批渲染 ══════════ */
+  // 根因分析：
+  // 1. 原生代码在打开「数据」页时，会调用 ahRefresh()，其内部对 IndexedDB 执行 dbGetAll('chatMessages') 全量加载，
+  //    紧接着执行 new Blob([JSON.stringify(msgs)]).size，在消息量较大或含图片/音频时，JSON 序列化会严重阻塞 JavaScript 主线程造成严重掉帧卡死。
+  // 2. 紧随其后的 renderChatMgr() 又做了一次全量 dbGetAll('chatMessages') 来计算好友消息数。
+  // 3. renderDataSum() 顺序循环 20 个 store 连续统计，导致 UI 长时间无法响应。
+  (function initDataPerfOptimization() {
+    var _dataStatsCache = null;
+    var _dataStatsTime = 0;
+    var _isStatsRunning = false;
+
+    // 轻量游标统计：边读边算，避免把成千上万条消息全部分配进内存大数组，也避免巨大的 JSON.stringify
+    function getChatStatsLightweight() {
+      return new Promise(function(resolve) {
+        if (!window.db) {
+          resolve({ count: 0, size: 0, vbCount: 0, vbSize: 0, byFriend: {} });
+          return;
+        }
+        try {
+          var tx = window.db.transaction('chatMessages', 'readonly');
+          var store = tx.objectStore('chatMessages');
+          var count = 0;
+          var approxSize = 0;
+          var vbN = 0;
+          var vbSz = 0;
+          var byFriend = {};
+
+          var req = store.openCursor();
+          req.onsuccess = function(e) {
+            var cursor = e.target.result;
+            if (cursor) {
+              count++;
+              var val = cursor.value;
+              if (val) {
+                var fid = val.friendId || 'unknown';
+                byFriend[fid] = (byFriend[fid] || 0) + 1;
+
+                if (typeof val.text === 'string') approxSize += val.text.length * 2;
+                if (Array.isArray(val.images)) {
+                  for (var i = 0; i < val.images.length; i++) {
+                    if (typeof val.images[i] === 'string') approxSize += val.images[i].length;
+                  }
+                }
+                if (Array.isArray(val.callAudio) && val.callAudio.length) {
+                  vbN += val.callAudio.length;
+                  for (var j = 0; j < val.callAudio.length; j++) {
+                    var ca = val.callAudio[j];
+                    if (ca && typeof ca.data === 'string') {
+                      vbSz += ca.data.length;
+                      approxSize += ca.data.length;
+                    } else {
+                      vbSz += 256;
+                      approxSize += 256;
+                    }
+                  }
+                }
+                approxSize += 120;
+              }
+              cursor.continue();
+            } else {
+              resolve({
+                count: count,
+                size: approxSize,
+                vbCount: vbN,
+                vbSize: vbSz,
+                byFriend: byFriend
+              });
+            }
+          };
+          req.onerror = function() {
+            resolve({ count: 0, size: 0, vbCount: 0, vbSize: 0, byFriend: {} });
+          };
+        } catch (err) {
+          console.warn('[DataPerf] getChatStatsLightweight error:', err);
+          resolve({ count: 0, size: 0, vbCount: 0, vbSize: 0, byFriend: {} });
+        }
+      });
+    }
+
+    async function optimizedAhRefresh(force) {
+      var ce = document.getElementById('ah-count');
+      var se = document.getElementById('ah-size');
+      if (!ce && !se) return;
+
+      var now = Date.now();
+      if (!force && _dataStatsCache && (now - _dataStatsTime < 30000)) {
+        applyStatsToUI(_dataStatsCache);
+        return;
+      }
+
+      if (_dataStatsCache) {
+        applyStatsToUI(_dataStatsCache);
+      } else {
+        if (ce) ce.textContent = '统计中…';
+        if (se) se.textContent = '占用计算中…';
+      }
+
+      if (_isStatsRunning) return;
+      _isStatsRunning = true;
+
+      setTimeout(async function() {
+        try {
+          var stats = await getChatStatsLightweight();
+          _dataStatsCache = stats;
+          _dataStatsTime = Date.now();
+          applyStatsToUI(stats);
+        } catch (e) {
+          console.warn('[DataPerf] stats failed:', e);
+        } finally {
+          _isStatsRunning = false;
+        }
+      }, 10);
+    }
+
+    function applyStatsToUI(stats) {
+      var ce = document.getElementById('ah-count');
+      var se = document.getElementById('ah-size');
+      if (!stats) return;
+
+      if (ce) ce.textContent = '共 ' + stats.count + ' 条消息';
+      if (se) {
+        var fmtSize = (typeof window.icFmtSize === 'function') ? window.icFmtSize : function(bytes) {
+          if (!bytes) return '0 B';
+          var k = 1024;
+          var sizes = ['B', 'KB', 'MB', 'GB'];
+          var i = Math.floor(Math.log(bytes) / Math.log(k));
+          return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+        };
+
+        var sizeStr = '占用：' + fmtSize(stats.size);
+        if (stats.vbCount) {
+          sizeStr += '（含通话语音条 ' + stats.vbCount + ' 枚 · 约 ' + fmtSize(stats.vbSize) + '）';
+        }
+        se.textContent = sizeStr;
+      }
+    }
+
+    async function optimizedRenderChatMgr() {
+      var list = document.getElementById('cm-friend-list');
+      if (!list) return;
+
+      if (typeof window.loadCfgs === 'function') await window.loadCfgs();
+      try {
+        if (typeof window.loadAbout === 'function') window._about = await window.loadAbout();
+      } catch (e) {}
+
+      var groups = [];
+      try {
+        if (typeof window.dbGetAll === 'function') groups = await window.dbGetAll('groups');
+      } catch (e) {}
+
+      var stats = _dataStatsCache;
+      if (!stats || (Date.now() - _dataStatsTime > 30000)) {
+        stats = await getChatStatsLightweight();
+        _dataStatsCache = stats;
+        _dataStatsTime = Date.now();
+      }
+
+      var by = stats.byFriend || {};
+      var fids = Object.keys(by);
+      list.innerHTML = '';
+      if (!fids.length) {
+        list.innerHTML = '<div class="empty" style="padding:14px">还没有聊天记录</div>';
+        return;
+      }
+
+      var frag = document.createDocumentFragment();
+      var escFn = (typeof window.esc === 'function') ? window.esc : function(s) { return String(s || ''); };
+      var labelFn = (typeof window._cmLabel === 'function') ? window._cmLabel : function(id) { return id; };
+
+      fids.forEach(function(fid) {
+        var row = document.createElement('label');
+        row.className = 'cmf-row';
+        row.innerHTML =
+          '<input type="checkbox" class="cm-cb" value="' + escFn(fid) + '">' +
+          '<span class="ckb"></span>' +
+          '<span class="cmf-nm">' + escFn(labelFn(fid, groups)) + '</span>' +
+          '<b class="cmf-n">' + (by[fid] || 0) + ' 条</b>';
+        frag.appendChild(row);
+      });
+      list.appendChild(frag);
+    }
+
+    async function optimizedRenderDataSum() {
+      var box = document.getElementById('data-counts');
+      if (!box) return;
+      box.innerHTML = '';
+
+      var syncStores = window.SYNC_STORES || [
+        'about','apiConfigs','chatMessages','chatThreads','chatSummaries','groups',
+        'uploadedFiles','memories','autoMemory','apiSettings','calEvents','calNotes',
+        'calLedger','posts','categories','letters','blogComments','blogAnnotations',
+        'projects','projectFiles','feed'
+      ];
+      var storeCn = window.STORE_CN || {};
+
+      var frag = document.createDocumentFragment();
+      var placeHolders = {};
+
+      for (var i = 0; i < syncStores.length; i++) {
+        var s = syncStores[i];
+        var d = document.createElement('div');
+        d.className = 'dc';
+        d.innerHTML = '<div class="dc-num" id="dc-cnt-' + s + '">…</div><div class="dc-label">' + (storeCn[s] || s) + '</div>';
+        frag.appendChild(d);
+        placeHolders[s] = d.querySelector('#dc-cnt-' + s);
+      }
+      box.appendChild(frag);
+
+      var idx = 0;
+      async function nextBatch() {
+        var end = Math.min(idx + 4, syncStores.length);
+        for (var k = idx; k < end; k++) {
+          var storeName = syncStores[k];
+          var num = 0;
+          try {
+            if (typeof window.dbCount === 'function') num = await window.dbCount(storeName);
+          } catch (e) {}
+          if (placeHolders[storeName]) {
+            placeHolders[storeName].textContent = num;
+          }
+        }
+        idx = end;
+        if (idx < syncStores.length) {
+          setTimeout(nextBatch, 16);
+        }
+      }
+      setTimeout(nextBatch, 20);
+    }
+
+    function applyDataHooks() {
+      if (typeof window.ahRefresh === 'function' && !window.ahRefresh._ibPerfHooked) {
+        window.origAhRefresh = window.ahRefresh;
+        window.ahRefresh = function(force) { return optimizedAhRefresh(force); };
+        window.ahRefresh._ibPerfHooked = true;
+      }
+      if (typeof window.renderChatMgr === 'function' && !window.renderChatMgr._ibPerfHooked) {
+        window.origRenderChatMgr = window.renderChatMgr;
+        window.renderChatMgr = function() { return optimizedRenderChatMgr(); };
+        window.renderChatMgr._ibPerfHooked = true;
+      }
+      if (typeof window.renderDataSum === 'function' && !window.renderDataSum._ibPerfHooked) {
+        window.origRenderDataSum = window.renderDataSum;
+        window.renderDataSum = function() { return optimizedRenderDataSum(); };
+        window.renderDataSum._ibPerfHooked = true;
+      }
+
+      if (window.SEC_RENDER) {
+        window.SEC_RENDER['data:io'] = function() {
+          optimizedAhRefresh();
+          optimizedRenderChatMgr();
+        };
+        window.SEC_RENDER['data:sum'] = function() {
+          optimizedRenderDataSum();
+        };
+      }
+    }
+
+    applyDataHooks();
+    setInterval(applyDataHooks, 2000);
+  })();
+
 })();
 
