@@ -85,7 +85,8 @@
       '  font-size:16px!important;touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}',
       'input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="image"]):focus,',
       'textarea:focus,select:focus,[contenteditable]:focus{font-size:16px!important}',
-      'input::placeholder,textarea::placeholder{font-size:inherit}'
+      'input::placeholder,textarea::placeholder{font-size:inherit}',
+      '#conv .cv-input,.cv-input,#cv-selbar{margin-bottom:8px!important}'
     ].join('\n');
 
     var st = document.getElementById('ib-lock-zoom-css');
@@ -7949,46 +7950,251 @@
     hookActionSheetForLocation();
   }, 1500);
 
-  /* ══════════ 13. 聊天输入与回复触发逻辑增强（回车发送、空输入触发AI） ══════════ */
+  /* ══════════ 13. 全局设置：分句发送与手动触发 AI 回复开关 ══════════ */
   // 用户需求：
-  // 1. 用户在输入框输入内容后按回车，消息直接发送出去；
-  // 2. 发送消息后不自动触发 AI 回复（支持连续输入/多轮发言）；
-  // 3. 当输入框为空时，按回车或点击发送键，AI 再进入回复。
+  // 在全局设置里面做一个开关：
+  // 打开：开启用户分句发送，然后手动触发 AI 角色回复；
+  // 关闭：默认用户发一句过去就回复。
   (function initChatInputAndReplyControl() {
     window._ibSuppressSendMsgReply = false;
 
-    // A. Hook genReply & genReplyGroup：当从输入框发消息时，抑制自动触发回复
-    function hookGenReply() {
-      if (typeof window.genReply === 'function' && !window.genReply._ibManualReplyHooked) {
-        var origGenReply = window.genReply;
-        window.origGenReply = origGenReply;
-        var hooked = function(cfg, internalCtx) {
-          if (window._ibSuppressSendMsgReply) {
-            console.info('[ChatControl] AI 自动回复已被抑制（等待输入框为空时回车或点击发送手动触发回复）');
-            return;
-          }
-          return origGenReply.apply(this, arguments);
-        };
-        hooked._ibManualReplyHooked = true;
-        window.genReply = hooked;
+    // 1. 读取与保存分句发送配置状态
+    function isManualReplyOn() {
+      try {
+        if (window._mp && window._mp.chat && typeof window._mp.chat.manualReply === 'boolean') {
+          return window._mp.chat.manualReply;
+        }
+      } catch (e) {}
+      try {
+        var stored = localStorage.getItem('ib_chat_manual_reply');
+        if (stored !== null) return stored === '1' || stored === 'true';
+      } catch (e) {}
+      return false;
+    }
+    window.isManualReplyOn = isManualReplyOn;
+
+    async function setManualReplyOn(on) {
+      var b = !!on;
+      try {
+        localStorage.setItem('ib_chat_manual_reply', b ? '1' : '0');
+      } catch (e) {}
+      try {
+        if (typeof window.loadMP === 'function') await window.loadMP();
+        if (window._mp) {
+          window._mp.chat = window._mp.chat || {};
+          window._mp.chat.manualReply = b;
+          if (typeof window.saveMP === 'function') await window.saveMP();
+        }
+      } catch (e) {
+        console.warn('[ManualReply] saveMP error:', e);
+      }
+      updateManualReplyUI();
+    }
+    window.setManualReplyOn = setManualReplyOn;
+
+    // 2. 注入全局设置（#sec-api-global）开关组件
+    function renderManualReplySetting() {
+      var globalSec = document.getElementById('sec-api-global');
+      if (!globalSec) return;
+
+      var existingTog = document.getElementById('tog-chat-manual-reply');
+      if (!existingTog) {
+        var chatBs = document.getElementById('chat-bs');
+        var tog = document.createElement('div');
+        tog.className = 'tog';
+        tog.id = 'tog-chat-manual-reply';
+        tog.innerHTML =
+          '<div class="tog-m">' +
+            '<div class="tog-t">分句发送 / 手动触发回复</div>' +
+            '<div class="tog-s">开启后发送消息不自动触发 AI 角色回复，方便多句连发；输入框右侧及上方可随时点击「召唤回复」让 TA 作答。关闭则为默认模式：用户发一句立即回复。</div>' +
+          '</div>' +
+          '<div class="sw2" id="chat-manual-reply"></div>';
+
+        if (chatBs && chatBs.closest('.tog')) {
+          chatBs.closest('.tog').after(tog);
+        } else {
+          var firstCard = globalSec.querySelector('.card');
+          if (firstCard) firstCard.appendChild(tog);
+          else globalSec.appendChild(tog);
+        }
+
+        var swEl = document.getElementById('chat-manual-reply');
+        if (swEl) {
+          swEl.addEventListener('click', async function(e) {
+            e.stopPropagation();
+            var cur = isManualReplyOn();
+            var next = !cur;
+            await setManualReplyOn(next);
+            if (typeof sw2 === 'function') sw2(swEl, next);
+            else swEl.classList.toggle('on', next);
+            if (typeof toast === 'function') {
+              toast(next ? '已开启分句发送（可连续多发，手动召唤回复）' : '已关闭分句发送（恢复默认：发一句立即回复）');
+            }
+          });
+        }
+
+        tog.addEventListener('click', function(e) {
+          if (e.target && e.target.closest && e.target.closest('.sw2')) return;
+          var s = document.getElementById('chat-manual-reply');
+          if (s) s.click();
+        });
       }
 
-      if (typeof window.genReplyGroup === 'function' && !window.genReplyGroup._ibManualReplyHooked) {
-        var origGenReplyGroup = window.genReplyGroup;
-        window.origGenReplyGroup = origGenReplyGroup;
-        var hookedGroup = function(pcfg, opt) {
-          if (window._ibSuppressSendMsgReply) {
-            console.info('[ChatControl] 群聊 AI 自动回复已被抑制（等待输入框为空时回车或点击发送手动触发回复）');
-            return;
-          }
-          return origGenReplyGroup.apply(this, arguments);
-        };
-        hookedGroup._ibManualReplyHooked = true;
-        window.genReplyGroup = hookedGroup;
+      var sw = document.getElementById('chat-manual-reply');
+      if (sw) {
+        var isOn = isManualReplyOn();
+        if (typeof sw2 === 'function') sw2(sw, isOn);
+        else sw.classList.toggle('on', isOn);
+      }
+    }
+    window.renderManualReplySetting = renderManualReplySetting;
+
+    // 3. 计算当前会话最后连续有多少条待回复的用户消息
+    function countPendingUserMessages() {
+      try {
+        var msgs = window._msgs;
+        if (!msgs && typeof _msgs !== 'undefined') msgs = _msgs;
+        if (!Array.isArray(msgs) || !msgs.length) return 0;
+        var count = 0;
+        for (var i = msgs.length - 1; i >= 0; i--) {
+          var m = msgs[i];
+          if (!m) continue;
+          if (m.role === 'user') count++;
+          else break;
+        }
+        return count;
+      } catch (e) {
+        return 0;
       }
     }
 
-    // B. 手动触发 AI 回复方法
+    // 4. 动态创建并管理聊天界面的「召唤回复」按钮与分句提示条
+    function setupChatManualReplyElements() {
+      var conv = document.getElementById('conv');
+      if (!conv) return;
+      var cvInput = conv.querySelector('.cv-input');
+      if (!cvInput) return;
+
+      // A. 输入框内的独立召唤回复按钮（位于发送按钮左侧）
+      var callBtn = document.getElementById('cv-manual-call-btn');
+      if (!callBtn) {
+        callBtn = document.createElement('button');
+        callBtn.type = 'button';
+        callBtn.className = 'cv-mini';
+        callBtn.id = 'cv-manual-call-btn';
+        callBtn.title = '召唤TA回复 (手动触发)';
+        callBtn.setAttribute('aria-label', '召唤TA回复');
+        callBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>';
+
+        var sendBtn = document.getElementById('cv-send');
+        if (sendBtn) cvInput.insertBefore(callBtn, sendBtn);
+        else cvInput.appendChild(callBtn);
+
+        callBtn.addEventListener('click', async function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          await onManualCallBtnClick();
+        });
+      }
+
+      // B. 输入框上方的分句待回复状态浮条
+      var hintBar = document.getElementById('cv-manual-hint-bar');
+      if (!hintBar) {
+        hintBar = document.createElement('div');
+        hintBar.id = 'cv-manual-hint-bar';
+        hintBar.innerHTML =
+          '<span class="mhb-txt"><span class="mhb-dot"></span><span id="cv-manual-hint-msg">已分句发送</span></span>' +
+          '<button type="button" class="mhb-btn" id="cv-manual-hint-btn">召唤回复 ✨</button>';
+
+        cvInput.parentNode.insertBefore(hintBar, cvInput);
+
+        var hintBtn = hintBar.querySelector('#cv-manual-hint-btn');
+        if (hintBtn) {
+          hintBtn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            await onManualCallBtnClick();
+          });
+        }
+      }
+    }
+
+    async function onManualCallBtnClick() {
+      var ta = document.getElementById('cv-ta');
+      var hasText = ta && ta.value.trim();
+      var hasAttach = false;
+      try {
+        if (typeof _pendImgs !== 'undefined' && Array.isArray(_pendImgs) && _pendImgs.length) hasAttach = true;
+        if (typeof _pendFiles !== 'undefined' && Array.isArray(_pendFiles) && _pendFiles.length) hasAttach = true;
+        if (window._ibPendStk) hasAttach = true;
+      } catch (e) {}
+
+      // 如果当前输入框里还有刚敲完的字，先发送进聊天气泡
+      if (hasText || hasAttach) {
+        window._ibSuppressSendMsgReply = true;
+        try {
+          if (typeof window.origSendMsg === 'function') {
+            await window.origSendMsg();
+          } else if (typeof sendMsg === 'function') {
+            await sendMsg();
+          }
+        } finally {
+          window._ibSuppressSendMsgReply = false;
+        }
+      }
+
+      // 立即召唤回复
+      triggerManualAIReply();
+    }
+
+    function updateManualReplyUI() {
+      setupChatManualReplyElements();
+      var manualOn = isManualReplyOn();
+
+      var callBtn = document.getElementById('cv-manual-call-btn');
+      var hintBar = document.getElementById('cv-manual-hint-bar');
+
+      if (!manualOn) {
+        if (callBtn) callBtn.style.display = 'none';
+        if (hintBar) hintBar.style.display = 'none';
+        return;
+      }
+
+      if (callBtn) callBtn.style.display = 'flex';
+
+      // 检查当前是否正在回复生成中
+      var isSending = false;
+      try {
+        var cfg = window._activeCfg || (typeof _activeCfg !== 'undefined' ? _activeCfg : null);
+        if (cfg && typeof _convKey === 'function' && typeof _sendKeys !== 'undefined') {
+          isSending = _sendKeys.has(_convKey(cfg));
+        }
+      } catch (e) {}
+
+      var sendBtn = document.getElementById('cv-send');
+      if (sendBtn && sendBtn.classList.contains('stop')) isSending = true;
+
+      if (isSending) {
+        if (hintBar) hintBar.style.display = 'none';
+        return;
+      }
+
+      var pendingCount = countPendingUserMessages();
+      if (hintBar) {
+        if (pendingCount > 0) {
+          hintBar.style.display = 'flex';
+          var msgEl = document.getElementById('cv-manual-hint-msg');
+          if (msgEl) {
+            msgEl.textContent = '已连续发送 ' + pendingCount + ' 句 · 等待召唤回复';
+          }
+        } else {
+          hintBar.style.display = 'none';
+        }
+      }
+    }
+    window.updateManualReplyUI = updateManualReplyUI;
+
+    // 5. 手动触发 AI 回复方法
     function triggerManualAIReply(cfg) {
       cfg = cfg || window._activeCfg;
       if (!cfg) {
@@ -7996,7 +8202,10 @@
           if (typeof _activeCfg !== 'undefined' && _activeCfg) cfg = _activeCfg;
         } catch (e) {}
       }
-      if (!cfg) return;
+      if (!cfg) {
+        if (typeof toast === 'function') toast('未找到有效会话');
+        return;
+      }
 
       // 检查当前会话是否正在回复中
       try {
@@ -8008,12 +8217,14 @@
           k = _keyOf(cfg.id, th ? th.id : '');
         }
         if (k && typeof _sendKeys !== 'undefined' && _sendKeys.has(k)) {
+          if (typeof toast === 'function') toast('AI 正在回复中，请稍候…');
           return;
         }
       } catch (e) {}
 
       var sendBtn = document.getElementById('cv-send');
       if (sendBtn && sendBtn.classList.contains('stop')) {
+        if (typeof toast === 'function') toast('AI 正在回复中，请稍候…');
         return;
       }
 
@@ -8025,6 +8236,9 @@
 
       // 确保解除抑制标记
       window._ibSuppressSendMsgReply = false;
+
+      var name = (typeof cfgName === 'function') ? cfgName(cfg) : (cfg.name || 'TA');
+      if (typeof toast === 'function') toast('已召唤 ' + name + ' 回复…');
 
       // 触发生成回复
       if (cfg._group) {
@@ -8041,15 +8255,56 @@
           genReply(cfg);
         }
       }
+
+      var hintBar = document.getElementById('cv-manual-hint-bar');
+      if (hintBar) hintBar.style.display = 'none';
+    }
+    window.triggerManualAIReply = triggerManualAIReply;
+
+    // 6. Hook genReply & genReplyGroup：仅在分句发送且抑制标记为 true 时抑制自动回复
+    function hookGenReply() {
+      if (typeof window.genReply === 'function' && !window.genReply._ibManualReplyHooked) {
+        var origGenReply = window.genReply;
+        window.origGenReply = origGenReply;
+        var hooked = function(cfg, internalCtx) {
+          if (isManualReplyOn() && window._ibSuppressSendMsgReply) {
+            console.info('[ChatControl] 分句发送模式：AI 自动回复已抑制，等待手动触发');
+            return;
+          }
+          return origGenReply.apply(this, arguments);
+        };
+        hooked._ibManualReplyHooked = true;
+        window.genReply = hooked;
+      }
+
+      if (typeof window.genReplyGroup === 'function' && !window.genReplyGroup._ibManualReplyHooked) {
+        var origGenReplyGroup = window.genReplyGroup;
+        window.origGenReplyGroup = origGenReplyGroup;
+        var hookedGroup = function(pcfg, opt) {
+          if (isManualReplyOn() && window._ibSuppressSendMsgReply) {
+            console.info('[ChatControl] 群聊分句发送模式：AI 自动回复已抑制，等待手动触发');
+            return;
+          }
+          return origGenReplyGroup.apply(this, arguments);
+        };
+        hookedGroup._ibManualReplyHooked = true;
+        window.genReplyGroup = hookedGroup;
+      }
     }
 
-    // C. Hook sendMsg：处理有内容发消息（抑制AI回复）与无内容（触发AI回复）
+    // 7. Hook sendMsg：根据开关状态精确执行
     function hookSendMsg() {
       if (typeof window.sendMsg === 'function' && !window.sendMsg._ibManualReplyHooked) {
         var origSendMsg = window.sendMsg;
         window.origSendMsg = origSendMsg;
 
         var hookedSendMsg = async function() {
+          // 开关关闭状态下：完全恢复原生默认行为（发一句回一句）
+          if (!isManualReplyOn()) {
+            window._ibSuppressSendMsgReply = false;
+            return await origSendMsg.apply(this, arguments);
+          }
+
           var ta = document.getElementById('cv-ta');
           var val = ta ? ta.value.trim() : '';
 
@@ -8060,24 +8315,27 @@
             if (window._ibPendStk) hasAttach = true;
           } catch (e) {}
 
-          // 1. 输入框为空且无附件：触发 AI 回复
+          // 分句发送模式下：
+          // A. 输入框为空且无附件：触发 AI 回复
           if (!val && !hasAttach) {
-            if (ta && ta.value) {
-              ta.value = '';
-              if (typeof autoGrow === 'function') autoGrow();
+            var count = countPendingUserMessages();
+            if (count > 0) {
+              triggerManualAIReply();
+            } else {
+              if (typeof toast === 'function') toast('请输入消息后再发送，或点击「召唤回复」');
             }
-            triggerManualAIReply();
             return;
           }
 
-          // 2. 输入框有内容或有附件：发送消息，但不触发 AI 回复
+          // B. 输入框有内容或有附件：发送消息，但不触发 AI 回复
           window._ibSuppressSendMsgReply = true;
           try {
             return await origSendMsg.apply(this, arguments);
           } finally {
             setTimeout(function() {
               window._ibSuppressSendMsgReply = false;
-            }, 80);
+              updateManualReplyUI();
+            }, 60);
           }
         };
 
@@ -8086,33 +8344,78 @@
       }
     }
 
-    // D. 键盘回车监听（捕获模式）：输入框内按 Enter 键发送消息或触发 AI
+    // 8. 键盘回车监听（捕获模式）：输入框内按 Enter 键发送消息或触发 AI
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.keyCode === 13) {
         var target = e.target;
         if (!target || target.id !== 'cv-ta') return;
-        // 中文/日文输入法合成中（未按下选词确认）不处理
+        // 中文/日文输入法合成中不处理
         if (e.isComposing || e.keyCode === 229) return;
         // Shift + Enter 保持原生换行体验
         if (e.shiftKey) return;
 
-        // 阻止默认回车换行
         e.preventDefault();
 
-        // 调用经过改造的 sendMsg
         if (typeof window.sendMsg === 'function') {
           window.sendMsg();
         }
       }
     }, true);
 
-    // E. 立即执行与保活
+    // 9. 联动生命周期：会话切换与设置页打开
+    function hookLifecycle() {
+      if (typeof window.openConv === 'function' && !window.openConv._ibManualReplyHooked) {
+        var origOpenConv = window.openConv;
+        window.origOpenConv = origOpenConv;
+        var hookedOpenConv = async function() {
+          var res = await origOpenConv.apply(this, arguments);
+          setTimeout(updateManualReplyUI, 60);
+          return res;
+        };
+        hookedOpenConv._ibManualReplyHooked = true;
+        window.openConv = hookedOpenConv;
+      }
+
+      if (typeof window.renderApiGlobal === 'function' && !window.renderApiGlobal._ibManualReplyHooked) {
+        var origRenderApiGlobal = window.renderApiGlobal;
+        window.origRenderApiGlobal = origRenderApiGlobal;
+        var hookedRenderApiGlobal = async function() {
+          var res = await origRenderApiGlobal.apply(this, arguments);
+          renderManualReplySetting();
+          return res;
+        };
+        hookedRenderApiGlobal._ibManualReplyHooked = true;
+        window.renderApiGlobal = hookedRenderApiGlobal;
+      }
+
+      if (typeof window.sendBtnState === 'function' && !window.sendBtnState._ibManualReplyHooked) {
+        var origSendBtnState = window.sendBtnState;
+        window.origSendBtnState = origSendBtnState;
+        var hookedSendBtnState = function(sending) {
+          var res = origSendBtnState.apply(this, arguments);
+          setTimeout(updateManualReplyUI, 60);
+          return res;
+        };
+        hookedSendBtnState._ibManualReplyHooked = true;
+        window.sendBtnState = hookedSendBtnState;
+      }
+    }
+
+    // 10. 立即执行与保活
     hookGenReply();
     hookSendMsg();
+    hookLifecycle();
+    renderManualReplySetting();
+    updateManualReplyUI();
+
     setInterval(function() {
       hookGenReply();
       hookSendMsg();
+      hookLifecycle();
+      renderManualReplySetting();
+      updateManualReplyUI();
     }, 1200);
   })();
 
 })();
+

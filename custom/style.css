@@ -63,3 +63,86 @@ input::placeholder,
 textarea::placeholder {
   font-size: inherit;
 }
+
+/* 5. 聊天输入框与选择栏底部空白消除：紧贴屏幕底部，消除多余抬高空白 */
+#conv .cv-input,
+.cv-input,
+#cv-selbar {
+  margin-bottom: 8px !important;
+}
+
+/* 6. 分句发送与手动触发回复 UI 样式 */
+#cv-manual-hint-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 12px 6px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(246, 249, 255, 0.92);
+  border: 1px solid var(--glass-line, rgba(255, 255, 255, 0.65));
+  box-shadow: 0 4px 16px rgba(20, 35, 70, 0.08);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  font-size: 0.76rem;
+  color: var(--tx2, #4a5d78);
+  z-index: 25;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+body.theme-infernal #cv-manual-hint-bar {
+  background: rgba(20, 28, 48, 0.92);
+  border-color: var(--glass-line, rgba(160, 195, 245, 0.2));
+  color: var(--tx, #dce7f8);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.36);
+}
+#cv-manual-hint-bar .mhb-txt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#cv-manual-hint-bar .mhb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acc, #2a6bb8);
+  flex: none;
+  box-shadow: 0 0 6px var(--acc, #2a6bb8);
+}
+#cv-manual-hint-bar .mhb-btn {
+  border: none;
+  background: var(--acc, #2a6bb8);
+  color: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(42, 107, 184, 0.32);
+  white-space: nowrap;
+  flex: none;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+#cv-manual-hint-bar .mhb-btn:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+#cv-manual-call-btn {
+  color: var(--acc, #2a6bb8) !important;
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+#cv-manual-call-btn svg {
+  width: 19px;
+  height: 19px;
+  fill: currentColor;
+}
+#cv-manual-call-btn:active {
+  transform: scale(0.92);
+}
