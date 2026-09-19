@@ -236,14 +236,46 @@ app.post('/api/proxy', async (req, res) => {
   }
 });
 
+// 辅助函数：根据 AGENTS.md 规范，非侵入式动态修饰 HTML（确保视口不被缩放并注入自定义样式）
+function getProcessedIndexHtml() {
+  let html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8');
+  // 1. 确保 viewport 锁定防缩放
+  html = html.replace(
+    /<meta\s+name=["']viewport["'][^>]*>/i,
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">'
+  );
+  // 2. 注入 custom/style.css
+  if (!html.includes('custom/style.css')) {
+    html = html.replace(
+      '</head>',
+      '  <link rel="stylesheet" href="./custom/style.css">\n</head>'
+    );
+  }
+  return html;
+}
+
+// 根路由与 index.html 请求拦截，动态交付防缩放页面
+app.get(['/', '/index.html'], (req, res) => {
+  try {
+    const html = getProcessedIndexHtml();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.send(html);
+  } catch (e) {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  }
+});
+
 // Serve static assets with appropriate headers
 app.use(express.static(__dirname, {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.webmanifest')) {
       res.setHeader('Content-Type', 'application/manifest+json');
     }
-    // Disable browser caching for core html, js, and service worker to prevent version rollback
-    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.includes('custom')) {
+    // Disable browser caching for core html, js, css, and service worker to prevent version rollback
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.includes('custom')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
@@ -258,10 +290,16 @@ app.post(['*browser-native*', '*/audio/transcriptions'], (req, res) => {
 
 // Fallback all other routes to index.html for SPA behavior
 app.get('*', (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.sendFile(path.join(__dirname, 'index.html'));
+  try {
+    const html = getProcessedIndexHtml();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.send(html);
+  } catch (e) {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  }
 });
 
 app.listen(PORT, HOST, () => {

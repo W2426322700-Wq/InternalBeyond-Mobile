@@ -44,22 +44,98 @@
   'use strict';
 
   // ----------------------------------------------------
-  // 1. 移动端触摸与手势防护
+  // 1. 移动端触摸与手势防护（杜绝输入框聚焦整页自动放大）
   // ----------------------------------------------------
   try {
-    if (!document.getElementById('ib-lock-zoom-css')) {
-      var st = document.createElement('style');
-      st.id = 'ib-lock-zoom-css';
-      st.textContent = 'html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}';
-      document.head.appendChild(st);
+    // 强制视口配置：禁止移动端由于输入聚焦或手势导致页面缩放
+    var enforceNoZoomVp = function () {
+      try {
+        var vp = document.querySelector('meta[name="viewport"]');
+        var targetVp = 'width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover';
+        if (!vp) {
+          vp = document.createElement('meta');
+          vp.name = 'viewport';
+          document.head.appendChild(vp);
+        }
+        if (vp.getAttribute('content') !== targetVp) {
+          vp.setAttribute('content', targetVp);
+        }
+      } catch (e) {}
+    };
+    enforceNoZoomVp();
+
+    // 确保外挂 custom/style.css 正常注入
+    if (!document.getElementById('ib-custom-style-link')) {
+      var lk = document.createElement('link');
+      lk.id = 'ib-custom-style-link';
+      lk.rel = 'stylesheet';
+      lk.href = './custom/style.css';
+      document.head.appendChild(lk);
     }
 
+    // 核心防缩放与输入框 16px 保障样式（避免网络请求延迟，立即生效）
+    var zoomCssRules = [
+      'html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}',
+      'input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="image"]),',
+      'textarea,select,[contenteditable],[contenteditable="true"],',
+      '.f-group input,.f-group textarea,.f-inline,.sel select,.ov2-sel select,.cr-who select,',
+      '.spill input,.cr-spill input,.bsearch,.letter-search-input,#bx-search-in,.bx-cin input,',
+      '.ask-free input,.ask-dock-free input,#anno-input-bar input,#sheet-msgedit textarea,#icf-body,',
+      '#pfc-ta,.kao-add input,.tkb-price input,#bt-svc,.ncm-inl input,.ibw-idwrap input,.ci-fin input,.ci-ta,.ib-tc-input{',
+      '  font-size:16px!important;touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}',
+      'input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="image"]):focus,',
+      'textarea:focus,select:focus,[contenteditable]:focus{font-size:16px!important}',
+      'input::placeholder,textarea::placeholder{font-size:inherit}'
+    ].join('\n');
+
+    var st = document.getElementById('ib-lock-zoom-css');
+    if (!st) {
+      st = document.createElement('style');
+      st.id = 'ib-lock-zoom-css';
+      document.head.appendChild(st);
+    }
+    st.textContent = zoomCssRules;
+
+    // 手势与多指触控防缩放
     var noop = function (e) {
       if (e.cancelable) e.preventDefault();
     };
     document.addEventListener('gesturestart', noop, { passive: false });
     document.addEventListener('gesturechange', noop, { passive: false });
     document.addEventListener('gestureend', noop, { passive: false });
+
+    // 防止快速双击导致误缩放（保留输入控件双击选中文字功能）
+    var lastTouchEnd = 0;
+    document.addEventListener('touchend', function (e) {
+      var now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        if (e.target && !/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/i.test(e.target.tagName)) {
+          if (e.cancelable) e.preventDefault();
+        }
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    // 聚焦与失焦看护：如果因任何极端原因导致视口被拉伸放大，失焦后立即重置还原
+    document.addEventListener('focusin', function (e) {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/i.test(e.target.tagName)) {
+        enforceNoZoomVp();
+      }
+    }, true);
+
+    document.addEventListener('focusout', function (e) {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/i.test(e.target.tagName)) {
+        enforceNoZoomVp();
+        setTimeout(function () {
+          try {
+            if (window.visualViewport && window.visualViewport.scale > 1) {
+              enforceNoZoomVp();
+            }
+            window.scrollTo(0, window.scrollY || 0);
+          } catch (x) {}
+        }, 120);
+      }
+    }, true);
 
     // 白屏看门狗
     setTimeout(function () {
@@ -4902,7 +4978,7 @@
           } catch(e) {}
           return lsData;
         } else {
-          return idbData.length >= lsData.length ? idbData : lsData;
+          return (lsData && lsData.length > idbData.length) ? lsData : (idbData || lsData);
         }
       }
 
@@ -4927,6 +5003,8 @@
 
     async function setStoredMemories(list) {
       if (!Array.isArray(list)) list = [];
+      _evtMems = list;
+      window._evtMems = list;
       const now = Date.now();
       try {
         localStorage.setItem('ib_custom_event_memories', JSON.stringify(list));
@@ -4994,14 +5072,19 @@
 
     window.getStoredEventMemories = getStoredMemories;
     window.setStoredEventMemories = setStoredMemories;
+    window._getEvtMemsInMemory = function() { return _evtMems; };
+    window._setEvtMemsInMemory = function(l) { if (Array.isArray(l)) { _evtMems = l; window._evtMems = l; } return _evtMems; };
     window.getStoredHistoryBackup = getStoredHistoryBackup;
     window.setStoredHistoryBackup = setStoredHistoryBackup;
 
     async function loadEventMemories() {
       const stored = await getStoredMemories();
       const inited = localStorage.getItem('ib_custom_event_memories_inited');
-      if (stored !== null) {
-        _evtMems = stored;
+      if (stored !== null && Array.isArray(stored)) {
+        if (!Array.isArray(_evtMems) || stored.length >= _evtMems.length) {
+          _evtMems = stored;
+          window._evtMems = _evtMems;
+        }
       } else if (!inited) {
         // 仅在首次使用且无任何持久化记录时初始化范例事件
         _evtMems = [
@@ -6607,12 +6690,12 @@
       title: summaryResult.title,
       summary: summaryResult.summary,
       content: summaryResult.content,
-      domain: summaryResult.domain,
-      tags: summaryResult.tags,
-      importance: summaryResult.importance,
+      domain: summaryResult.domain || '日常',
+      tags: summaryResult.tags || ['对话沉淀'],
+      importance: summaryResult.importance || 6,
       pinned: false,
-      visibility: cfg.id ? 'only' : 'all',
-      visibleTo: cfg.id ? [cfg.id] : [],
+      visibility: 'all',
+      visibleTo: [],
       excludeFrom: [],
       hasEmbedding: !!(embeddingVec && embeddingVec.length > 0),
       embedding: embeddingVec || null,
@@ -6624,28 +6707,72 @@
     // 存入记忆房间（支持双重持久化 IndexedDB + localStorage）
     try {
       let list = [];
-      if (typeof window.getStoredEventMemories === 'function') {
-        list = await window.getStoredEventMemories() || [];
+      if (typeof window._getEvtMemsInMemory === 'function' && Array.isArray(window._getEvtMemsInMemory()) && window._getEvtMemsInMemory().length > 0) {
+        list = window._getEvtMemsInMemory().slice();
+      } else if (typeof window.getStoredEventMemories === 'function') {
+        list = (await window.getStoredEventMemories()) || [];
       } else {
         const raw = localStorage.getItem('ib_custom_event_memories');
         list = raw ? JSON.parse(raw) : [];
       }
       if (!Array.isArray(list)) list = [];
+      
+      // 避免重复
+      list = list.filter(x => x && x.id !== memItem.id);
       list.unshift(memItem);
+      
+      if (typeof window._setEvtMemsInMemory === 'function') {
+        window._setEvtMemsInMemory(list);
+      }
       
       if (typeof window.setStoredEventMemories === 'function') {
         await window.setStoredEventMemories(list);
       } else {
         localStorage.setItem('ib_custom_event_memories', JSON.stringify(list));
       }
+
+      // 双向同步存入原生 IndexedDB 'memories' 表，确保原生记忆库与对话检索召回均能直接读取
+      try {
+        const dbFn = typeof dbPut === 'function' ? dbPut : window.dbPut;
+        if (dbFn) {
+          await dbFn('memories', {
+            id: memItem.id,
+            title: memItem.title,
+            summary: memItem.summary,
+            content: memItem.content,
+            domain: memItem.domain || '日常',
+            importance: memItem.importance || 6,
+            tags: memItem.tags || [],
+            valence: 0.5,
+            arousal: 0.3,
+            pinned: false,
+            resolved: false,
+            visibility: 'public',
+            visibleTo: [],
+            excludeFrom: [],
+            rawSource: '副API总结',
+            sourceId: cfg.id || '',
+            activationCount: 0,
+            created: Date.now(),
+            lastActivated: Date.now(),
+            createdBy: cfg.id || 'user',
+            createdByName: aiName,
+            editedByUser: false
+          });
+        }
+      } catch(e) { console.warn('[MemoryRoom] 同步至原生 memories 表异常:', e); }
+
       _lastAutoSavedMsgCount = (window._msgs || []).length;
       try {
         localStorage.setItem('ib_last_summarized_msg_count_' + (cfg.id || 'default'), String(actualEndIdx));
       } catch(e) {}
       
-      // 若当前正停留在记忆房间，立即重绘
+      // 立即重绘记忆房间与原生记忆库
       if (typeof window.renderEventMemLib === 'function') {
-        window.renderEventMemLib();
+        try { await window.renderEventMemLib(); } catch(e){}
+      }
+      if (typeof window.renderMemLib === 'function') {
+        try { window.renderMemLib(); } catch(e){}
       }
     } catch(err) {
       console.error('[MemoryRoom] 写入记忆房间失败:', err);
@@ -6956,26 +7083,29 @@
     });
   }
 
-  // ── 聊天消息计数器与自动触发监听 ──
-  let _lastAutoSavedMsgCount = 0;
+  // ── 聊天消息计数器与自动触发监听（按 AI 角色独立追踪，防止切换角色误触） ──
+  const _lastAutoSavedMsgCountMap = {};
   function checkAutoMemoryRoomTrigger() {
     const isAutoOn = localStorage.getItem('ib_amr_auto_enabled') === 'true';
     if (!isAutoOn) return;
+
+    const cfg = (typeof getActiveCharacterConfig === 'function' ? getActiveCharacterConfig() : null) || {};
+    const cid = cfg.id || 'default';
 
     const msgs = window._msgs || [];
     if (msgs.length < 5) return;
 
     const threshold = parseInt(localStorage.getItem('ib_amr_auto_threshold'), 10) || 20;
     
-    // 初始化基线
-    if (_lastAutoSavedMsgCount === 0) {
-      _lastAutoSavedMsgCount = msgs.length;
+    // 初始化该 AI 角色的计数基线
+    if (_lastAutoSavedMsgCountMap[cid] === undefined) {
+      _lastAutoSavedMsgCountMap[cid] = msgs.length;
       return;
     }
 
-    if (msgs.length - _lastAutoSavedMsgCount >= threshold) {
-      _lastAutoSavedMsgCount = msgs.length;
-      console.log('[AutoMemoryRoom] 触发自动沉淀，对话增长数:', threshold);
+    if (msgs.length - _lastAutoSavedMsgCountMap[cid] >= threshold) {
+      _lastAutoSavedMsgCountMap[cid] = msgs.length;
+      console.log('[AutoMemoryRoom] 触发自动沉淀，角色:', cid, '对话增长数:', threshold);
       window.saveToEventMemoryRoom({ count: threshold }).catch(e => {
         console.warn('[AutoMemoryRoom] 自动沉淀跳过或失败:', e);
       });

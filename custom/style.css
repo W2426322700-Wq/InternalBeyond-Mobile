@@ -1,0 +1,65 @@
+/**
+ * InternalBeyond Mobile - 自定义移动端防缩放补丁样式 (custom/style.css)
+ * 解决移动设备（如 iOS Safari、Android Chrome、各种 WebView 等）在点击聚焦输入框/文本域/下拉菜单时页面被自动放大的问题。
+ */
+
+/* 1. 视口与根元素触摸行为控制：禁止浏览器双击放大切换与文本自动缩放 */
+html,
+body {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 2. 核心防放大规则：所有输入框、文本域与下拉选择框的计算字体大小强制不低于 16px */
+/* iOS Safari 与部分移动端浏览器在发现输入控件 font-size < 16px 时，会自动触发整页缩放放大 */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="image"]),
+textarea,
+select,
+[contenteditable],
+[contenteditable="true"],
+.f-group input,
+.f-group textarea,
+.f-inline,
+.sel select,
+.ov2-sel select,
+.cr-who select,
+.spill input,
+.cr-spill input,
+.bsearch,
+.letter-search-input,
+#bx-search-in,
+.bx-cin input,
+.ask-free input,
+.ask-dock-free input,
+#anno-input-bar input,
+#sheet-msgedit textarea,
+#icf-body,
+#pfc-ta,
+.kao-add input,
+.tkb-price input,
+#bt-svc,
+.ncm-inl input,
+.ibw-idwrap input,
+.ci-fin input,
+.ci-ta,
+.ib-tc-input {
+  font-size: 16px !important;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 3. 聚焦时严格保持 16px，杜绝聚焦微动和放大判定 */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="image"]):focus,
+textarea:focus,
+select:focus,
+[contenteditable]:focus {
+  font-size: 16px !important;
+}
+
+/* 4. 占位符与输入框字体大小继承一致 */
+input::placeholder,
+textarea::placeholder {
+  font-size: inherit;
+}
