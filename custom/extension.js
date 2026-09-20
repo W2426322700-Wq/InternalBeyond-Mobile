@@ -8683,26 +8683,23 @@
   (function initAntiRollbackGuard() {
     'use strict';
 
-    // 1. 彻底清除 Service Worker 与浏览器中残留的历史冲突旧缓存，确保只运行最新版
+    // 1. 彻底清除所有历史 Service Worker 缓存，杜绝离线旧版降级与白屏刷新
     try {
       if ('caches' in window) {
         caches.keys().then(function(keys) {
           keys.forEach(function(key) {
-            // 只要发现旧版缓存或非当前活跃版本，立即自动清理
-            if (key !== 'ib-cache-v4') {
-              caches.delete(key).catch(function() {});
-            }
+            caches.delete(key).catch(function() {});
           });
         }).catch(function() {});
       }
     } catch(e) {}
 
-    // 2. Service Worker 强制同步最新脚本，禁止降级
+    // 2. 彻底注销所有历史 Service Worker，杜绝后台超时触发降级与静默重载
     try {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           regs.forEach(function(reg) {
-            reg.update().catch(function() {});
+            reg.unregister().catch(function() {});
           });
         }).catch(function() {});
       }
@@ -8737,7 +8734,7 @@
       } catch(e) {}
     }, 1000);
 
-    console.log('[IB] 防版本回退与交互稳定性安全加固模块已就绪。');
+    console.log('[IB] 防版本回退与交互稳定性安全加固模块已就绪（SW 已自动注销，缓存已全部清空）。');
   })();
 
 })();
