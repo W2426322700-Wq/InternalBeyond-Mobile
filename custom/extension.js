@@ -2766,74 +2766,11 @@
     reader.readAsText(file, 'utf-8');
   }
 
-  function setupBlogEditorImport() {
-    // 隐藏的文件选择控件（单例）
-    var fileInput = document.getElementById('ib-blog-file-input');
-    if (!fileInput) {
-      fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = '.txt,.md,.markdown,text/plain,text/markdown';
-      fileInput.style.display = 'none';
-      fileInput.id = 'ib-blog-file-input';
-      document.body.appendChild(fileInput);
-
-      fileInput.addEventListener('change', function () {
-        if (this.files && this.files[0]) {
-          applyFileContent(this.files[0]);
-        }
-      });
-    }
-
-    // 1. 移动端主编辑器容器：#sub-blog-editor .ed-meta-row
-    var metaRow = document.querySelector('#sub-blog-editor .ed-meta-row');
-    if (metaRow && !metaRow.querySelector('.ib-blog-import-btn')) {
-      var importBtn = document.createElement('button');
-      importBtn.type = 'button';
-      importBtn.className = 'ib-blog-import-btn';
-      importBtn.title = '导入文件 (.txt / .md)';
-      importBtn.setAttribute('aria-label', '导入');
-      // 纯净的文件上传图标（托盘 + 向上箭头）
-      importBtn.innerHTML = `
-        <svg viewBox="0 0 24 24">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-      `;
-      importBtn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        fileInput.value = '';
-        fileInput.click();
-      });
-      metaRow.appendChild(importBtn);
-    }
-
-    // 2. 拖拽支持
-    var contentEl = document.getElementById('m-ed-content');
-    if (contentEl && !contentEl._ibDropBound) {
-      contentEl._ibDropBound = true;
-      contentEl.addEventListener('dragover', function (e) {
-        e.preventDefault();
-        contentEl.classList.add('drag-over');
-      });
-      contentEl.addEventListener('dragleave', function (e) {
-        e.preventDefault();
-        contentEl.classList.remove('drag-over');
-      });
-      contentEl.addEventListener('drop', function (e) {
-        e.preventDefault();
-        contentEl.classList.remove('drag-over');
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-          applyFileContent(e.dataTransfer.files[0]);
-        }
-      });
-    }
-  }
+  function setupBlogEditorImport() {}
 
   function initEnhancer() {
     injectStyles();
-    setupBlogEditorImport();
+    // setupBlogEditorImport(); // Removed custom upload button to prevent conflict with author native import
 
     // 安全守护 edStatsM，防止 DOM 未就绪或局部缺失时抛出 null textContent 异常
     if (typeof window.edStatsM === 'function' && !window.edStatsM._guarded) {
